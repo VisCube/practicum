@@ -510,7 +510,7 @@
 
     const voiceOutOn = bindToggle(ui.optVoiceOut, { key: 'voiceOut', defaultValue: true,  onChange: (on) => { if (!on) stopSpeaking(); } });
     const micOn      = bindToggle(ui.optMic,      { key: 'micOn',    defaultValue: true,  onChange: (on) => { if (!on) stopListening(false); } });
-    const bargeInOn  = bindToggle(ui.optBargeIn,  { key: 'bargeIn',  defaultValue: true });
+    const bargeInOn  = bindToggle(ui.optBargeIn,  { key: 'bargeIn',  defaultValue: false });
 
     /* =========================================================
        Лог разговора (для копирования / скачивания)
