@@ -103,6 +103,7 @@ class Appeal(BaseModel):
     transcript: list[Turn] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=_now)
     bitrix_deal_id: str | None = None
+    channel_link: str | None = None      # ссылка на сообщение-заявку в публичном канале (если настроен)
 
 
 class CallSession(BaseModel):

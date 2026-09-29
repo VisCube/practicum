@@ -141,6 +141,7 @@ pip install -e ".[local]"    # + vosk + piper-tts (если нужны лока�
 | `LLM_API_KEY` | ключ LLM |
 | `LLM_MODEL` | имя модели |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | только для `CRM_ADAPTER=telegram` |
+| `TELEGRAM_CHANNEL_USERNAME` | опционально: username публичного канала — на него ссылается заявка |
 | `VOSK_MODEL_PATH` | путь к модели Vosk (для `ASR_ADAPTER=vosk`) |
 | `PIPER_MODEL_PATH` | путь к модели Piper (для `TTS_ADAPTER=piper`) |
 

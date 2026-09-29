@@ -180,12 +180,14 @@ async def test_telegram_crm_sends_and_is_idempotent():
 
     inner_crm = InMemoryCrm()
     crm = TelegramCrm(inner_crm, "TOKEN", "-100",
+                      channel_username="my_channel",
                       slot_labels={"apartment": "Квартира"}, client=_tg_client(handler))
     appeal = _appeal()
     appeal.escalated, appeal.escalation_markers = True, ["прокуратура"]
     appeal.transcript = [Turn(role="user", text="течёт <сильно>")]
 
     assert await crm.create_deal(appeal) == "TG-42"
+    assert appeal.channel_link == "https://t.me/my_channel/42"
     assert await crm.create_deal(appeal) == "TG-42" and len(sent_requests) == 1
     request_body = sent_requests[0]
     assert "Заявка № " in request_body and "СРОЧНО" in request_body and "прокуратура" in request_body
@@ -193,6 +195,12 @@ async def test_telegram_crm_sends_and_is_idempotent():
     assert "sendMessage" in str(crm._url) and "TOKEN" in str(crm._url)
 
     assert (await crm.find_owner_by_phone("+79990000001")).apartment == "42"
+
+    # Без настроенного канала ссылка не формируется
+    crm_no_channel = TelegramCrm(InMemoryCrm(), "TOKEN", "-100", client=_tg_client(handler))
+    appeal2 = _appeal()
+    assert await crm_no_channel.create_deal(appeal2) == "TG-42"
+    assert appeal2.channel_link is None
 
 
 async def test_telegram_crm_errors_become_crm_error():

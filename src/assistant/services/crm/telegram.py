@@ -58,16 +58,24 @@ class TelegramCrm:
             bot_token: str,
             chat_id: str,
             *,
+            channel_username: str = "",
             slot_labels: dict[str, str] | None = None,
             client: httpx.AsyncClient | None = None,
             timeout: float = 10.0,
     ) -> None:
         self.inner = inner
         self.chat_id = chat_id
+        self.channel_username = channel_username
         self.labels = slot_labels or {}
         self._url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
         self._client = client or httpx.AsyncClient(timeout=timeout)
         self._sent: dict[str, str] = {}      # appeal.id -> deal_id
+
+    def _channel_link(self, message_id: int) -> str | None:
+        """Ссылка на сообщение в публичном канале; None, если канал не настроен"""
+        if not self.channel_username:
+            return None
+        return f"https://t.me/{self.channel_username}/{message_id}"
 
     async def find_owner_by_phone(self, phone: str) -> Owner | None:
         """Делегирует во вложенную CRM - у Telegram справочников нет"""
@@ -95,6 +103,7 @@ class TelegramCrm:
             raise CrmError(f"telegram: {response.status_code} {body.get('description') or response.text[:200]}")
         deal_id = f"TG-{body['result']['message_id']}"
         self._sent[appeal.id] = deal_id
+        appeal.channel_link = self._channel_link(body["result"]["message_id"])
         return deal_id
 
     async def aclose(self) -> None:

@@ -648,7 +648,10 @@
         const rec = (await api('/debug/outbox')).find((r) => r.appeal.id === appealId);
         if (rec?.status === 'sent') {
           box.className = 'crm ok';
-          box.innerHTML = `CRM: отправлено · сделка <b>${escapeHtml(rec.appeal.bitrix_deal_id)}</b>`;
+          const link = rec.appeal.channel_link
+            ? ` · <a href="${escapeHtml(rec.appeal.channel_link)}" target="_blank" rel="noopener">заявка в канале</a>`
+            : '';
+          box.innerHTML = `CRM: отправлено · сделка <b>${escapeHtml(rec.appeal.bitrix_deal_id)}</b>${link}`;
           record(`CRM: заявка №${appealId} отправлена, сделка ${rec.appeal.bitrix_deal_id}`);
           return;
         }

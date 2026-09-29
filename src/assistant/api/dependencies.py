@@ -92,6 +92,7 @@ def build_container(settings: Settings) -> Container:
             raise RuntimeError("CRM_ADAPTER=telegram: нужны TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID")
         from assistant.services.crm.telegram import TelegramCrm
         crm = TelegramCrm(demo_crm, settings.telegram_bot_token, settings.telegram_chat_id,
+                          channel_username=settings.telegram_channel_username,
                           slot_labels={s.id: s.label for s in classifier.slots.values()},
                           timeout=settings.outbox_crm_timeout)
         closeables.append(crm)

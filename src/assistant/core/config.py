@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     # Telegram (CRM_ADAPTER=telegram): заявки летят в чат диспетчера, справочники — из fake
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+    telegram_channel_username: str = ""   # публичный канал для заявок: username для ссылок на сообщения
 
     # Локальные модели (ASR_ADAPTER=vosk, TTS_ADAPTER=piper)
     vosk_model_path: str = "models/vosk-model-small-ru-0.22"
