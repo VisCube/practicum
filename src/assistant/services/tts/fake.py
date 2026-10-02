@@ -8,6 +8,6 @@ class FakeTts:
     def __init__(self) -> None:
         self.spoken: list[str] = []
 
-    async def synthesize(self, text: str) -> Audio:
+    async def synthesize(self, text: str, speaker: str | None) -> Audio:
         self.spoken.append(text)
         return Audio()

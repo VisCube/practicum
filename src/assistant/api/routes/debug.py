@@ -16,7 +16,7 @@ from assistant.services.crm.outbox import OutboxRecord
 from assistant.services.tts.base import TtsError
 from assistant.services.tts.fake import FakeTts
 
-from ..dependencies import Container, get_container
+from ..dependencies import Container, get_container, tts_voice_info
 from ..schemas.dto import DebugConfig, SessionView, TtsRequest, TtsResponse, TurnRequest, TurnResponse
 from .telephony import execute_turn
 
@@ -32,14 +32,16 @@ async def index() -> str:
 
 @router.get("/config", response_model=DebugConfig)
 async def config(container: Container = Depends(get_container)) -> DebugConfig:
-    """Информация о выбранной конфигурации - подключенных адаптерах"""
     settings = container.settings
+    speakers, speaker = tts_voice_info(container.tts)
     return DebugConfig(
         asr="fake" if isinstance(container.asr, FakeAsr) else settings.asr_adapter,
         tts="fake" if isinstance(container.tts, FakeTts) else settings.tts_adapter,
         llm=settings.llm_adapter if container.orchestrator.llm else "fake",
         crm=settings.crm_adapter,
         demo_phones=container.demo_phones,
+        tts_speakers=speakers,
+        tts_speaker=speaker,
     )
 
 
@@ -102,13 +104,15 @@ async def outbox(container: Container = Depends(get_container)) -> list[OutboxRe
 
 @router.post("/tts", response_model=TtsResponse)
 async def tts(payload: TtsRequest, container: Container = Depends(get_container)) -> TtsResponse:
-    """Озвучивает произвольный текст текущим TTS-адаптером — для подбора голоса и проверки фраз"""
     try:
-        audio = await container.tts.synthesize(payload.text)
+        audio = await container.tts.synthesize(payload.text, speaker=payload.speaker)
     except TtsError as exception:
         raise HTTPException(502, f"TTS: {exception}") from exception
+
+    used = payload.speaker or getattr(container.tts, "speaker", None)
     return TtsResponse(
         spoken=payload.text,
         audio_b64=None if audio.empty else base64.b64encode(audio.data).decode(),
         audio_mime=audio.mime,
+        speaker=used if isinstance(used, str) else None,
     )

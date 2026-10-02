@@ -35,6 +35,18 @@ def want_audio(request: Request) -> bool:
     """Стенд шлёт X-Audio: off, когда озвучка выключена — не гоняем TTS впустую. Телефония заголовок не шлёт."""
     return request.headers.get("x-audio", "on").lower() != "off"
 
+def want_tts_speaker(request: Request) -> str | None:
+    """X-Tts-Speaker — выбор голоса со стенда, дебаг онли"""
+    value = request.headers.get("x-tts-speaker", "").strip()
+    return value or None
+
+
+def tts_voice_info(tts: SpeechSynthesizer) -> tuple[list[str], str | None]:
+    """Список голосов и текущий дефолт, если поддерживает адаптер"""
+    speakers = list(getattr(tts, "speakers", None) or [])
+    speaker = getattr(tts, "speaker", None)
+    return speakers, speaker if isinstance(speaker, str) else None
+
 
 @dataclass
 class Container:
@@ -47,13 +59,19 @@ class Container:
     tts: SpeechSynthesizer
     closeables: list = field(default_factory=list)
 
-    async def to_response(self, call_id: str, reply: Reply, heard: str | None = None,
-                          *, with_audio: bool = True) -> TurnResponse:
-        """Формирует HTTP-ответ из реплики бота - при включённом аудио синтезирует речь через TTS, при сбое молча падает в текст"""
+    async def to_response(
+            self,
+            call_id: str,
+            reply: Reply,
+            heard: str | None = None,
+            *,
+            with_audio: bool = True,
+            tts_speaker: str | None = None,
+    ) -> TurnResponse:
         audio_b64, mime = None, "audio/ogg"
         if with_audio and reply.text:
             try:
-                audio = await self.tts.synthesize(reply.text)
+                audio = await self.tts.synthesize(reply.text, speaker=tts_speaker)
                 if not audio.empty:
                     audio_b64, mime = base64.b64encode(audio.data).decode(), audio.mime
             except TtsError as error:
@@ -119,6 +137,21 @@ def build_container(settings: Settings) -> Container:
     if settings.tts_adapter == "piper":
         from assistant.services.tts.piper import PiperTts
         tts = PiperTts(settings.piper_model_path)
+    elif settings.tts_adapter == "silero":
+        from assistant.services.tts.silero import SileroTts
+        tts = SileroTts(
+            settings.silero_model_path,
+            speaker=settings.silero_speaker or None,
+            sample_rate=settings.silero_sample_rate,
+            device=settings.silero_device,
+            put_accent=settings.silero_put_accent,
+            put_yo=settings.silero_put_yo,
+            normalize=settings.tts_normalize,
+            stress=settings.tts_stress,
+            use_ssml=settings.silero_ssml,
+            rate=settings.silero_rate,
+            pitch=settings.silero_pitch,
+        )
     else:
         tts = FakeTts()
 

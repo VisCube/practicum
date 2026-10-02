@@ -45,13 +45,17 @@ class DebugConfig(BaseModel):
     llm: str
     crm: str
     demo_phones: list[str]
+    tts_speakers: list[str] = Field(default_factory=list)
+    tts_speaker: str | None = None
 
 
 class TtsRequest(BaseModel):
     text: str
+    speaker: str | None = None
 
 
 class TtsResponse(BaseModel):
     spoken: str                     # текст, отправленный в TTS (зарезервировано для нормализации — пока равен запросу)
     audio_b64: str | None = None
     audio_mime: str = "audio/ogg"
+    speaker: str | None = None

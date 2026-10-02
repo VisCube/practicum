@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from assistant.core.models import CallState, Event, Reply
 from assistant.templates.phrases import say
 
-from ..dependencies import Container, get_container, want_audio
+from ..dependencies import Container, get_container, want_audio, want_tts_speaker
 from ..schemas.dto import StartRequest, TurnRequest, TurnResponse
 
 log = logging.getLogger(__name__)
@@ -33,7 +33,11 @@ async def execute_turn(container: Container, call_id: str, turn: Awaitable[Reply
             store.save(session)
     if reply.end_call:
         store.delete(call_id)
-    return await container.to_response(call_id, reply, heard=heard, with_audio=want_audio(request))
+    return await container.to_response(
+        call_id, reply, heard=heard,
+        with_audio=want_audio(request),
+        tts_speaker=want_tts_speaker(request),
+    )
 
 
 @router.post("/start", response_model=TurnResponse)

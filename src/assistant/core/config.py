@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 AsrAdapter = Literal["fake", "vosk"]
-TtsAdapter = Literal["fake", "piper"]
+TtsAdapter = Literal["fake", "piper", "silero"]
 LlmAdapter = Literal["fake", "openai"]
 CrmAdapter = Literal["fake", "telegram", "bitrix"]
 TelephonyAdapter = Literal["fake"]
@@ -60,6 +60,23 @@ class Settings(BaseSettings):
     # Локальные модели (ASR_ADAPTER=vosk, TTS_ADAPTER=piper)
     vosk_model_path: str = "models/vosk-model-small-ru-0.22"
     piper_model_path: str = "models/ru_RU-ruslan-medium.onnx"
+
+    # Silero TTS (TTS_ADAPTER=silero)
+    silero_model_path: str = "models/v5_cis_base.pt"
+    silero_speaker: str = ""
+    silero_sample_rate: int = 24000
+    silero_device: str = "cpu"
+    silero_put_accent: bool = True
+    silero_put_yo: bool = True
+
+    tts_normalize: bool = True               # rutextnorm
+    tts_stress: bool = True                  # silero-stress
+    silero_ssml: bool = True
+    silero_rate: str = "medium"              # x-slow|slow|medium|fast|x-fast
+    silero_pitch: str = "medium"             # x-low|low|medium|high|x-high
+
+    tts_normalize: bool = True
+    tts_stress: bool = True
 
     @property
     def classifier_path(self) -> Path:

@@ -316,6 +316,10 @@
             <input type="checkbox" id="optVoiceOut"><span class="track"></span>
             <span class="lbl">Озвучивать ответы бота</span>
         </label>
+        <label class="field" id="voiceField" hidden style="margin-top:10px">
+            <span>Голос TTS</span>
+            <select id="voiceSelect"></select>
+        </label>
         <label class="switch">
             <input type="checkbox" id="optMic"><span class="track"></span>
             <span class="lbl">Микрофон<small>нажать — сказать — нажать ещё раз, чтобы отправить</small></span>
@@ -437,6 +441,8 @@
       optVoiceOut: $('#optVoiceOut'),
       optMic: $('#optMic'),
       optBargeIn: $('#optBargeIn'),
+      voiceField: $('#voiceField'),
+      voiceSelect: $('#voiceSelect'),
       menuBtn: $('#menuBtn'),
       scrim: $('#scrim'),
     };
@@ -454,6 +460,7 @@
       channel: 'text',   // 'text' — реплика уходит боту текстом; 'tts' — через синтез и распознавание
       busy: false,
       ended: false,      // бот завершает разговор (договаривает прощание), ввод уже закрыт
+      ttsSpeaker: null,  // выбранный голос Silero (или null)
     };
     const micSupported = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
     const inCall = () => Boolean(app.callId) && !app.ended;
@@ -528,6 +535,7 @@
         'Демо-стенд · Ассистент УК',
         app.phone ? `Звонок: ${app.phone}` : null,
         c.asr ? `ASR ${c.asr} · TTS ${c.tts} · LLM ${c.llm} · CRM ${c.crm}` : null,
+        app.ttsSpeaker ? `Голос: ${app.ttsSpeaker}` : null,
         new Date().toLocaleString('ru-RU'),
         '',
       ].filter((line) => line !== null);
@@ -586,9 +594,10 @@
     }
     function addProbe(text, tts) {
       const spokenAs = tts.spoken && tts.spoken !== text ? `читаю как: «${tts.spoken}»` : '';
-      const head = ['проба TTS', app.cfg.tts, spokenAs].filter(Boolean).join(' · ');
+      const voice = tts.speaker || app.ttsSpeaker || app.cfg.tts;
+      const head = ['проба TTS', voice, spokenAs].filter(Boolean).join(' · ');
       appendToThread('probe', `<div class="head">${escapeHtml(head)}</div><div class="text">${escapeHtml(text)}</div>`);
-      record(`проба TTS: ${text}${spokenAs ? `  (${spokenAs})` : ''}`);
+      record(`проба TTS: ${text}${voice ? `  (${voice})` : ''}${spokenAs ? `  (${spokenAs})` : ''}`);
     }
 
     // escalated — угроза жалобы, заявка уйдёт с флагом, разговор продолжается
@@ -674,9 +683,38 @@
       if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
       return response.json();
     }
-    const audioHeader = () => ({ 'X-Audio': voiceOutOn() ? 'on' : 'off' });
+    const audioHeader = () => {
+      const h = { 'X-Audio': voiceOutOn() ? 'on' : 'off' };
+      if (app.ttsSpeaker) h['X-Tts-Speaker'] = app.ttsSpeaker;
+      return h;
+    };
     function postJson(body, headers = {}) {
       return { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) };
+    }
+
+    function fillVoiceSelect(speakers, defaultSpeaker) {
+      ui.voiceSelect.length = 0;
+      if (!speakers || !speakers.length) {
+        ui.voiceField.hidden = true;
+        app.ttsSpeaker = null;
+        return;
+      }
+      ui.voiceField.hidden = false;
+      const sorted = [...speakers].sort((a, b) => {
+        const ar = a.startsWith('ru_') ? 0 : 1;
+        const br = b.startsWith('ru_') ? 0 : 1;
+        return ar - br || a.localeCompare(b, 'ru');
+      });
+      for (const sp of sorted) {
+        const label = sp.startsWith('ru_') ? `${sp} · RU` : sp;
+        ui.voiceSelect.add(new Option(label, sp));
+      }
+      const saved = localStorage.getItem('ttsSpeaker');
+      const initial = (saved && speakers.includes(saved))
+        ? saved
+        : (defaultSpeaker && speakers.includes(defaultSpeaker) ? defaultSpeaker : sorted[0]);
+      ui.voiceSelect.value = initial;
+      app.ttsSpeaker = initial;
     }
 
     async function loadConfig() {
@@ -684,6 +722,7 @@
       for (const key of ['asr', 'tts', 'llm', 'crm']) $('#cfg-' + key).textContent = app.cfg[key];
       for (const phone of app.cfg.demo_phones) ui.phoneSelect.add(new Option(`${phone} · есть в CRM`, phone));
       ui.phoneSelect.add(new Option('+70000000000 · нет в CRM', '+70000000000'));
+      fillVoiceSelect(app.cfg.tts_speakers || [], app.cfg.tts_speaker || null);
     }
 
     /* =========================================================
@@ -809,7 +848,9 @@
       setBusy(true);
       showStatus('Синтез…');
       try {
-        const tts = await api('/debug/tts', postJson({ text }));
+        const body = { text };
+        if (app.ttsSpeaker) body.speaker = app.ttsSpeaker;
+        const tts = await api('/debug/tts', postJson(body));
         clearInput();
         if (!tts.audio_b64 || app.cfg.asr === 'fake') {
           showStatus('TTS или ASR = fake — отправляю текстом');
@@ -835,7 +876,10 @@
 
     function describeVoicing(reply) {
       if (!voiceOutOn()) return 'озвучка выключена';
-      if (reply.audio_b64) return 'озвучено: ' + app.cfg.tts;
+      if (reply.audio_b64) {
+        const sp = app.ttsSpeaker ? ` · ${app.ttsSpeaker}` : '';
+        return 'озвучено: ' + app.cfg.tts + sp;
+      }
       if (canBrowserSpeak()) return 'озвучено: браузер';
       return 'без озвучки — в браузере нет русского голоса';
     }
@@ -961,7 +1005,9 @@
       setBusy(true);
       showStatus('Синтез…');
       try {
-        const tts = await api('/debug/tts', postJson({ text }));
+        const body = { text };
+        if (app.ttsSpeaker) body.speaker = app.ttsSpeaker;
+        const tts = await api('/debug/tts', postJson(body));
         clearInput();
         addProbe(text, tts);
         setBusy(false);
@@ -1262,6 +1308,12 @@
     ui.micSelect.addEventListener('change', () => {
       localStorage.setItem('micId', ui.micSelect.value);
       if (mic.recording) stopListening(false);
+    });
+    ui.voiceSelect.addEventListener('change', () => {
+      app.ttsSpeaker = ui.voiceSelect.value || null;
+      if (app.ttsSpeaker) localStorage.setItem('ttsSpeaker', app.ttsSpeaker);
+      else localStorage.removeItem('ttsSpeaker');
+      showStatus(app.ttsSpeaker ? `Голос: ${app.ttsSpeaker}` : '');
     });
     ui.copyBtn.addEventListener('click', copyTranscript);
     ui.downloadBtn.addEventListener('click', downloadTranscript);

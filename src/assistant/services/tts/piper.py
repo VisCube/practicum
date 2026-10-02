@@ -11,7 +11,7 @@ from assistant.core.models import Audio
 
 class PiperTts:
     """Оффлайн TTS через Piper - синтезирует wav на CPU, повторные фразы отдаёт из LRU-кэша"""
-    def __init__(self, model_path: str, *, cache_size: int = 64) -> None:
+    def __init__(self, model_path: str, speaker: str | None,  *, cache_size: int = 64) -> None:
         from piper import PiperVoice
         self.voice = PiperVoice.load(model_path)
         # piper-tts >= 1.3 — synthesize_wav, старые — synthesize

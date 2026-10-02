@@ -11,6 +11,6 @@ class TtsError(Exception):
 
 class SpeechSynthesizer(Protocol):
     """Контракт для TTS-адаптеров: текст → аудио"""
-    async def synthesize(self, text: str) -> Audio:
-        """Текст → аудио. Может вернуть Audio.empty — тогда клиент озвучивает сам или показывает текст."""
+    async def synthesize(self, text: str, *, speaker: str | None = None) -> Audio:
+        """Текст → аудио. Может вернуть Audio.empty — тогда клиент озвучивает сам или показывает текст"""
         ...
