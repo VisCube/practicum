@@ -131,12 +131,19 @@ def build_container(settings: Settings) -> Container:
     if settings.asr_adapter == "vosk":
         from assistant.services.asr.vosk import VoskAsr
         asr = VoskAsr(settings.vosk_model_path, sample_rate=settings.asr_sample_rate)
+    elif settings.asr_adapter == "t-one":
+        from assistant.services.asr.tone import ToneAsr
+        asr = ToneAsr(
+            settings.tone_model_dir,
+            input_sample_rate=settings.asr_sample_rate,
+            num_threads=settings.tone_num_threads,
+        )
     else:
         asr = FakeAsr()
 
     if settings.tts_adapter == "piper":
         from assistant.services.tts.piper import PiperTts
-        tts = PiperTts(settings.piper_model_path)
+        tts = PiperTts(settings.piper_model_path, None)
     elif settings.tts_adapter == "silero":
         from assistant.services.tts.silero import SileroTts
         tts = SileroTts(

@@ -7,9 +7,10 @@ import wave
 from collections import OrderedDict
 
 from assistant.core.models import Audio
+from assistant.services.tts.base import SpeechSynthesizer
 
 
-class PiperTts:
+class PiperTts(SpeechSynthesizer):
     """Оффлайн TTS через Piper - синтезирует wav на CPU, повторные фразы отдаёт из LRU-кэша"""
     def __init__(self, model_path: str, speaker: str | None,  *, cache_size: int = 64) -> None:
         from piper import PiperVoice

@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-AsrAdapter = Literal["fake", "vosk"]
+AsrAdapter = Literal["fake", "vosk", "t-one"]
 TtsAdapter = Literal["fake", "piper", "silero"]
 LlmAdapter = Literal["fake", "openai"]
 CrmAdapter = Literal["fake", "telegram", "bitrix"]
@@ -40,7 +40,14 @@ class Settings(BaseSettings):
     session_ttl_sec: float = 1800   # брошенный звонок выметается из памяти через 30 мин
 
     # Речь
-    asr_sample_rate: int = 16000    # lpcm на входе ASR
+    asr_sample_rate: int = 16000    # lpcm на входе
+
+    vosk_model_path: str = "models/vosk-model-small-ru-0.22"
+
+    # T-one (ASR_ADAPTER=tone) — sherpa-onnx, models/t-one/{model.onnx,tokens.txt}
+    tone_model_dir: str = "models/t-one"
+    tone_num_threads: int = 2
+    asr_itn: bool = True
 
     # LLM - любой OpenAI-совместимый endpoint
     llm_base_url: str = ""
@@ -74,9 +81,6 @@ class Settings(BaseSettings):
     silero_ssml: bool = True
     silero_rate: str = "medium"              # x-slow|slow|medium|fast|x-fast
     silero_pitch: str = "medium"             # x-low|low|medium|high|x-high
-
-    tts_normalize: bool = True
-    tts_stress: bool = True
 
     @property
     def classifier_path(self) -> Path:
