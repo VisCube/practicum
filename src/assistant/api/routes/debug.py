@@ -17,7 +17,7 @@ from assistant.services.tts.base import TtsError
 from assistant.services.tts.fake import FakeTts
 
 from ..dependencies import Container, get_container, tts_voice_info
-from ..schemas.dto import DebugConfig, SessionView, TtsRequest, TtsResponse, TurnRequest, TurnResponse
+from ..schemas.dto import DebugConfig, SessionView, TtsRequest, TtsResponse, TurnRequest, TurnResponse, AsrResponse
 from .telephony import execute_turn
 
 router = APIRouter(prefix="/debug", tags=["debug"])
@@ -116,3 +116,16 @@ async def tts(payload: TtsRequest, container: Container = Depends(get_container)
         audio_mime=audio.mime,
         speaker=used if isinstance(used, str) else None,
     )
+
+@router.post("/asr", response_model=AsrResponse)
+async def asr_probe(request: Request, container: Container = Depends(get_container)) -> AsrResponse:
+    """Проба ASR: lpcm → текст текущим адаптером. Без сессии и бота"""
+    body = await request.body()
+    if not body:
+        raise HTTPException(400, "empty body")
+    mime = request.headers.get("content-type", "audio/pcm")
+    try:
+        text = await container.asr.transcribe(Audio(data=body, mime=mime))
+    except AsrError as exc:
+        raise HTTPException(502, f"ASR: {exc}") from exc
+    return AsrResponse(text=text or "")

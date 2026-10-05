@@ -25,6 +25,9 @@ class TurnResponse(BaseModel):
     state: CallState
     events: list[Event] = Field(default_factory=list)
 
+class AsrResponse(BaseModel):
+    """Проба ASR: сырой/обработанный текст без диалога"""
+    text: str = ""
 
 class SessionView(BaseModel):
     call_id: str

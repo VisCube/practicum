@@ -9,6 +9,8 @@ RUN pip install -U pip && pip install ".[local]"
 
 COPY models/vosk-model-small-ru-0.22 ./models/vosk-model-small-ru-0.22
 COPY models/ru_RU-ruslan-medium.onnx models/ru_RU-ruslan-medium.onnx.json ./models/
+COPY models/t-one /.models/
+COPY models/v5_cis_base.pt ./models/
 
 COPY data ./data
 
