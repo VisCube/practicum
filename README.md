@@ -4,10 +4,10 @@
 
 Два сценария:
 
-- appeal — протечка, запах газа, перерасчёт, справка и т.д.: бот собирает ФИО / адрес / детали и кладёт заявку (Сделку) в CRM.
-- consult — FAQ, тарифы, сроки: бот ищет ответ в Markdown-базе знаний, при наличии LLM — перефразирует его.
+- **appeal** — протечка, запах газа, перерасчёт, справка и т.д.: бот собирает ФИО / адрес / детали и кладёт заявку (Сделку) в CRM.
+- **consult** — FAQ, тарифы, сроки: бот ищет ответ в Markdown-базе знаний, при наличии LLM — перефразирует его.
 
-Если бот не понял — переспрашивает; если совсем не справился — переводит на живого оператора. Заявка уходит в CRM фоновым воркером, горячий путь звонка не ждёт внешние сервисы.
+Если бот не понял — переспрашивает; если совсем не справился — переводит на живого оператора. Авария (пожар, потоп, газ) — немедленный перевод со спец-фразой. Заявка уходит в CRM фоновым воркером, горячий путь звонка не ждёт внешние сервисы.
 
 ---
 
@@ -26,7 +26,7 @@
 │   dependencies.Container                                  │
 │      ├── Orchestrator            ← ядро диалога           │
 │      │     ├── SessionStore (in-memory, TTL)              │
-│      │     ├── TopicClassifier (rule-based, YAML)         │
+│      │     ├── TopicClassifier (ML + keywords, YAML)      │
 │      │     ├── EscalationDetector (YAML)                  │
 │      │     ├── Handlers: Intake / Consultation            │
 │      │     └── RuleSlotExtractor + (опц.) LlmTasks        │
@@ -44,18 +44,18 @@
 
 ## Стек
 
-| Компонент | Технология                                                         |
-|-----------|--------------------------------------------------------------------|
-| Язык | Python ≥ 3.12                                                      |
-| Веб-фреймворк | FastAPI + Uvicorn                                                  |
-| Проверка/сериализация | Pydantic v2, pydantic-settings                                     |
-| Конфигурация | Переменные окружения + `.env`                                      |
-| Локальный ASR  | Vosk (опц.) / T-one (sherpa-onnx)                                   |
-| Локальный TTS  | Piper  (опц.) / Silero                                                             |
-| LLM  | Любой OpenAI-совместимый endpoint (YandexGPT, OpenRouter, Ollama…) |
-| CRM | fake (in-memory) / Telegram ; Битрикс24 — в планах                 |
-| Тесты | pytest + pytest-asyncio                                            |
-| Упаковка | Docker (`Dockerfile`) / `pip install -e ".[local]"`                |
+| Компонент | Технология |
+|-----------|-----------|
+| Язык | Python ≥ 3.12 |
+| Веб-фреймворк | FastAPI + Uvicorn |
+| Проверка/сериализация | Pydantic v2, pydantic-settings |
+| Конфигурация | Переменные окружения + `.env` |
+| Локальный ASR | Vosk (опц.) / T-one (sherpa-onnx) |
+| Локальный TTS | Piper (опц.) / Silero |
+| LLM | Любой OpenAI-совместимый endpoint (YandexGPT, OpenRouter, Ollama…) |
+| CRM | fake (in-memory) / Telegram ; Битрикс24 — в планах |
+| Тесты | pytest + pytest-asyncio |
+| Упаковка | Docker (`Dockerfile`) / `pip install -e ".[local]"` |
 
 ---
 
@@ -80,8 +80,8 @@ src/assistant/
     intake.py             сценарий appeal: реквизиты → заявка → outbox
     consultation.py       сценарий consult: ответ из базы знаний
   nlu/
-    classifier.py         keyword-классификатор тем (YAML)
-    escalation.py         детектор «просит оператора / угроза жалобы»
+    classifier.py         гибридный классификатор (ML + keywords, YAML)
+    escalation.py         детектор emergency / transfer / complaint (YAML)
     slots.py              RuleSlotExtractor + missing()
     yesno.py              распознавание да/нет
     text.py               нормализация, стемизация, числительные
@@ -94,6 +94,7 @@ src/assistant/
     telephony/            FakeTelephony
   templates/phrases.py    Все фразы робота в одном dict
   utils/                  Вспомогательные модули
+```
 
 ---
 
@@ -104,17 +105,29 @@ src/assistant/
 Правится под реальное содержимое. Содержит:
 * **`slots`** — описание каждого реквизита: `id`, `label`, `question`, `kind`
   (`number` / `text` / `address` / `name` / `choice`), `choices` (для `choice`),
-  `cues` (слова-подсказки для распознавания).
+  `cues` (слова-подсказки для распознавания чисел из свободной речи).
 * **`topics`** — таксономия обращений: `id`, `name` (читается вслух!), `kind`
   (`appeal` / `consult`), `bitrix_id` (значение в CRM), `risk_level`
   (`low` / `normal` / `critical`), `keywords` (корни слов), `required_slots`.
 
-Классификация по числу совпавших keyword-корней; при ничьей — приоритет у `critical`.
+Классификатор гибридный:
+- **ML-модель** (если есть `model.pkl`) — sklearn pipeline на лемматизированном тексте.
+- **Keyword fallback** — если модель не уверена (`conf < min_confidence`) или
+  предсказанный slug не подтверждается keywords YAML-топика.
+- При равенстве keywords — приоритет у `critical`, потом порядок в YAML.
+
+YAML-топики сохраняют `kind`, `required_slots`, `bitrix_id` — модель возвращает slug,
+классификатор подставляет полный YAML-топик по совпадению.
 
 ### `data/escalation.yaml`
 
+* **`emergency`** — авария (пожар, потоп, прорыв, газ) → немедленный перевод с
+  спец-фразой. Ключ `say` у каждого маркера ссылается на запись в `emergency_say`.
+* **`emergency_say`** — тексты фраз для аварий: `fire` (112), `flood` (диспетчер),
+  `gas` (104). Валидируется при загрузке: ключ из `say` должен существовать.
 * **`transfer`** — клиент просит живого человека → перевод немедленно.
-* **`complaint`** — угроза жалобы (прокуратура, ГЖИ, суд) → заявка с флагом, разговор не прерывается.
+* **`complaint`** — угроза жалобы (прокуратура, ГЖИ, суд) → заявка с флагом,
+  разговор не прерывается.
 
 ### `data/knowledge/*.md`
 
@@ -127,6 +140,20 @@ Markdown-файлы для сценария `consult`. Заголовок `#` и
 
 ---
 
+## Приоритеты сигналов
+
+На каждом ходе реплика проверяется в порядке:
+
+1. **Emergency** — авария (пожар, потоп, прорыв, газ) → перевод немедленно со
+   спец-фразой из `emergency_say`, выше оператора и жалобы.
+2. **Transfer** — клиент просит оператора → перевод.
+3. **Complaint** — угроза жалобы → флаг в заявке (или перевод, если
+   `transfer_on_complaint=true`).
+4. **Goodbye** — прощание (если сессия в `DONE` или `TOPIC` без темы и без попыток).
+5. **Тема / обработчик** — классификация и вызов соответствующего handler'а.
+
+---
+
 ## Сценарии диалога
 
 ### `appeal` (заявка) — `IntakeHandler`
@@ -135,24 +162,28 @@ Markdown-файлы для сценария `consult`. Заголовок `#` и
 TOPIC → [IDENTIFY →] SLOTS → CONFIRM → DONE
 ```
 
-1. Определение темы по ключевым словам (правила → LLM-фолбэк).
+1. Определение темы (ML-модель → keyword fallback → LLM-фолбэк).
 2. Если собственник не опознан по телефону → идентификация (ФИО, адрес, квартира).
-3. Сбор обязательных слотов темы.
+3. Сбор обязательных слотов темы (правила → LLM → retry).
 4. Подтверждение сводки.
 5. Заявка в outbox → фоновая отправка в CRM.
 
 ### `consult` (консультация) — `ConsultationHandler`
 
 Ответ из Markdown-базы знаний по теме; LLM может дополнить/перефразировать.
+При двух промахах подряд — перевод на оператора.
 
 ### Машина состояний (`CallState`)
 
 ```
 greeting → topic → [identify →] slots → confirm → done
-                                              ↘ transferred
+                      ↘                            ↘
+                      transferred ← emergency      transferred
 ```
-`transferred` — перевод (просьба клиента / угроза жалобы / техническая ошибка).
-Сессия живёт в памяти 30 минут с момента последнего обращения.
+
+- **Emergency** на любом шаге → `transferred` со спец-фразой из `emergency_say`.
+- **Transfer** — перевод (emergency / просьба клиента / угроза жалобы / тех. ошибка).
+- Сессия живёт в памяти 30 минут с момента последнего обращения.
 
 ---
 
@@ -161,6 +192,8 @@ greeting → topic → [identify →] slots → confirm → done
 ```bash
 pytest                              # все тесты
 pytest tests/unit/test_dialog.py    # только сценарные
+pytest tests/unit/test_nlu.py       # NLU (классификатор, escalation, слоты)
+pytest tests/unit/test_api.py       # интеграционные через TestClient
 ```
 
 Тесты всегда работают на fake-адаптерах, без внешних зависимостей.
@@ -176,5 +209,6 @@ mypy src/assistant
 ## Ограничения и планы
 
 * `CRM_ADAPTER=bitrix` — интерфейс есть, клиент не реализован.
-* LLM — опциональный фолбэк; без неё всё работает на правилах.
+* LLM — опциональный фолбэк; без неё всё работает на правилах и keywords.
+* ML-модель — опциональна; без неё классификатор работает на keywords.
 * `InMemorySessionStore` — для горизонтального масштабирования нужен внешний store (Redis и т.п.).
