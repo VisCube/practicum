@@ -420,3 +420,75 @@ async def test_prefill_apartment_with_cue(world):
     session = world.session()
     assert session.slots["apartment"] == "15" and session.slots["leak_source"] == "с потолка"
     assert reply.state == CallState.IDENTIFY and "фамилию" in reply.text
+
+# ---------------------------------------------------------------- аварии (перевод сразу, своя фраза)
+
+async def test_emergency_transfers_with_safety_phrase(world):
+    await world.orch.start("c1", KNOWN)
+    reply = await world.say("у нас пожар на пятом этаже")
+    assert reply.transfer and reply.state == CallState.TRANSFERRED
+    assert "сто двенадцать" in reply.text
+    transfer = next(e for e in reply.events if e.type == "transfer")
+    assert transfer.payload["reason"] == "авария: пожар"
+    assert transfer.payload["markers"] == ["пожар"]
+    assert transfer.payload["emergency"] is True
+    assert transfer.payload["owner"] == "Иванов Иван Иванович"
+    assert world.tel.transfers == [("c1", "авария: пожар")]
+
+    reply = await world.say("алло?")
+    assert reply.transfer and "уже переводится" in reply.text
+
+
+async def test_gas_emergency_has_its_own_instruction(world):
+    await world.orch.start("c1", KNOWN)
+    reply = await world.say("пахнет газом на кухне")
+    assert reply.transfer and "сто четыре" in reply.text
+    assert "тема обращения" not in reply.text   # никаких вопросов и слотов
+
+
+async def test_emergency_on_very_first_turn_keeps_greeting(world):
+    reply = await world.say("прорвало трубу, хлещет!")
+    assert reply.text.startswith("Здравствуйте, Иван Иванович")
+    assert reply.transfer and "диспетчером" in reply.text
+    assert [e.type for e in reply.events][-1] == "transfer"
+
+
+async def test_emergency_mid_slot_filling_carries_context(world):
+    await world.orch.start("c1", KNOWN)
+    reply = await world.say("течёт с потолка")
+    assert reply.state == CallState.CONFIRM
+    reply = await world.say("ой, подождите, прорвало трубу, потоп!")
+    assert reply.transfer
+    transfer = next(e for e in reply.events if e.type == "transfer")
+    assert transfer.payload["reason"] == "авария: прорыв, потоп"
+    assert transfer.payload["topic"].startswith("Протечка")
+    assert transfer.payload["slots"]["leak_source"] == "с потолка"
+
+
+async def test_emergency_beats_operator_and_complaint(world):
+    await world.orch.start("c1", KNOWN)
+    reply = await world.say("пожар! дайте оператора, я в прокуратуру напишу")
+    assert reply.transfer and "сто двенадцать" in reply.text
+    assert [e.type for e in reply.events] == ["transfer"]   # escalated-события нет — не до жалоб
+    assert reply.events[0].payload["reason"] == "авария: пожар"
+    assert not world.session().escalated
+
+
+@pytest.mark.parametrize("text", [
+    "пожарная сигнализация орёт в подъезде",
+    "не горит лампочка в подъезде",
+    "затопили соседи сверху",
+    "газон во дворе не косят",
+])
+async def test_ordinary_appeal_is_not_emergency(world, text):
+    await world.orch.start("c1", KNOWN)
+    reply = await world.say(text)
+    assert not reply.transfer and reply.state != CallState.TRANSFERRED
+    assert not world.tel.transfers
+
+
+async def test_leak_without_panic_goes_through_slots(world):
+    await world.orch.start("c1", KNOWN)
+    reply = await world.say("затопило, с потолка капает")
+    assert not reply.transfer
+    assert world.session().topic.id == "leak" and reply.state == CallState.CONFIRM

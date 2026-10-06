@@ -85,8 +85,15 @@ class Event(BaseModel):
     escalated - прозвучала угроза жалобы, заявка уйдёт с флагом; разговор продолжается
     transfer  - звонок переводится на оператора; payload — контекст для него"""
 
-    type: Literal["outage_notice", "appeal_created", "escalated", "transfer", "call_ended"]
-    payload: dict[str, Any] = Field(default_factory=dict)
+    type: Literal[
+        "outage_notice",
+        "appeal_created",
+        "escalated",
+        "emergency",   # NEW
+        "transfer",
+        "call_ended",
+    ]
+    payload: dict[str, Any] = dict()
 
 
 class Appeal(BaseModel):

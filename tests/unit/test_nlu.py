@@ -266,3 +266,83 @@ def test_number_slots_have_cues(classifier):
     for slot in classifier.slots.values():
         if slot.kind == "number":
             assert slot.cues, f"слот {slot.id}: нет cues — префилл из первой реплики не сработает"
+
+# ---------------------------------------------------------------- emergency
+
+EMERGENCY = [
+    ("пожар", "пожар"),
+    ("у нас пожар на пятом этаже", "пожар"),
+    ("горим! быстрее!", "пожар"),
+    ("горит щиток", "пожар"),
+    ("загорелась проводка в подъезде", "пожар"),
+    ("открытый огонь на балконе", "пожар"),
+    ("сильный дым на этаже", "задымление"),
+    ("весь подъезд в дыму", "задымление"),
+    ("задымление в коридоре", "задымление"),
+    ("потоп", "потоп"),
+    ("у нас потоп", "потоп"),
+    ("прорыв", "прорыв"),
+    ("прорвало трубу", "прорыв"),
+    ("прорван трубопровод", "прорыв"),
+    ("хлещет вода из батареи", "прорыв"),
+    ("пахнет газом", "запах газа"),
+    ("запах газа в подъезде", "запах газа"),
+    ("газом воняет у плиты", "запах газа"),
+    ("утечка газа", "запах газа"),
+    ("квартира сорок два да пахнет газом", "запах газа"),   # посреди слот-филлинга
+    ("прорыв в работе УК", "прорыв"),   # ложняк принят осознанно: цена — перевод жалобщика на оператора
+]
+
+NOT_EMERGENCY = [
+    "не горит лампочка", "лампочка не горит", "не горит свет в квартире", "свет горит круглосуточно",
+    "пожарный шкаф открыт", "учебная пожарная тревога", "пожарная сигнализация орёт",
+    "дымоход нужно почистить",
+    "газон не поливают", "газовая плита не включается", "газовщики не пришли",
+    "затопили соседи сверху", "капает с потолка", "протечка в ванной", "течёт кран", "нет горячей воды",
+    "оператор", "в прокуратуру", "добрый день", "",
+]
+
+
+@pytest.mark.parametrize("text,label", EMERGENCY)
+def test_emergency_detected(escalation_detector, text, label):
+    detection = escalation_detector.detect(text)
+    assert detection.is_emergency and label in detection.emergency
+    assert detection.wants_operator and detection.say
+    assert detection.reason.startswith("авария: ")
+
+
+@pytest.mark.parametrize("text", NOT_EMERGENCY)
+def test_emergency_not_detected(escalation_detector, text):
+    detection = escalation_detector.detect(text)
+    assert not detection.is_emergency and detection.say is None
+
+
+def test_emergency_say_phrases_by_kind(escalation_detector):
+    assert "сто двенадцать" in escalation_detector.detect("у нас пожар").say
+    assert "сто четыре" in escalation_detector.detect("пахнет газом").say
+    assert "диспетчером" in escalation_detector.detect("прорвало трубу").say
+
+
+def test_emergency_outranks_operator_and_complaint(escalation_detector):
+    detection = escalation_detector.detect("пожар! дайте оператора, я в прокуратуру напишу")
+    assert detection.is_emergency and detection.reason == "авария: пожар"
+    assert detection.transfer == ["просит оператора"] and detection.complaint == ["прокуратура"]
+
+
+def test_emergency_markers_dedup_and_first_say_wins(escalation_detector):
+    detection = escalation_detector.detect("пожар, всё в дыму, прорвало трубу")
+    assert detection.emergency == ["пожар", "задымление", "прорыв"]
+    assert "сто двенадцать" in detection.say   # фраза — у первого сработавшего маркера
+
+
+def test_emergency_say_key_must_exist(tmp_path):
+    bad_yaml = tmp_path / "escalation.yaml"
+    bad_yaml.write_text("emergency:\n  - {phrase: пожар., label: пожар, say: nope}\nemergency_say: {}\n",
+                        encoding="utf-8")
+    with pytest.raises(ValueError, match="nope"):
+        EscalationDetector.from_yaml(bad_yaml)
+
+
+def test_emergency_say_section_is_not_a_marker_kind(escalation_detector):
+    """emergency_say — тексты фраз, не маркеры: ключи fire/flood/gas ни на что не матчатся"""
+    assert not escalation_detector.detect("fire flood gas").is_emergency

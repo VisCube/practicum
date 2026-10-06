@@ -1,5 +1,41 @@
-# Основы слов: «прокуратур» найдёт «прокуратуру», «в прокуратуре»
+# Основы слов: «прокуратур» найдёт «прокуратуру», «в прокуратуре».
+# Точка в конце — слово целиком: «пожар.» найдёт «пожар», но не «пожарный шкаф».
 # label — как сработавший маркер увидят оператор и дев-стенд
+emergency:
+  - {phrase: пожар.,             label: пожар,       say: fire}
+  - {phrase: пожара.,            label: пожар,       say: fire}
+  - {phrase: горим.,             label: пожар,       say: fire}
+  - {phrase: горит щиток,        label: пожар,       say: fire}
+  - {phrase: горит проводка,     label: пожар,       say: fire}
+  - {phrase: горит квартира,     label: пожар,       say: fire}
+  - {phrase: горит мусоропровод, label: пожар,       say: fire}
+  - {phrase: загорел,            label: пожар,       say: fire}
+  - {phrase: возгоран,           label: пожар,       say: fire}
+  - {phrase: вспыхнул,           label: пожар,       say: fire}
+  - {phrase: огонь.,             label: пожар,       say: fire}
+  - {phrase: огня.,              label: пожар,       say: fire}
+  - {phrase: пламя,              label: пожар,       say: fire}
+  - {phrase: дым.,               label: задымление,  say: fire}
+  - {phrase: дыму.,              label: задымление,  say: fire}
+  - {phrase: дымом.,             label: задымление,  say: fire}
+  - {phrase: сильный дым,        label: задымление,  say: fire}
+  - {phrase: задымлен,           label: задымление,  say: fire}
+
+  - {phrase: потоп,              label: потоп,       say: flood}
+  - {phrase: прорыв,             label: прорыв,      say: flood}
+  - {phrase: прорвало,           label: прорыв,      say: flood}
+  - {phrase: прорван,            label: прорыв,      say: flood}
+  - {phrase: хлещет,             label: прорыв,      say: flood}
+
+  - {phrase: газ.,               label: запах газа,  say: gas}
+  - {phrase: газа.,              label: запах газа,  say: gas}
+  - {phrase: газом.,             label: запах газа,  say: gas}
+  - {phrase: утечк газ,          label: запах газа,  say: gas}
+
+emergency_say:
+  fire:  "Если есть угроза жизни или здоровью, немедленно позвоните в сто двенадцать. Соединяю вас с диспетчером, оставайтесь на линии."
+  flood: "Это авария. Срочно соединяю вас с диспетчером, оставайтесь на линии."
+  gas:   "При запахе газа откройте окна, не включайте свет и электроприборы, выйдите из помещения и позвоните в сто четыре. Соединяю вас с диспетчером."
 
 # Клиент просит живого человека → переводим сразу
 transfer:

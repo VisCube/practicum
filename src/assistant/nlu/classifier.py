@@ -11,10 +11,13 @@ import yaml
 
 from assistant.core.models import RiskLevel, SlotSpec, Topic, TopicKind
 from assistant.nlu.clf_preprocess import lemmatize_for_clf
+from assistant.nlu.text import contains_stem
 
 logger = logging.getLogger(__name__)
 
 FALLBACK_TOPIC_ID = "other"
+
+_RISK_ORDER = {RiskLevel.CRITICAL: 3, RiskLevel.NORMAL: 2, RiskLevel.LOW: 1}
 
 
 @dataclass(frozen=True)
@@ -88,11 +91,6 @@ class TopicClassifier:
             if unknown := set(topic.required_slots) - slots.keys():
                 raise ValueError(f"Тема {topic.id}: неизвестные слоты {unknown}")
 
-        topics = [
-            topic.model_copy(update={"required_slots": []}) if topic.required_slots else topic
-            for topic in topics
-        ]
-
         bundle = None
         if model_path is not None:
             model_path = Path(model_path)
@@ -138,7 +136,7 @@ class TopicClassifier:
             return None
         if self._bundle is None:
             logger.warning("classify: no model bundle, fallback")
-            return TopicMatch(self.fallback, 0, ("no_model",)) if self.fallback else None
+            return self._classify_by_keywords(text)
 
         main_pred, main_conf, sub_pred, sub_conf = self._predict(text)
 
@@ -154,6 +152,14 @@ class TopicClassifier:
         sub_s = str(sub_pred).strip()
 
         if conf < self._min_conf:
+            # Модель не уверена — пробуем keyword fallback, иначе fallback="other"
+            kw_match = self._classify_by_keywords(text)
+            if kw_match is not None:
+                return TopicMatch(
+                    kw_match.topic,
+                    score=int(round(conf * 100)),
+                    matched=(f"main={main_s}", f"sub={sub_s}", f"low_conf={conf:.2f}", "keywords"),
+                )
             topic = self.fallback
             assert topic is not None
             return TopicMatch(
@@ -162,20 +168,78 @@ class TopicClassifier:
                 matched=(f"main={main_s}", f"sub={sub_s}", f"low_conf={conf:.2f}"),
             )
 
-        topic = Topic(
-            id=_slug(sub_s),
-            name=sub_s,
-            kind=TopicKind.APPEAL,
-            bitrix_id="",
-            risk_level=RiskLevel.NORMAL,
-            keywords=[],
-            required_slots=[],
-        )
+        slug_id = _slug(sub_s)
+        topic = self._by_id.get(slug_id)
+
+        # Проверяем: yaml-topic релевантен тексту? (keywords матчат или это fallback/пустой topic)
+        if topic is not None:
+            if topic.id == FALLBACK_TOPIC_ID:
+                # other — всегда пробуем keyword fallback вместо него
+                topic = None
+            elif topic.keywords and not any(contains_stem(text, kw) for kw in topic.keywords):
+                # keywords не подтверждают — модельный slug случайно совпал с нерелевантным yaml-id
+                topic = None
+
+        # Keyword fallback по тексту
+        if topic is None:
+            kw_match = self._classify_by_keywords(text)
+            if kw_match is not None:
+                return TopicMatch(
+                    kw_match.topic,
+                    score=int(round(conf * 100)),
+                    matched=(main_s, sub_s, "keywords"),
+                )
+
+        # Если keyword fallback не нашёл — возвращаем yaml-topic (если был) или синтетический
+        if topic is None:
+            topic = self._by_id.get(slug_id)
+        if topic is None:
+            topic = Topic(
+                id=slug_id,
+                name=sub_s,
+                kind=TopicKind.APPEAL,
+                bitrix_id="",
+                risk_level=RiskLevel.NORMAL,
+                keywords=[],
+                required_slots=[],
+            )
+
         return TopicMatch(
             topic,
             score=int(round(conf * 100)),
             matched=(main_s, sub_s),
         )
+
+    def _classify_by_keywords(self, text: str) -> TopicMatch | None:
+        """Keyword-based fallback: считаем совпадения по каждому топику,
+        выбираем максимум; при равенстве — сначала critical, потом порядок в yaml."""
+        best_topic: Topic | None = None
+        best_score = 0
+
+        for topic in self.topics:
+            if topic.id == FALLBACK_TOPIC_ID:
+                continue
+            if not topic.keywords:
+                continue
+            score = sum(1 for kw in topic.keywords if contains_stem(text, kw))
+            if score == 0:
+                continue
+            if best_topic is None:
+                best_topic = topic
+                best_score = score
+            elif score > best_score:
+                best_topic = topic
+                best_score = score
+            elif score == best_score:
+                # tie-break: сначала higher risk, потом порядок в файле (первый выигрывает)
+                if _RISK_ORDER.get(topic.risk_level, 0) > _RISK_ORDER.get(best_topic.risk_level, 0):
+                    best_topic = topic
+                    best_score = score
+
+        if best_topic is None:
+            return None
+
+        return TopicMatch(best_topic, best_score, ("keywords",))
 
     def _predict(self, text: str) -> tuple[str, float, str, float]:
         cleaned = lemmatize_for_clf(text)
