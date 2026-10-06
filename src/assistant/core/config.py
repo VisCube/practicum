@@ -82,6 +82,10 @@ class Settings(BaseSettings):
     silero_rate: str = "medium"              # x-slow|slow|medium|fast|x-fast
     silero_pitch: str = "medium"             # x-low|low|medium|high|x-high
 
+    classifier_model_path: str = "models/model.pkl"
+    classifier_min_confidence: float = 0.35
+    classifier_sub_threshold: float = 0.75
+
     @property
     def classifier_path(self) -> Path:
         return self.data_dir / "classifier.yaml"

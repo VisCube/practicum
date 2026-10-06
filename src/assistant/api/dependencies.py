@@ -3,6 +3,7 @@
 import base64
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from fastapi import Request
 
@@ -99,7 +100,12 @@ class Container:
 def build_container(settings: Settings) -> Container:
     """Собирает контейнер зависимостей по настройкам - выбирает адаптеры, инициализирует оркестратор"""
     closeables: list = []
-    classifier = TopicClassifier.from_yaml(settings.classifier_path)
+    classifier = TopicClassifier.from_yaml(
+        settings.classifier_path,
+        model_path=Path(settings.classifier_model_path),
+        sub_confidence_threshold=settings.classifier_sub_threshold,
+        min_confidence=settings.classifier_min_confidence,
+    )
 
     demo_crm = InMemoryCrm()
     crm: CrmClient
