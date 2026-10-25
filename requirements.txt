@@ -1,7 +1,5 @@
-joblib
+boto3
 openai
-pymorphy3
 pypdf
 python-dotenv
 requests
-scikit-learn

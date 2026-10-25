@@ -1,4 +1,5 @@
 from json import dumps, loads
+from pathlib import Path
 
 from openai.types.chat import (
     ChatCompletionFunctionToolParam as FunctionTool,
@@ -8,6 +9,9 @@ from openai.types.shared_params import FunctionDefinition
 
 from src.tools.search import list_knowledge_files, search_knowledge_base
 from src.tools.crm import create_ticket
+
+CATEGORIES_PATH = Path(__file__).parent.parent.parent / "classifier" / "categories.json"
+CATEGORIES: list[str] = loads(CATEGORIES_PATH.read_text(encoding="utf-8"))
 
 TOOL_SCHEMAS = [
     FunctionTool(
@@ -30,8 +34,13 @@ TOOL_SCHEMAS = [
                         "type": "string",
                         "description": "Подробное описание обращения"
                     },
+                    "category": {
+                        "type": "string",
+                        "enum": CATEGORIES,
+                        "description": "Наиболее подходящая категория обращения из классификатора"
+                    },
                 },
-                "required": ["full_name", "address", "details"]
+                "required": ["full_name", "address", "details", "category"]
             }
         )
     ),
