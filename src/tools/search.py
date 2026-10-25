@@ -24,4 +24,4 @@ def search_knowledge_base(query: str) -> str:
     if not results:
         return "Ответа в базе знаний не найдено"
 
-    return "\n\n".join(result["content"] for result in results)
+    return "\n".join(result["content"] for result in results)
