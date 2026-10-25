@@ -7,7 +7,7 @@ from openai.types.chat import (
 )
 from openai.types.shared_params import FunctionDefinition
 
-from src.tools.search import list_knowledge_files, search_knowledge_base
+from src.tools.search import search_knowledge_base
 from src.tools.crm import create_ticket
 
 CATEGORIES_PATH = Path(__file__).parent.parent.parent / "classifier" / "categories.json"
@@ -47,6 +47,23 @@ TOOL_SCHEMAS = [
     FunctionTool(
         type="function",
         function=FunctionDefinition(
+            name="search_knowledge_base",
+            description="Найти ответ на вопрос в базе знаний",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Вопрос звонящего"
+                    }
+                },
+                "required": ["query"]
+            }
+        )
+    ),
+    FunctionTool(
+        type="function",
+        function=FunctionDefinition(
             name="transfer_to_operator",
             description="Перевести диалог на живого оператора",
             parameters={
@@ -58,23 +75,6 @@ TOOL_SCHEMAS = [
                     },
                 },
                 "required": ["reason"]
-            }
-        )
-    ),
-    FunctionTool(
-        type="function",
-        function=FunctionDefinition(
-            name="search_knowledge_base",
-            description="Прочитать полный текст файла базы знаний по его точному имени",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "filename": {
-                        "type": "string",
-                        "description": f"Точное имя файла из списка доступных файлов: {list_knowledge_files()}"
-                    }
-                },
-                "required": ["filename"]
             }
         )
     )
