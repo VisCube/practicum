@@ -29,8 +29,8 @@
           --user-bg: #16150f;
           --user-fg: #f3f0e8;
           --knob: #ffffff;
-          --scrim: rgba(22,21,15,.5);
-          --hover: rgba(22,21,15,.05);
+          --hover: rgba(22, 21, 15, .05);
+          --shadow: 0 12px 32px rgba(22, 21, 15, .12), 0 2px 6px rgba(22, 21, 15, .06);
           --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
           --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         }
@@ -51,8 +51,8 @@
           --user-bg: #f0ece1;
           --user-fg: #141311;
           --knob: #f0ece1;
-          --scrim: rgba(0,0,0,.65);
-          --hover: rgba(240,236,225,.06);
+          --hover: rgba(240, 236, 225, .06);
+          --shadow: 0 16px 40px rgba(0, 0, 0, .45), 0 2px 8px rgba(0, 0, 0, .3);
         }
 
         * { box-sizing: border-box; }
@@ -65,289 +65,214 @@
           grid-template-rows: auto 1fr;
           background: var(--paper);
           color: var(--ink);
-          font: 15.5px/1.5 var(--sans);
+          font: 15px/1.5 var(--sans);
           -webkit-font-smoothing: antialiased;
         }
         [hidden] { display: none !important; }
         button { font: inherit; }
         svg { display: block; flex: none; }
 
-        /* ============ T O P B A R ============ */
+        /* ============ TOPBAR ============ */
         .topbar {
-          display: flex; align-items: center; gap: 12px;
-          padding: 10px 16px;
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 20px;
           border-bottom: 1px solid var(--line);
           background: var(--panel);
-          min-height: 60px;
-          z-index: 20;
+          min-height: 58px;
+          position: relative;
+          z-index: 30;
         }
-        .icon-btn {
-          width: 38px; height: 38px; padding: 0;
-          display: grid; place-items: center;
-          border: 0; border-radius: 10px;
-          background: transparent; color: var(--ink-2); cursor: pointer;
-          transition: background .15s, color .15s;
-        }
-        .icon-btn:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
-        .icon-btn:disabled { opacity: .4; cursor: default; }
-
-        .brand { display: flex; gap: 10px; align-items: center; flex: none; margin-right: 8px; }
+        .brand { display: flex; gap: 10px; align-items: center; justify-self: start; }
         .brand-mark {
-          width: 36px; height: 36px; border-radius: 10px;
+          width: 34px; height: 34px; border-radius: 9px;
           background: var(--ink); color: var(--paper);
-          display: grid; place-items: center; font: 600 12.5px var(--mono);
+          display: grid; place-items: center; font: 600 12px var(--mono);
           flex: none;
         }
-        .brand-txt { line-height: 1.15; }
-        .brand-title { font-weight: 600; font-size: 14.5px; }
-        .brand-sub { font: 11.5px var(--mono); color: var(--mute); }
+        .brand-title { font-weight: 600; font-size: 14px; line-height: 1.2; }
+        .brand-sub { font: 11px var(--mono); color: var(--mute); }
 
         .modes {
-          display: flex; gap: 4px; padding: 4px;
+          display: flex; gap: 3px; padding: 3px;
           background: color-mix(in srgb, var(--ink) 6%, transparent);
-          border-radius: 12px;
-          overflow-x: auto;
-          scrollbar-width: none;
-          margin: 0 auto;
+          border-radius: 11px;
         }
-        .modes::-webkit-scrollbar { display: none; }
         .modes button {
-          display: inline-flex; align-items: center; gap: 8px;
-          padding: 8px 14px; border: 0; border-radius: 8px;
+          display: inline-flex; align-items: center; gap: 7px;
+          padding: 7px 14px; border: 0; border-radius: 8px;
           background: transparent; color: var(--ink-2);
           font: 500 13.5px var(--sans); cursor: pointer;
           white-space: nowrap; transition: background .15s, color .15s;
         }
         .modes button:hover:not(:disabled):not(.on) { background: var(--hover); }
         .modes button.on {
-          background: var(--panel);
-          color: var(--ink);
-          box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 1px var(--line-strong);
+          background: var(--panel); color: var(--ink);
+          box-shadow: 0 1px 2px rgba(0, 0, 0, .08), 0 0 0 1px var(--line-strong);
         }
         .modes button:disabled { opacity: .4; cursor: default; }
-        .modes button .live-dot {
+        .modes button svg { color: var(--mute); }
+        .modes button.on svg { color: var(--ink); }
+        .live-dot {
           width: 6px; height: 6px; border-radius: 50%;
           background: var(--ok);
           box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent);
           animation: pulse 1.6s ease-in-out infinite;
         }
-        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
-        .modes button svg { color: var(--mute); }
-        .modes button.on svg { color: var(--ink); }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 
-        .topbar-right { display: flex; gap: 6px; align-items: center; flex: none; }
-
-        /* ============ L A Y O U T ============ */
-        .shell {
-          display: flex;
-          min-height: 0;
+        .topbar-right {
+          display: flex; gap: 4px; align-items: center; justify-self: end;
           position: relative;
-          overflow: hidden;
         }
-        .sidebar {
-          width: 0;
-          min-width: 0;
-          flex: none;
-          background: var(--panel);
-          border-right: 1px solid var(--line);
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-          transition: width .22s ease;
+        .icon-btn {
+          width: 36px; height: 36px; padding: 0;
+          display: grid; place-items: center;
+          border: 1px solid transparent; border-radius: 9px;
+          background: transparent; color: var(--ink-2); cursor: pointer;
+          transition: background .15s, color .15s, border-color .15s;
         }
-        body.sidebar-open .sidebar { width: 320px; }
-        .sidebar-head {
-          display: none;
-          align-items: center; justify-content: space-between;
-          padding: 12px 16px;
-          border-bottom: 1px solid var(--line);
+        .icon-btn:hover { background: var(--hover); color: var(--ink); }
+        .icon-btn.active {
+          background: var(--hover); color: var(--ink);
+          border-color: var(--line-strong);
         }
-        .sidebar-head h2 { margin: 0; font-size: 14.5px; font-weight: 600; }
-        .sidebar-inner {
-          width: 320px;
-          height: 100%;
-          flex: none;
-          overflow-y: auto;
-          padding: 20px;
-        }
-        .sidebar-inner section { padding: 14px 0; border-top: 1px solid var(--line); }
-        .sidebar-inner section:first-child { padding-top: 0; border-top: 0; }
-        .sidebar-inner section h3 {
-          margin: 0 0 10px;
-          font: 500 11.5px/1 var(--mono);
-          letter-spacing: .08em; text-transform: uppercase; color: var(--mute);
-        }
+        :root[data-theme="light"] .ico-sun { display: none; }
+        :root[data-theme="dark"] .ico-moon { display: none; }
 
-        .field { display: block; margin-bottom: 10px; }
-        .field > span { display: block; font: 12.5px var(--mono); color: var(--ink-2); margin-bottom: 6px; }
+        /* ============ SETTINGS POPOVER ============ */
+        .popover {
+          position: absolute;
+          top: calc(100% + 10px);
+          right: 0;
+          width: min(312px, calc(100vw - 24px));
+          background: var(--panel);
+          border: 1px solid var(--line-strong);
+          border-radius: 14px;
+          padding: 16px;
+          box-shadow: var(--shadow);
+          z-index: 50;
+          animation: rise .14s ease-out;
+        }
+        .popover-title {
+          margin: 0 0 12px;
+          font: 600 13px var(--sans);
+          color: var(--ink);
+        }
+        .field { display: block; margin-bottom: 12px; }
+        .field > .field-head {
+          display: flex; align-items: center; justify-content: space-between;
+          font: 12px var(--mono); color: var(--mute); margin-bottom: 5px;
+        }
+        .field > .field-head button {
+          border: 0; background: none; padding: 0;
+          font: 11.5px var(--mono); color: var(--accent); cursor: pointer;
+        }
+        .field > .field-head button:hover { text-decoration: underline; }
         .field select {
           width: 100%; background: var(--field); color: var(--ink);
-          border: 1px solid var(--line-strong); border-radius: 10px;
-          padding: 9px 12px; font: 14.5px var(--sans); outline: none;
+          border: 1px solid var(--line-strong); border-radius: 9px;
+          padding: 8px 10px; font: 13.5px var(--sans); outline: none;
         }
         .field select:focus { border-color: var(--accent); }
         .field select:disabled { opacity: .5; }
+        .field-hint {
+          margin-top: 5px;
+          font: 11.5px/1.4 var(--mono);
+          color: var(--mute);
+        }
+        .field-hint.err { color: var(--bad); }
 
-        .switch { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; padding: 6px 0; position: relative; }
+        .switch {
+          display: flex; gap: 10px; align-items: center; justify-content: space-between;
+          cursor: pointer; padding: 8px 0 4px;
+        }
         .switch:has(input:disabled) { opacity: .45; cursor: default; }
         .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+        .switch .lbl { font-size: 13.5px; line-height: 1.3; }
+        .switch .lbl small { display: block; color: var(--mute); font-size: 11.5px; margin-top: 2px; }
         .switch .track {
-          flex: none; width: 34px; height: 20px; margin-top: 2px; border-radius: 10px;
+          flex: none; width: 34px; height: 20px; border-radius: 10px;
           background: var(--line-strong); position: relative; transition: background .15s;
         }
         .switch .track::after {
           content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
-          border-radius: 50%; background: var(--knob); box-shadow: 0 1px 2px rgba(0,0,0,.25);
+          border-radius: 50%; background: var(--knob); box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
           transition: transform .15s;
         }
         .switch input:checked + .track { background: var(--accent); }
         .switch input:checked + .track::after { transform: translateX(14px); }
         .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
-        .switch .lbl { font-size: 14.5px; line-height: 1.35; }
-        .switch .lbl small { display: block; color: var(--mute); font-size: 12.5px; margin-top: 3px; }
 
-        .seg { display: flex; border: 1px solid var(--line-strong); border-radius: 10px; overflow: hidden; }
-        .seg button {
-          flex: 1; background: none; border: 0; padding: 8px 0; cursor: pointer;
-          font: 12.5px var(--mono); color: var(--ink-2);
+        .sys-pill {
+          margin-top: 12px; padding-top: 10px;
+          border-top: 1px solid var(--line);
+          font: 11px/1.5 var(--mono); color: var(--mute);
+          display: flex; flex-wrap: wrap; gap: 4px 10px;
         }
-        .seg button + button { border-left: 1px solid var(--line-strong); }
-        .seg button.on { background: var(--ink); color: var(--paper); }
+        .sys-pill b { color: var(--ink-2); font-weight: 500; }
 
-        .diag { font: 12.5px var(--mono); color: var(--ink-2); margin-top: 6px; min-height: 16px; }
+        /* ============ MAIN & BUTTONS ============ */
+        main { position: relative; min-height: 0; overflow: hidden; }
+        .view { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; }
 
-        .mic-info {
-          margin-top: 10px;
-          padding: 10px 10px 10px 12px;
-          border-radius: 10px;
-          background: var(--field);
-          border: 1px solid var(--line-strong);
-          font: 12.5px var(--mono);
-          color: var(--ink-2);
-          display: flex; gap: 8px; align-items: center; justify-content: space-between;
-          min-width: 0;
-        }
-        .mic-info-row { display: flex; gap: 8px; align-items: center; min-width: 0; flex: 1; }
-        .mic-info-row svg { color: var(--mute); flex: none; }
-        .mic-info-label {
-          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
-        .mic-info.err { color: var(--bad); border-color: var(--bad); }
-        .mic-info.err svg { color: var(--bad); }
-        .mic-info button {
-          flex: none;
-          padding: 5px 10px;
-          font: 500 11.5px var(--mono);
-          background: transparent;
-          color: var(--ink-2);
-          border: 1px solid var(--line-strong);
-          border-radius: 7px;
-          cursor: pointer;
-          transition: background .15s, color .15s;
-        }
-        .mic-info button:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
-        .mic-info button:disabled { opacity: .4; cursor: default; }
-
-        .mic-devices {
-          margin-top: 8px;
-          animation: rise .15s ease-out;
-        }
-        .mic-devices select {
-          width: 100%;
-          background: var(--field); color: var(--ink);
-          border: 1px solid var(--accent);
-          border-radius: 10px;
-          padding: 9px 12px;
-          font: 13.5px var(--sans);
-          outline: none;
-        }
-        .mic-devices select:focus {
-          box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
-        }
-        .mic-devices .hint {
-          display: block;
-          font: 11.5px var(--mono);
-          color: var(--mute);
-          margin-top: 6px;
-          line-height: 1.45;
-        }
-
-        .call-only { animation: rise .15s ease-out; }
-
-        .sys-flat {
-          display: grid;
-          grid-template-columns: max-content 1fr;
-          gap: 6px 14px;
-          margin: 0;
-          font: 12.5px var(--mono);
-        }
-        .sys-flat dt { color: var(--mute); }
-        .sys-flat dd { margin: 0; word-break: break-all; color: var(--ink-2); }
-
-        main { flex: 1; min-width: 0; position: relative; overflow: hidden; }
-
-        .scrim {
-          display: none; position: fixed; inset: 0;
-          background: var(--scrim); z-index: 30;
-        }
-
-        /* ============ BUTTONS ============ */
         .btn {
           display: inline-flex; align-items: center; justify-content: center; gap: 8px;
           border: 1px solid var(--line-strong); border-radius: 10px;
-          padding: 10px 16px; font: 500 14.5px var(--sans);
+          padding: 9px 15px; font: 500 14px var(--sans);
           cursor: pointer; background: var(--panel); color: var(--ink);
           transition: filter .15s, background .15s, border-color .15s;
-          touch-action: manipulation;
         }
         .btn:hover:not(:disabled) { background: var(--hover); }
         .btn:disabled { opacity: .4; cursor: default; }
         .btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-        .btn.primary:hover:not(:disabled) { filter: brightness(1.15); background: var(--ink); }
+        .btn.primary:hover:not(:disabled) { filter: brightness(1.12); background: var(--ink); }
         .btn.call {
           background: var(--accent); color: #fff; border-color: var(--accent);
-          padding: 12px 22px; font-size: 15.5px;
+          padding: 11px 22px; font-size: 15px;
         }
         .btn.call:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
-        .btn.danger { background: var(--bad); color: #fff; border-color: var(--bad); }
-        .btn.danger:hover:not(:disabled) { filter: brightness(1.08); background: var(--bad); }
-        .btn.small { padding: 6px 12px; font-size: 12.5px; border-radius: 8px; }
-        .btn.icon { padding: 0; width: 36px; height: 36px; color: var(--ink-2); }
-        .btn.icon:hover:not(:disabled) { color: var(--ink); background: var(--hover); }
-
-        /* ============ VIEWS ============ */
-        .view {
-          position: absolute; inset: 0;
-          display: flex; flex-direction: column;
-          overflow: hidden;
+        .btn.danger {
+          background: transparent; color: var(--bad);
+          border-color: color-mix(in srgb, var(--bad) 45%, var(--line-strong));
+          padding: 6px 12px; font-size: 13px; border-radius: 8px;
         }
+        .btn.danger:hover:not(:disabled) {
+          background: color-mix(in srgb, var(--bad) 10%, transparent);
+          border-color: var(--bad);
+        }
+        .btn.small { padding: 6px 12px; font-size: 12.5px; border-radius: 8px; }
 
         /* ============ CALL HERO ============ */
         .call-hero {
           display: grid; place-items: center;
-          height: 100%; padding: 32px 24px;
-          overflow-y: auto;
+          height: 100%; padding: 32px 24px; overflow-y: auto;
         }
-        .hero-inner { max-width: 480px; width: 100%; text-align: center; }
+        .hero-inner { max-width: 440px; width: 100%; text-align: center; }
         .hero-icon {
-          width: 64px; height: 64px; margin: 0 auto 20px;
-          border-radius: 20px;
+          width: 58px; height: 58px; margin: 0 auto 18px;
+          border-radius: 18px;
           background: color-mix(in srgb, var(--accent) 14%, transparent);
           color: var(--accent);
           display: grid; place-items: center;
         }
-        .hero-icon svg { width: 28px; height: 28px; }
-        .call-hero h1 { margin: 0 0 8px; font-size: 24px; font-weight: 600; letter-spacing: -.01em; }
-        .call-hero p { margin: 0 0 26px; color: var(--ink-2); font-size: 14.5px; }
-        .hero-form { display: flex; gap: 10px; margin-bottom: 14px; }
+        .call-hero h1 { margin: 0 0 8px; font-size: 23px; font-weight: 600; letter-spacing: -.01em; }
+        .call-hero p { margin: 0 0 24px; color: var(--ink-2); font-size: 14.5px; }
+        .hero-form { display: flex; gap: 8px; }
         .hero-form select {
           flex: 1; min-width: 0;
           background: var(--field); color: var(--ink);
           border: 1px solid var(--line-strong); border-radius: 10px;
-          padding: 12px 14px; font: 14.5px var(--sans); outline: none;
+          padding: 11px 13px; font: 14px var(--sans); outline: none;
         }
         .hero-form select:focus { border-color: var(--accent); }
-        .hero-note { font: 12.5px var(--mono); color: var(--mute); margin-top: 20px; line-height: 1.7; }
+        .hero-status {
+          margin-top: 12px; min-height: 18px;
+          font: 12px var(--mono); color: var(--mute);
+        }
+        .hero-status.err { color: var(--bad); }
 
         /* ============ CALL LIVE ============ */
         .call-live {
@@ -356,34 +281,34 @@
           height: 100%; min-height: 0;
         }
         .call-live-bar {
-          display: flex; align-items: center; gap: 14px;
-          padding: 10px 20px;
+          display: flex; align-items: center; gap: 12px;
+          padding: 9px 20px;
           border-bottom: 1px solid var(--line);
           background: var(--panel);
         }
-        .live-state { display: flex; align-items: center; gap: 10px; font: 13.5px var(--mono); }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); flex: none; }
+        .live-state { display: flex; align-items: center; gap: 9px; font: 13px var(--mono); }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); }
         .dot.live {
           background: var(--ok);
           box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 22%, transparent);
           animation: pulse 1.6s ease-in-out infinite;
         }
         .dot.hold { background: var(--warn); }
-        .live-label { color: var(--mute); }
-        .phone { font: 13.5px var(--mono); color: var(--ink); }
-        .live-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+        .live-phone { color: var(--ink); font-weight: 500; }
+        .live-timer { color: var(--mute); }
+        .live-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 
         /* ============ TRANSCRIPT ============ */
-        .transcript { overflow-y: auto; min-height: 0; padding: 24px; -webkit-overflow-scrolling: touch; }
+        .transcript { overflow-y: auto; min-height: 0; padding: 24px 20px; }
         .thread {
-          max-width: 820px; margin: 0 auto;
+          max-width: 760px; margin: 0 auto;
           display: flex; flex-direction: column; gap: 12px;
         }
         .bubble {
-          max-width: 72%; padding: 10px 14px; border-radius: 16px;
+          max-width: 74%; padding: 10px 14px; border-radius: 16px;
           word-break: break-word; animation: rise .15s ease-out;
         }
-        .text { white-space: pre-wrap; }
+        .bubble .text { white-space: pre-wrap; }
         .bubble.bot {
           align-self: flex-start; background: var(--panel);
           border: 1px solid var(--line); border-bottom-left-radius: 4px;
@@ -392,73 +317,69 @@
           align-self: flex-end; background: var(--user-bg);
           color: var(--user-fg); border-bottom-right-radius: 4px;
         }
-        .bubble .meta { font: 11.5px var(--mono); color: var(--mute); margin-top: 6px; }
+        .bubble .meta { font: 11px var(--mono); color: var(--mute); margin-top: 5px; }
         .bubble.user .meta { color: var(--user-fg); opacity: .65; }
 
         .note {
           align-self: center; display: inline-flex; align-items: center; gap: 8px;
-          font: 12.5px var(--mono); color: var(--mute);
-          padding: 4px 10px; max-width: 90%; border-radius: 8px;
+          font: 12px var(--mono); color: var(--mute);
+          padding: 4px 11px; border-radius: 8px;
+          text-align: center;
         }
-        .note::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
-        .note.mut { color: var(--mute); }
-        .note.ok { color: var(--ok); }
-        .note.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
-        .note.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
+        .note::before { content: ""; width: 6px; height: 6px; flex: none; border-radius: 50%; background: currentColor; }
+        .note.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 13%, transparent); }
+        .note.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 13%, transparent); }
 
         .card {
           align-self: center; width: min(560px, 100%);
           background: var(--panel); border: 1px solid var(--line-strong);
           border-left: 3px solid var(--ok);
-          border-radius: 12px; padding: 14px 16px; font-size: 13.5px;
+          border-radius: 12px; padding: 13px 16px; font-size: 13.5px;
           animation: rise .2s ease-out;
         }
         .card.flagged { border-left-color: var(--bad); }
         .card header {
           display: flex; justify-content: space-between; align-items: center;
-          gap: 8px; margin-bottom: 10px;
+          gap: 8px; margin-bottom: 9px;
         }
-        .card h3 { margin: 0; font-size: 14.5px; font-weight: 600; }
-        .card h3 span { font: 12.5px var(--mono); color: var(--mute); margin-left: 6px; }
+        .card h3 { margin: 0; font-size: 14px; font-weight: 600; }
+        .card h3 span { font: 12px var(--mono); color: var(--mute); margin-left: 6px; font-weight: 400; }
         .pill {
-          font: 500 11.5px/1 var(--mono); padding: 4px 8px; border-radius: 999px;
+          font: 500 11px/1 var(--mono); padding: 4px 8px; border-radius: 999px;
           border: 1px solid currentColor; text-transform: uppercase;
-          letter-spacing: .04em; white-space: nowrap;
+          letter-spacing: .04em; white-space: nowrap; color: var(--warn);
         }
-        .pill.critical { color: var(--bad); }
-        .pill.normal { color: var(--warn); }
         .pill.low { color: var(--ok); }
-        .card dl {
-          display: grid; grid-template-columns: max-content 1fr;
-          gap: 5px 16px; margin: 0;
-        }
-        .card dt { color: var(--ink-2); }
+        .pill.normal { color: var(--warn); }
+        .pill.critical { color: var(--bad); }
+        .card dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
+        .card dt { color: var(--mute); }
         .card dd { margin: 0; word-break: break-word; }
         .card dd small { color: var(--mute); }
-        .card dd.flag { color: var(--bad); }
+        .card .flag { color: var(--bad); font-weight: 500; }
         .card .crm {
-          margin-top: 10px; padding-top: 10px;
+          margin-top: 9px; padding-top: 9px;
           border-top: 1px dashed var(--line-strong);
-          font: 12.5px var(--mono); color: var(--ink-2);
+          font: 12px var(--mono); color: var(--ink-2);
         }
         .card .crm.ok { color: var(--ok); }
         .card .crm.bad { color: var(--bad); }
+        .card .crm a { color: inherit; }
 
         /* ============ COMPOSER ============ */
         .composer {
           border-top: 1px solid var(--line); background: var(--panel);
-          padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+          padding: 10px 20px calc(12px + env(safe-area-inset-bottom));
         }
-        .composer-inner { max-width: 820px; margin: 0 auto; }
+        .composer-inner { max-width: 760px; margin: 0 auto; }
 
         .speaking {
           display: flex; align-items: center; gap: 10px;
-          margin-bottom: 8px; padding: 6px 10px 6px 12px;
-          border-radius: 10px; font: 12.5px var(--mono); color: var(--accent);
+          margin-bottom: 8px; padding: 5px 10px 5px 12px;
+          border-radius: 9px; font: 12px var(--mono); color: var(--accent);
           background: color-mix(in srgb, var(--accent) 12%, transparent);
         }
-        .speaking.caller { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
-        .speaking .eq { display: flex; gap: 2px; align-items: center; height: 14px; }
+        .speaking .eq { display: flex; gap: 2px; align-items: center; height: 13px; }
         .speaking .eq i {
           display: block; width: 3px; height: 4px; border-radius: 1px;
           background: currentColor; animation: eq .9s ease-in-out infinite;
@@ -468,21 +389,31 @@
         .speaking .eq i:nth-child(4) { animation-delay: .45s; }
         .speaking button { margin-left: auto; color: inherit; border-color: currentColor; background: transparent; }
 
+        .quick-chips {
+          display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;
+        }
+        .quick-chips button {
+          border: 1px solid var(--line); background: var(--paper); color: var(--ink-2);
+          border-radius: 999px; padding: 4px 11px; font: 12px var(--sans); cursor: pointer;
+          transition: border-color .15s, color .15s, opacity .15s;
+        }
+        .quick-chips button:hover:not(:disabled) { border-color: var(--accent); color: var(--ink); }
+        .quick-chips button:disabled { opacity: .4; cursor: default; }
+
         .composer-row {
-          display: flex; align-items: flex-end;
-          gap: 4px;
+          display: flex; align-items: flex-end; gap: 4px;
           background: var(--field);
           border: 1px solid var(--line-strong);
           border-radius: 24px;
-          padding: 5px 6px;
+          padding: 4px 6px;
           transition: border-color .15s, box-shadow .15s;
         }
         .composer-row:focus-within {
           border-color: var(--accent);
-          box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
         }
         .composer-row button {
-          width: 38px; height: 38px; padding: 0; flex: none;
+          width: 36px; height: 36px; padding: 0; flex: none;
           display: grid; place-items: center;
           border: 0; border-radius: 50%;
           background: transparent; color: var(--ink-2); cursor: pointer;
@@ -491,9 +422,12 @@
         }
         .composer-row button:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
         .composer-row button:disabled { opacity: .35; cursor: default; }
-        .composer-row .send-btn { background: var(--accent); color: #fff; }
-        .composer-row .send-btn:hover:not(:disabled) { background: var(--accent); filter: brightness(1.1); }
-        .composer-row .send-btn:disabled { background: var(--line-strong); color: var(--mute); }
+
+        .composer-row .voice-toggle.off { color: var(--mute); }
+        .composer-row .voice-toggle .ico-off { display: none; }
+        .composer-row .voice-toggle.off .ico-on { display: none; }
+        .composer-row .voice-toggle.off .ico-off { display: block; }
+
         .composer-row .mic.rec { background: var(--bad); color: #fff; }
         .composer-row .mic.barge { background: var(--warn); color: #fff; }
         .composer-row .mic.rec::after,
@@ -508,194 +442,141 @@
         .composer-row .mic.barge .ico-mic { display: none; }
         .composer-row .mic.rec .ico-stop,
         .composer-row .mic.barge .ico-stop { display: block; }
-        .composer-row .voice-toggle.off { color: var(--mute); }
-        .composer-row .voice-toggle.off:hover { color: var(--ink); }
-        .composer-row .voice-toggle .ico-off { display: none; }
-        .composer-row .voice-toggle.off .ico-on { display: none; }
-        .composer-row .voice-toggle.off .ico-off { display: block; }
 
         .composer-row textarea {
           flex: 1; min-width: 0;
           background: transparent; color: var(--ink);
           border: 0; outline: none;
-          padding: 9px 4px;
-          font: inherit; line-height: 20px;
-          max-height: 160px; resize: none;
+          padding: 8px 4px; font: inherit; line-height: 20px;
+          max-height: 140px; resize: none;
         }
         .composer-row textarea::placeholder { color: var(--mute); }
         .composer-row textarea:read-only { color: var(--mute); cursor: not-allowed; }
 
+        .composer-row .send-btn { background: var(--accent); color: #fff; }
+        .composer-row .send-btn:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+        .composer-row .send-btn:disabled { background: var(--line); color: var(--mute); opacity: 1; }
+
         .statusline {
-          font: 12.5px var(--mono); color: var(--ink-2);
-          min-height: 16px; margin-top: 6px; padding: 0 6px;
+          font: 12px var(--mono); color: var(--ink-2);
+          margin-top: 6px; padding: 0 6px;
         }
+        .statusline:empty { display: none; }
         .statusline.err { color: var(--bad); }
 
         /* ============ CALL ENDED ============ */
         .call-ended {
           border-top: 1px solid var(--line); background: var(--panel);
-          padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
-          display: flex; align-items: center; gap: 14px;
-          justify-content: center;
-          font: 13.5px var(--mono); color: var(--ink-2);
+          padding: 13px 20px calc(13px + env(safe-area-inset-bottom));
+          display: flex; align-items: center; gap: 10px; justify-content: center; flex-wrap: wrap;
+          font: 13px var(--mono); color: var(--ink-2);
         }
+        .call-ended .summary { margin-right: 6px; }
         .call-ended b { color: var(--ink); font-weight: 500; }
 
-        /* ============ STAGES ============ */
+        /* ============ TTS & ASR PROBES ============ */
         .stage-split {
           display: flex; flex-direction: column;
-          height: 100%; max-width: 760px; width: 100%; margin: 0 auto;
-          padding: 24px 24px 0;
+          height: 100%; max-width: 720px; width: 100%; margin: 0 auto;
+          padding: 24px 20px 0;
         }
         .stage-top { flex: none; }
-        .stage-scroll {
-          flex: 1; min-height: 0; overflow-y: auto;
-          padding-bottom: 32px;
-          margin: 0 -6px; padding-left: 6px; padding-right: 6px;
-        }
-        .stage-top h1 {
-          margin: 0 0 6px; font-size: 23px; font-weight: 600;
-          letter-spacing: -.01em;
-        }
-        .stage-top > .lead { margin: 0 0 20px; color: var(--ink-2); font-size: 14.5px; }
+        .stage-top h1 { margin: 0 0 4px; font-size: 21px; font-weight: 600; letter-spacing: -.01em; }
+        .stage-top > .lead { margin: 0 0 16px; color: var(--mute); font-size: 14px; }
+        .stage-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 28px; }
 
         .block {
           background: var(--panel); border: 1px solid var(--line);
-          border-radius: 14px; padding: 18px;
-          margin-bottom: 16px;
+          border-radius: 14px; padding: 16px 18px; margin-bottom: 14px;
         }
         .block h2 {
-          margin: 0 0 14px; font-size: 12.5px; font-weight: 500;
-          color: var(--mute); letter-spacing: .08em; text-transform: uppercase;
-          font-family: var(--mono);
+          margin: 0 0 12px; font: 500 11.5px var(--mono);
+          color: var(--mute); letter-spacing: .07em; text-transform: uppercase;
         }
-
         .probe textarea {
-          width: 100%; min-height: 90px; padding: 12px 14px; font-size: 15.5px;
+          width: 100%; min-height: 82px; padding: 10px 12px; font: inherit;
           border-radius: 10px; resize: vertical;
           background: var(--field); color: var(--ink);
           border: 1px solid var(--line-strong); outline: none;
-          font-family: var(--sans);
         }
-        .probe textarea:focus {
-          border-color: var(--accent);
-          box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+        .probe textarea:focus { border-color: var(--accent); }
+        .probe-row {
+          display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap;
         }
-        .probe-actions {
-          display: flex; align-items: center; gap: 12px; margin-top: 12px;
-          flex-wrap: wrap;
+        .probe-row select {
+          background: var(--field); color: var(--ink);
+          border: 1px solid var(--line-strong); border-radius: 9px;
+          padding: 8px 11px; font: 13.5px var(--sans); outline: none;
         }
-        .probe-actions .hint { font: 12.5px var(--mono); color: var(--mute); }
+        .probe-row select:focus { border-color: var(--accent); }
+        .probe-row .hint { margin-left: auto; font: 12px var(--mono); color: var(--mute); }
 
         .history-list { display: flex; flex-direction: column; gap: 8px; }
+        .history-empty { font: 13px var(--mono); color: var(--mute); padding: 4px 0; }
         .history-item {
-          display: flex; align-items: flex-start; gap: 10px;
-          padding: 10px 12px;
-          border: 1px solid var(--line); border-radius: 10px;
+          display: flex; align-items: center; gap: 10px;
+          padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
           background: var(--paper);
+          animation: rise .14s ease-out;
         }
         .history-item .h-body { flex: 1; min-width: 0; }
-        .history-item .h-text {
-          font-size: 14.5px; line-height: 1.45;
-          word-break: break-word; white-space: pre-wrap;
-        }
+        .history-item .h-text { font-size: 14px; line-height: 1.4; word-break: break-word; }
         .history-item .h-meta {
-          font: 11.5px var(--mono); color: var(--mute); margin-top: 6px;
-          display: flex; gap: 10px; flex-wrap: wrap;
+          font: 11px var(--mono); color: var(--mute);
+          margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px 12px;
         }
-        .history-item .h-time { color: var(--mute); }
         .history-item button {
-          flex: none; width: 28px; height: 28px; padding: 0;
+          width: 32px; height: 32px; flex: none; border: 0; border-radius: 8px;
+          background: transparent; color: var(--ink-2); cursor: pointer;
           display: grid; place-items: center;
-          border: 0; border-radius: 8px;
-          background: transparent; color: var(--mute); cursor: pointer;
-          transition: background .15s, color .15s;
         }
         .history-item button:hover { background: var(--hover); color: var(--ink); }
-        .history-empty {
-          font: 13px var(--mono); color: var(--mute);
-          padding: 16px 0; text-align: center;
-        }
 
         .asr-recorder {
-          display: flex; flex-direction: column; align-items: center;
-          gap: 16px; padding: 12px 0 0;
+          display: flex; align-items: center; gap: 18px; padding: 4px 0;
         }
         .asr-mic {
-          position: relative;
-          width: 92px; height: 92px; border-radius: 50%;
+          width: 68px; height: 68px; border-radius: 50%; flex: none;
           border: 1px solid var(--line-strong);
-          background: var(--field); color: var(--ink-2);
+          background: var(--field); color: var(--ink);
           display: grid; place-items: center; cursor: pointer;
-          transition: background .15s, color .15s, border-color .15s, transform .1s;
+          position: relative;
+          transition: background .15s, color .15s, border-color .15s;
         }
-        .asr-mic:hover:not(:disabled):not(.rec) { background: var(--hover); transform: scale(1.02); }
-        .asr-mic:disabled { opacity: .4; cursor: default; }
-        .asr-mic.rec { background: var(--bad); color: #fff; border-color: var(--bad); }
-        .asr-mic::after {
-          content: ""; position: absolute; inset: -6px; border-radius: 50%;
-          border: 2px solid currentColor; opacity: 0;
-          transition: opacity .15s, transform .06s linear;
+        .asr-mic:hover:not(.rec) { background: var(--hover); }
+        .asr-mic.rec {
+          background: var(--bad); color: #fff; border-color: var(--bad);
         }
         .asr-mic.rec::after {
-          opacity: .55;
-          transform: scale(calc(1 + var(--level, 0) * .35));
+          content: ""; position: absolute; inset: -5px; border-radius: 50%;
+          border: 2px solid var(--bad); opacity: .45;
+          transform: scale(calc(1 + var(--level, 0) * .3));
+          transition: transform .06s linear;
         }
-        .asr-state { font: 13.5px var(--mono); color: var(--ink-2); text-align: center; }
+        .asr-box { flex: 1; min-width: 0; }
+        .asr-state { font: 12px var(--mono); color: var(--mute); margin-bottom: 6px; }
         .asr-state.live { color: var(--bad); }
-
         .asr-result {
-          min-height: 60px; max-height: 180px; overflow-y: auto;
-          padding: 12px 14px; margin-top: 8px;
+          min-height: 46px; padding: 10px 12px;
           border-radius: 10px; border: 1px dashed var(--line-strong);
-          background: var(--field);
-          font-size: 15.5px; line-height: 1.45;
-          word-break: break-word; white-space: pre-wrap;
+          background: var(--field); font-size: 14.5px; word-break: break-word;
         }
         .asr-result.empty { color: var(--mute); font-style: italic; }
-        .asr-result.error { border-color: var(--bad); color: var(--bad); border-style: solid; }
+        .asr-result.error { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, var(--line-strong)); }
 
-        /* ============ ANIMATIONS ============ */
         @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
-        @keyframes eq { 0%, 100% { height: 4px; } 50% { height: 14px; } }
+        @keyframes eq { 0%, 100% { height: 4px; } 50% { height: 13px; } }
 
-        /* ============ RESPONSIVE ============ */
-        @media (max-width: 900px) {
-          .topbar { padding: 8px 12px; gap: 8px; min-height: 56px; }
+        @media (max-width: 720px) {
+          .topbar { grid-template-columns: auto 1fr auto; padding: 8px 12px; }
           .brand-txt { display: none; }
-          .brand { margin-right: 0; }
-          .modes button { padding: 8px 10px; font-size: 12.5px; }
-          .modes button svg { display: none; }
-          .modes { padding: 3px; }
-          .sidebar {
-            position: fixed; top: 0; left: 0; bottom: 0;
-            width: min(320px, 88vw);
-            min-width: 0; border-right: 0; z-index: 60;
-            transform: translateX(-100%);
-            transition: transform .22s ease;
-            box-shadow: 20px 0 40px rgba(0,0,0,.25);
-          }
-          body.sidebar-open .sidebar { width: min(320px, 88vw); transform: translateX(0); }
-          .sidebar-head { display: flex; }
-          .sidebar-inner { width: 100%; }
-          body.sidebar-open .scrim { display: block; }
-          .transcript { padding: 16px 14px; }
-          .bubble { max-width: 88%; }
-          .composer { padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
-          .call-live-bar { padding: 8px 12px; gap: 8px; }
-          .live-actions .btn.icon { display: none; }
-          .live-actions .btn.icon:first-child { display: inline-flex; }
-          .stage-split { padding: 20px 14px 0; }
-          .block { padding: 14px; }
-          .hero-form { flex-direction: column; }
-          .hero-form .btn.call { width: 100%; }
-        }
-
-        @media (max-width: 520px) {
+          .modes { justify-self: center; }
           .modes button span:not(.live-dot) { display: none; }
-          .modes button { padding: 8px; }
-          .modes button svg { display: block; }
-          .brand-mark { width: 32px; height: 32px; }
+          .modes button { padding: 8px 10px; }
+          .hero-form { flex-direction: column; }
+          .bubble { max-width: 88%; }
+          .asr-recorder { flex-direction: column; align-items: stretch; text-align: center; }
+          .asr-mic { margin: 0 auto; }
         }
     </style>
 </head>
@@ -703,23 +584,16 @@
 
 <!-- ============ TOPBAR ============ -->
 <header class="topbar">
-    <button class="icon-btn" id="sidebarToggle" aria-label="Настройки">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="4" width="18" height="16" rx="2"/>
-            <path d="M9 4v16"/>
-        </svg>
-    </button>
-
     <div class="brand">
         <div class="brand-mark">УК</div>
         <div class="brand-txt">
             <div class="brand-title">Ассистент первой линии</div>
-            <div class="brand-sub">демо-стенд</div>
+            <div class="brand-sub">демо-стенд · телефония</div>
         </div>
     </div>
 
     <nav class="modes" id="modeNav">
-        <button type="button" data-mode="call">
+        <button type="button" data-mode="call" class="on">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
             </svg>
@@ -730,7 +604,6 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M11 5 6 9H2v6h4l5 4z"/>
                 <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
-                <path d="M18.5 5.5a9 9 0 0 1 0 13"/>
             </svg>
             <span>Синтез речи</span>
         </button>
@@ -743,296 +616,216 @@
         </button>
     </nav>
 
-    <div class="topbar-right"></div>
+    <div class="topbar-right">
+        <button class="icon-btn" id="themeBtn" type="button" title="Переключить тему" aria-label="Переключить тему">
+            <svg class="ico-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+            </svg>
+            <svg class="ico-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+        </button>
+        <button class="icon-btn" id="settingsBtn" type="button" title="Настройки" aria-label="Настройки">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="4" y1="6" x2="20" y2="6"/>
+                <line x1="4" y1="12" x2="20" y2="12"/>
+                <line x1="4" y1="18" x2="20" y2="18"/>
+                <circle cx="8" cy="6" r="2" fill="var(--panel)"/>
+                <circle cx="16" cy="12" r="2" fill="var(--panel)"/>
+                <circle cx="10" cy="18" r="2" fill="var(--panel)"/>
+            </svg>
+        </button>
+
+        <div class="popover" id="settingsPopover" hidden>
+            <h2 class="popover-title">Параметры стенда</h2>
+
+            <label class="field" id="voiceField" hidden>
+                <span class="field-head"><span>Голос бота</span></span>
+                <select id="voiceSelect"></select>
+            </label>
+
+            <div class="field" style="margin-bottom:4px">
+                <div class="field-head">
+                    <span>Микрофон</span>
+                    <button type="button" id="micGrantBtn" hidden>Обновить список</button>
+                </div>
+                <select id="micSelect">
+                    <option value="">По умолчанию (системный)</option>
+                </select>
+                <div class="field-hint" id="micHint" hidden></div>
+            </div>
+
+            <label class="switch">
+                <span class="lbl">Перебивание голосом<small>Слушать микрофон во время речи бота</small></span>
+                <input type="checkbox" id="optBargeIn">
+                <span class="track"></span>
+            </label>
+
+            <div class="sys-pill" id="sysPill">
+                <span>диалог: <b id="cfg-dialog">—</b></span>
+                <span>asr: <b id="cfg-asr">—</b></span>
+                <span>tts: <b id="cfg-tts">—</b></span>
+                <span id="cfg-llm-wrap">llm: <b id="cfg-llm">—</b></span>
+                <span>crm: <b id="cfg-crm">—</b></span>
+            </div>
+        </div>
+    </div>
 </header>
 
-<div class="shell">
-
-    <!-- ========= SIDEBAR ========= -->
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-head">
-            <h2>Настройки</h2>
-            <button class="btn icon" id="sidebarClose" aria-label="Закрыть">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M18 6 6 18M6 6l12 12"/>
-                </svg>
-            </button>
+<main>
+    <!-- ========= MODE: CALL ========= -->
+    <section class="view" data-view="call">
+        <div class="call-hero" id="callHero">
+            <div class="hero-inner">
+                <div class="hero-icon">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                    </svg>
+                </div>
+                <h1>Диспетчерская УК «Территория»</h1>
+                <p>Выберите абонента и начните тестовый звонок голосовому ассистенту.</p>
+                <div class="hero-form">
+                    <select id="phoneSelect" aria-label="Номер абонента"></select>
+                    <button type="button" id="startCallBtn" class="btn call">Позвонить</button>
+                </div>
+                <div class="hero-status" id="heroStatus"></div>
+            </div>
         </div>
 
-        <div class="sidebar-inner">
-            <section>
-                <h3>Озвучка</h3>
-                <label class="switch">
-                    <input type="checkbox" id="optVoiceOut"><span class="track"></span>
-                    <span class="lbl">Проговаривать реплики<small>Обе стороны: бот и звонящий</small></span>
-                </label>
-                <label class="field" id="voiceField" hidden style="margin-top:10px;margin-bottom:10px">
-                    <span>Голос бота</span>
-                    <select id="voiceSelect"></select>
-                </label>
-                <label class="field" id="callerVoiceField" hidden style="margin-bottom:0">
-                    <span>Голос звонящего</span>
-                    <select id="callerVoiceSelect"></select>
-                </label>
-            </section>
+        <div class="call-live" id="callLive" hidden>
+            <div class="call-live-bar">
+                <div class="live-state">
+                    <span class="dot live" id="liveDot"></span>
+                    <span class="live-phone" id="livePhone"></span>
+                    <span class="live-timer" id="liveTimer">00:00</span>
+                </div>
+                <div class="live-actions">
+                    <button type="button" class="btn danger" id="hangupBtn">Завершить</button>
+                </div>
+            </div>
 
-            <section>
-                <h3>Микрофон</h3>
-                <label class="switch">
-                    <input type="checkbox" id="optMic"><span class="track"></span>
-                    <span class="lbl">Разрешить запись</span>
-                </label>
+            <div class="transcript" id="transcript">
+                <div class="thread" id="thread"></div>
+            </div>
 
-                <!-- перебивание показываем только во время активного звонка -->
-                <label class="switch call-only" id="bargeInRow" hidden>
-                    <input type="checkbox" id="optBargeIn"><span class="track"></span>
-                    <span class="lbl">Перебивание<small>Пока бот говорит, микрофон открыт</small></span>
-                </label>
-
-                <div class="mic-info" id="micInfo">
-                    <div class="mic-info-row">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="9" y="2" width="6" height="12" rx="3"/>
-                            <path d="M5 11a7 7 0 0 0 14 0M12 18v4"/>
-                        </svg>
-                        <span class="mic-info-label" id="micLabel">Проверяем микрофон…</span>
+            <footer class="composer" id="composer">
+                <div class="composer-inner">
+                    <div class="speaking" id="speakingBar" hidden>
+                        <span class="eq"><i></i><i></i><i></i><i></i></span>
+                        <span id="speakingLabel">Бот говорит</span>
+                        <button type="button" class="btn small" id="stopSpeakBtn">Стоп</button>
                     </div>
-                    <button type="button" id="micChangeBtn" disabled>Сменить</button>
+
+                    <div class="quick-chips" id="quickChips">
+                        <button type="button" data-chip="Не работает лифт в нашем подъезде">Не работает лифт</button>
+                        <button type="button" data-chip="Подскажите, как часто нужна поверка счётчика воды?">Вопрос по базе знаний</button>
+                        <button type="button" data-chip="Соедините меня с живым оператором">Перевод на оператора</button>
+                    </div>
+
+                    <div class="composer-row">
+                        <button type="button" id="voiceToggleBtn" class="voice-toggle" title="Озвучка ответа бота">
+                            <svg class="ico-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M11 5 6 9H2v6h4l5 4z"/>
+                                <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+                                <path d="M18.5 5.5a9 9 0 0 1 0 13"/>
+                            </svg>
+                            <svg class="ico-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M11 5 6 9H2v6h4l5 4z"/>
+                                <path d="M22 9l-6 6M16 9l6 6"/>
+                            </svg>
+                        </button>
+                        <textarea id="input" rows="1" placeholder="Реплика звонящего…"></textarea>
+                        <button type="button" id="micBtn" class="mic" title="Записать голосом">
+                            <svg class="ico-mic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="2" width="6" height="12" rx="3"/>
+                                <path d="M5 11a7 7 0 0 0 14 0M12 18v4"/>
+                            </svg>
+                            <svg class="ico-stop" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="6" y="6" width="12" height="12" rx="2"/>
+                            </svg>
+                        </button>
+                        <button type="button" id="sendBtn" class="send-btn" title="Отправить" disabled>
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12h14M13 5l7 7-7 7"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="statusline" id="status"></div>
                 </div>
+            </footer>
 
-                <div class="mic-devices" id="micDevices" hidden>
-                    <select id="micDeviceSelect" aria-label="Устройство записи"></select>
-                    <span class="hint">
-                        Действует до перезагрузки вкладки — потом снова системный по умолчанию.
-                    </span>
-                </div>
-
-                <div class="diag" id="micDiag">—</div>
-            </section>
-
-            <section>
-                <h3>Тема</h3>
-                <div class="seg" id="themeSeg">
-                    <button type="button" data-theme="auto">Системная</button>
-                    <button type="button" data-theme="light">Светлая</button>
-                    <button type="button" data-theme="dark">Тёмная</button>
-                </div>
-            </section>
-
-            <section>
-                <h3>Система</h3>
-                <dl class="sys-flat">
-                    <dt>Диалог</dt><dd id="cfg-dialog">…</dd>
-                    <dt>ASR</dt><dd id="cfg-asr">…</dd>
-                    <dt>TTS</dt><dd id="cfg-tts">…</dd>
-                    <dt>LLM</dt><dd id="cfg-llm">…</dd>
-                    <dt>CRM</dt><dd id="cfg-crm">…</dd>
-                </dl>
-            </section>
+            <div class="call-ended" id="callEndedBar" hidden>
+                <span class="summary"><b>Разговор завершён</b> · <span id="endedReason"></span></span>
+                <button type="button" class="btn small" id="downloadLogBtn">Скачать лог (.txt)</button>
+                <button type="button" class="btn primary small" id="newCallBtn">Новый звонок</button>
+            </div>
         </div>
-    </aside>
+    </section>
 
-    <main>
-
-        <!-- ========= MODE: CALL ========= -->
-        <section class="view" data-view="call">
-            <div class="call-hero" id="callHero">
-                <div class="hero-inner">
-                    <div class="hero-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                        </svg>
-                    </div>
-                    <h1>Начать звонок</h1>
-                    <p>Выберите номер из списка и запустите демонстрационный звонок ассистенту.</p>
-                    <div class="hero-form">
-                        <select id="phoneSelect"></select>
-                        <button type="button" id="callToggle" class="btn call">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                            </svg>
-                            Позвонить
+    <!-- ========= MODE: TTS ========= -->
+    <section class="view" data-view="tts" hidden>
+        <div class="stage-split">
+            <div class="stage-top">
+                <h1>Проба синтеза речи</h1>
+                <p class="lead" id="ttsLead">Проверка голоса TTS отдельно от диалога.</p>
+                <div class="block probe">
+                    <textarea id="ttsInput" placeholder="Введите текст для озвучки…">Здравствуйте! Ваше обращение принято, номер заявки пять тысяч четыреста тридцать два.</textarea>
+                    <div class="probe-row">
+                        <select id="ttsVoiceSelect" aria-label="Голос TTS" hidden></select>
+                        <button type="button" id="ttsPlayBtn" class="btn primary">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>
+                            <span id="ttsPlayLabel">Озвучить</span>
                         </button>
+                        <span class="hint">Ctrl + Enter</span>
                     </div>
-                    <div class="hero-note">
-                        Только послушать голос — вкладка «Синтез речи».<br>
-                        Проверить распознавание — вкладка «Распознавание».
+                    <div class="statusline" id="ttsStatus"></div>
+                </div>
+            </div>
+            <div class="stage-scroll">
+                <div class="block">
+                    <h2>Последние пробы</h2>
+                    <div class="history-list" id="ttsHistory">
+                        <div class="history-empty">Пока пусто — озвучьте первый текст.</div>
                     </div>
                 </div>
             </div>
+        </div>
+    </section>
 
-            <div class="call-live" id="callLive" hidden>
-                <div class="call-live-bar">
-                    <div class="live-state">
-                        <span class="dot live" id="stateDot"></span>
-                        <span class="live-label" id="stateText">Звонок</span>
-                        <span class="phone" id="callPhone"></span>
-                    </div>
-                    <div class="live-actions">
-                        <button class="btn icon" id="copyBtn" title="Скопировать лог" aria-label="Скопировать лог">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="9" y="9" width="11" height="11" rx="2"/>
-                                <path d="M5 15V5a2 2 0 0 1 2-2h10"/>
+    <!-- ========= MODE: ASR ========= -->
+    <section class="view" data-view="asr" hidden>
+        <div class="stage-split">
+            <div class="stage-top">
+                <h1>Проба распознавания речи</h1>
+                <p class="lead" id="asrLead">Проверка распознавания речи отдельно от диалога.</p>
+                <div class="block">
+                    <div class="asr-recorder">
+                        <button id="asrMicBtn" class="asr-mic" type="button" aria-label="Запись">
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="2" width="6" height="12" rx="3"/>
+                                <path d="M5 11a7 7 0 0 0 14 0M12 18v4"/>
                             </svg>
                         </button>
-                        <button class="btn icon" id="downloadBtn" title="Скачать лог (.txt)" aria-label="Скачать лог">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M12 4v12M6 11l6 6 6-6M4 20h16"/>
-                            </svg>
-                        </button>
-                        <button class="btn icon" id="clearBtn" title="Очистить чат" aria-label="Очистить чат">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>
-                            </svg>
-                        </button>
-                        <button class="btn danger" id="callEndBtn" title="Завершить звонок">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67"/>
-                                <path d="M5 5l14 14"/>
-                                <path d="M5 5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L11 11"/>
-                            </svg>
-                            Завершить
-                        </button>
-                    </div>
-                </div>
-
-                <div class="transcript" id="transcript">
-                    <div class="thread" id="thread"></div>
-                </div>
-
-                <footer class="composer" id="composerPanel">
-                    <div class="composer-inner">
-                        <div class="speaking" id="speakingBar" hidden>
-                            <span class="eq"><i></i><i></i><i></i><i></i></span>
-                            <span id="speakingLabel">Бот говорит</span>
-                            <button type="button" class="btn small" id="stopSpeakBtn">Остановить</button>
-                        </div>
-                        <div class="composer-row">
-                            <button type="button" id="voiceToggleBtn" class="voice-toggle" title="Проговаривать реплики" aria-label="Проговаривать реплики">
-                                <svg class="ico-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M11 5 6 9H2v6h4l5 4z"/>
-                                    <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
-                                    <path d="M18.5 5.5a9 9 0 0 1 0 13"/>
-                                </svg>
-                                <svg class="ico-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M11 5 6 9H2v6h4l5 4z"/>
-                                    <path d="M22 9l-6 6M16 9l6 6"/>
-                                </svg>
-                            </button>
-                            <button type="button" id="micBtn" class="mic" title="Записать реплику" aria-label="Записать реплику">
-                                <svg class="ico-mic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="9" y="2" width="6" height="12" rx="3"/>
-                                    <path d="M5 11a7 7 0 0 0 14 0M12 18v4"/>
-                                </svg>
-                                <svg class="ico-stop" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                    <rect x="6" y="6" width="12" height="12" rx="2"/>
-                                </svg>
-                            </button>
-                            <textarea id="input" rows="1" placeholder="Реплика звонящего…"></textarea>
-                            <button type="button" id="sendBtn" class="send-btn" title="Отправить" aria-label="Отправить">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M22 2 11 13"/>
-                                    <path d="M22 2l-7 20-4-9-9-4z"/>
-                                </svg>
-                            </button>
-                        </div>
-                        <div class="statusline" id="status" role="status" aria-live="polite"></div>
-                    </div>
-                </footer>
-
-                <div class="call-ended" id="callEndedPanel" hidden>
-                    <span><b>Разговор завершён</b> · <span id="endedMeta"></span></span>
-                    <button class="btn primary" id="callNewBtn">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-                        </svg>
-                        Новый звонок
-                    </button>
-                </div>
-            </div>
-        </section>
-
-        <!-- ========= MODE: TTS ========= -->
-        <section class="view" data-view="tts" hidden>
-            <div class="stage-split">
-                <div class="stage-top">
-                    <h1>Синтез речи</h1>
-                    <p class="lead">Проверьте, как звучит голос. Текст только озвучивается — боту не уходит.</p>
-
-                    <div class="block probe">
-                        <h2>Проба голоса</h2>
-                        <label class="field">
-                            <span>Голос TTS</span>
-                            <select id="ttsVoiceSelect"></select>
-                        </label>
-                        <label class="field" style="margin-bottom:0">
-                            <span>Текст</span>
-                            <textarea id="ttsInput" placeholder="Введите текст, который нужно озвучить…"></textarea>
-                        </label>
-                        <div class="probe-actions">
-                            <button id="ttsPlayBtn" class="btn primary">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                                    <polygon points="6 4 20 12 6 20"/>
-                                </svg>
-                                <span id="ttsPlayLabel">Озвучить</span>
-                            </button>
-                            <span class="hint">Ctrl + Enter — запустить</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="stage-scroll">
-                    <div class="block">
-                        <h2>История проб</h2>
-                        <div class="history-list" id="ttsHistory">
-                            <div class="history-empty">Пока пусто — озвучьте первый текст.</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- ========= MODE: ASR ========= -->
-        <section class="view" data-view="asr" hidden>
-            <div class="stage-split">
-                <div class="stage-top">
-                    <h1>Распознавание речи</h1>
-                    <p class="lead">Нажмите микрофон, произнесите фразу и нажмите ещё раз — увидите, что услышала система.</p>
-
-                    <div class="block">
-                        <h2>Запись</h2>
-                        <div class="asr-recorder">
-                            <button id="asrMicBtn" class="asr-mic" type="button" aria-label="Запись">
-                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="9" y="2" width="6" height="12" rx="3"/>
-                                    <path d="M5 11a7 7 0 0 0 14 0M12 18v4"/>
-                                </svg>
-                            </button>
+                        <div class="asr-box">
                             <div class="asr-state" id="asrState">Нажмите, чтобы начать запись</div>
-                        </div>
-                        <div style="margin-top:16px">
-                            <label class="field" style="margin-bottom:0">
-                                <span>Распознанный текст</span>
-                            </label>
-                            <div class="asr-result empty" id="asrResult">—</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="stage-scroll">
-                    <div class="block">
-                        <h2>История распознаваний</h2>
-                        <div class="history-list" id="asrHistory">
-                            <div class="history-empty">Пока пусто — запишите первую фразу.</div>
+                            <div class="asr-result empty" id="asrResult">Распознанный текст появится здесь…</div>
                         </div>
                     </div>
                 </div>
             </div>
-        </section>
-    </main>
-</div>
-
-<div class="scrim" id="scrim"></div>
+            <div class="stage-scroll">
+                <div class="block">
+                    <h2>История распознаваний</h2>
+                    <div class="history-list" id="asrHistory">
+                        <div class="history-empty">Пока пусто — запишите первую фразу.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
 
 <script>
     'use strict';
@@ -1042,67 +835,62 @@
        ========================================================= */
     const $ = (sel) => document.querySelector(sel);
     const ui = {
-      sidebarToggle: $('#sidebarToggle'),
-      sidebarClose: $('#sidebarClose'),
-      scrim: $('#scrim'),
-
       modeTabs: document.querySelectorAll('#modeNav [data-mode]'),
       callTabLive: $('#callTabLive'),
+      themeBtn: $('#themeBtn'),
+      settingsBtn: $('#settingsBtn'),
+      settingsPopover: $('#settingsPopover'),
+
+      voiceField: $('#voiceField'),
+      voiceSelect: $('#voiceSelect'),
+      micSelect: $('#micSelect'),
+      micGrantBtn: $('#micGrantBtn'),
+      micHint: $('#micHint'),
+      optBargeIn: $('#optBargeIn'),
+      cfgLlmWrap: $('#cfg-llm-wrap'),
 
       callHero: $('#callHero'),
       callLive: $('#callLive'),
-      callToggle: $('#callToggle'),
-      callEndBtn: $('#callEndBtn'),
-      callNewBtn: $('#callNewBtn'),
-      callEndedPanel: $('#callEndedPanel'),
-      endedMeta: $('#endedMeta'),
       phoneSelect: $('#phoneSelect'),
-      callPhone: $('#callPhone'),
-      stateDot: $('#stateDot'),
-      stateText: $('#stateText'),
+      startCallBtn: $('#startCallBtn'),
+      heroStatus: $('#heroStatus'),
 
+      liveDot: $('#liveDot'),
+      livePhone: $('#livePhone'),
+      liveTimer: $('#liveTimer'),
+      hangupBtn: $('#hangupBtn'),
       transcript: $('#transcript'),
       thread: $('#thread'),
-      copyBtn: $('#copyBtn'),
-      downloadBtn: $('#downloadBtn'),
-      clearBtn: $('#clearBtn'),
 
-      composerPanel: $('#composerPanel'),
-      input: $('#input'),
-      sendBtn: $('#sendBtn'),
-      micBtn: $('#micBtn'),
-      voiceToggleBtn: $('#voiceToggleBtn'),
+      composer: $('#composer'),
       speakingBar: $('#speakingBar'),
       speakingLabel: $('#speakingLabel'),
       stopSpeakBtn: $('#stopSpeakBtn'),
+      quickChips: document.querySelectorAll('#quickChips [data-chip]'),
+      voiceToggleBtn: $('#voiceToggleBtn'),
+      input: $('#input'),
+      micBtn: $('#micBtn'),
+      sendBtn: $('#sendBtn'),
       status: $('#status'),
 
-      ttsVoiceSelect: $('#ttsVoiceSelect'),
+      callEndedBar: $('#callEndedBar'),
+      endedReason: $('#endedReason'),
+      downloadLogBtn: $('#downloadLogBtn'),
+      newCallBtn: $('#newCallBtn'),
+
+      ttsLead: $('#ttsLead'),
       ttsInput: $('#ttsInput'),
+      ttsVoiceSelect: $('#ttsVoiceSelect'),
       ttsPlayBtn: $('#ttsPlayBtn'),
       ttsPlayLabel: $('#ttsPlayLabel'),
+      ttsStatus: $('#ttsStatus'),
       ttsHistory: $('#ttsHistory'),
 
+      asrLead: $('#asrLead'),
       asrMicBtn: $('#asrMicBtn'),
       asrState: $('#asrState'),
       asrResult: $('#asrResult'),
       asrHistory: $('#asrHistory'),
-
-      optVoiceOut: $('#optVoiceOut'),
-      optMic: $('#optMic'),
-      optBargeIn: $('#optBargeIn'),
-      bargeInRow: $('#bargeInRow'),
-      voiceField: $('#voiceField'),
-      voiceSelect: $('#voiceSelect'),
-      callerVoiceField: $('#callerVoiceField'),
-      callerVoiceSelect: $('#callerVoiceSelect'),
-      micInfo: $('#micInfo'),
-      micLabel: $('#micLabel'),
-      micChangeBtn: $('#micChangeBtn'),
-      micDevices: $('#micDevices'),
-      micDeviceSelect: $('#micDeviceSelect'),
-      micDiag: $('#micDiag'),
-      themeTabs: document.querySelectorAll('#themeSeg [data-theme]'),
     };
 
     window.addEventListener('unhandledrejection', (e) => showStatus('JS: ' + (e.reason?.message || e.reason), true));
@@ -1120,15 +908,18 @@
       endedReason: '',
       busy: false,
       speaking: false,
-      speakingRole: null,     // 'bot' | 'caller'
-      ttsSpeaker: null,       // голос бота
-      callerSpeaker: null,    // голос звонящего
+      ttsSpeaker: null,
+      voiceOut: localStorage.getItem('voiceOut') !== 'false',
       sessionActive: false,
+      seconds: 0,
+      timer: null,
     };
 
     const micSupported = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-    const inCall = () => Boolean(app.callId) && !app.ended;
+    const mobileMq = matchMedia('(max-width: 720px)');
 
+    const inCall = () => Boolean(app.callId) && !app.ended;
+    const bargeInOn = () => ui.optBargeIn.checked;
     const speechLock = () => app.speaking && !bargeInOn();
     const composerLocked = () => app.busy || speechLock();
 
@@ -1138,17 +929,34 @@
     function escapeHtml(value) {
       return String(value).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
     }
-    function showStatus(text, isError) {
-      ui.status.textContent = text || '';
-      ui.status.classList.toggle('err', Boolean(isError));
+    function fmtTime(sec) {
+      return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
     }
-    function setMicDiag(text) { ui.micDiag.textContent = text; }
-    function reportMicError(err) { showStatus('Микрофон: ' + err.message, true); }
+    function showStatus(text, isError) {
+      const msg = text || '';
+      ui.status.textContent = msg;
+      ui.status.classList.toggle('err', Boolean(isError));
+      if (!app.sessionActive) {
+        ui.heroStatus.textContent = msg;
+        ui.heroStatus.classList.toggle('err', Boolean(isError));
+      } else {
+        ui.heroStatus.textContent = '';
+      }
+    }
+    function showTtsStatus(text, isError) {
+      ui.ttsStatus.textContent = text || '';
+      ui.ttsStatus.classList.toggle('err', Boolean(isError));
+    }
     function autosizeInput() {
       ui.input.style.height = 'auto';
-      ui.input.style.height = Math.min(ui.input.scrollHeight, 160) + 'px';
+      ui.input.style.height = Math.min(ui.input.scrollHeight, 140) + 'px';
+      refreshComposer();
     }
-    function clearInput() { ui.input.value = ''; autosizeInput(); }
+    function clearInput() {
+      ui.input.value = '';
+      ui.input.style.height = 'auto';
+      refreshComposer();
+    }
     function focusInput() {
       if (!inCall() || mobileMq.matches) return;
       if (micStream.recording || speechLock()) return;
@@ -1157,56 +965,43 @@
     }
 
     /* =========================================================
-       Тема
+       Тема + поповер настроек
        ========================================================= */
-    const systemDark = matchMedia('(prefers-color-scheme: dark)');
+    ui.themeBtn.addEventListener('click', () => {
+      const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem('theme', next);
+    });
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      if (!localStorage.getItem('theme')) {
+        document.documentElement.dataset.theme = e.matches ? 'dark' : 'light';
+      }
+    });
 
-    function applyTheme(pref) {
-      if (pref !== 'light' && pref !== 'dark') pref = 'auto';
-      if (pref === 'auto') localStorage.removeItem('theme');
-      else localStorage.setItem('theme', pref);
-      const dark = pref === 'dark' || (pref === 'auto' && systemDark.matches);
-      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-      ui.themeTabs.forEach((btn) => btn.classList.toggle('on', btn.dataset.theme === pref));
+    function closePopover() {
+      ui.settingsPopover.hidden = true;
+      ui.settingsBtn.classList.remove('active');
     }
-    ui.themeTabs.forEach((btn) => btn.addEventListener('click', () => applyTheme(btn.dataset.theme)));
-    systemDark.addEventListener('change', () => { if (!localStorage.getItem('theme')) applyTheme('auto'); });
-    applyTheme(localStorage.getItem('theme') || 'auto');
+    ui.settingsBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const opening = ui.settingsPopover.hidden;
+      ui.settingsPopover.hidden = !opening;
+      ui.settingsBtn.classList.toggle('active', opening);
+      if (opening) await refreshMicDevices();
+    });
+    document.addEventListener('click', (e) => {
+      if (!ui.settingsPopover.hidden && !ui.settingsPopover.contains(e.target) && e.target !== ui.settingsBtn) {
+        closePopover();
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closePopover();
+    });
 
     /* =========================================================
-       Тумблеры настроек
+       Озвучка и перебивание
        ========================================================= */
-    function voiceOutOn() { return ui.optVoiceOut.checked; }
-    function micOn() { return ui.optMic.checked; }
-    function bargeInOn() { return ui.optBargeIn.checked; }
-
-    function setVoiceOut(on, persist) {
-      if (persist === undefined) persist = true;
-      ui.optVoiceOut.checked = on;
-      if (persist) localStorage.setItem('voiceOut', String(on));
-      updateVoiceToggleBtn();
-      if (!on) stopSpeaking();
-      refreshComposer();
-    }
-    function setMicOn(on) {
-      ui.optMic.checked = on;
-      localStorage.setItem('micOn', String(on));
-      if (!on) stopListening(false);
-      refreshComposer();
-    }
-    function updateVoiceToggleBtn() {
-      ui.voiceToggleBtn.classList.toggle('off', !voiceOutOn());
-      ui.voiceToggleBtn.title = voiceOutOn()
-        ? 'Реплики озвучиваются — нажмите, чтобы выключить'
-        : 'Озвучка выключена — нажмите, чтобы включить';
-    }
-
-    ui.optVoiceOut.checked = localStorage.getItem('voiceOut') !== 'false';
-    ui.optMic.checked = localStorage.getItem('micOn') !== 'false';
     ui.optBargeIn.checked = localStorage.getItem('bargeIn') === 'true';
-
-    ui.optVoiceOut.addEventListener('change', () => setVoiceOut(ui.optVoiceOut.checked));
-    ui.optMic.addEventListener('change', () => setMicOn(ui.optMic.checked));
     ui.optBargeIn.addEventListener('change', () => {
       localStorage.setItem('bargeIn', String(ui.optBargeIn.checked));
       if (!ui.optBargeIn.checked && micStream.recording && micStream.bargeMode) {
@@ -1214,217 +1009,180 @@
       }
       refreshComposer();
     });
-    ui.voiceToggleBtn.addEventListener('click', () => setVoiceOut(!voiceOutOn()));
+
+    function updateVoiceToggleBtn() {
+      ui.voiceToggleBtn.classList.toggle('off', !app.voiceOut);
+      ui.voiceToggleBtn.title = app.voiceOut
+        ? 'Озвучка включена — нажмите, чтобы выключить'
+        : 'Озвучка выключена — нажмите, чтобы включить';
+    }
+    ui.voiceToggleBtn.addEventListener('click', () => {
+      app.voiceOut = !app.voiceOut;
+      localStorage.setItem('voiceOut', String(app.voiceOut));
+      if (!app.voiceOut) stopSpeaking();
+      updateVoiceToggleBtn();
+      refreshComposer();
+    });
 
     /* =========================================================
-       МИКРОФОН
+       Микрофон и выбор устройства
        ========================================================= */
     const mic = {
-      label: '',
-      ready: false,
-      denied: false,
-      deviceId: null,
+      deviceId: localStorage.getItem('micDeviceId') || '',
+      label: 'По умолчанию (системный)',
       devices: [],
-      pickerOpen: false,
+      granted: false,
+      denied: false,
     };
 
-    function renderMicInfo() {
-      const btn = ui.micChangeBtn;
-      ui.micInfo.classList.toggle('err', mic.denied);
-
-      if (!micSupported) {
-        ui.micLabel.textContent = 'Браузер не поддерживает микрофон';
-        btn.disabled = true;
-        ui.micDevices.hidden = true;
-        refreshComposer();
-        return;
-      }
-      if (mic.denied) {
-        ui.micLabel.textContent = 'Нет доступа к микрофону';
-        btn.disabled = false;
-        btn.textContent = 'Разрешить';
-        ui.micDevices.hidden = true;
-        refreshComposer();
-        return;
-      }
-      if (!mic.ready) {
-        ui.micLabel.textContent = 'Проверяем микрофон…';
-        btn.disabled = true;
-        btn.textContent = 'Сменить';
-        ui.micDevices.hidden = true;
-        refreshComposer();
-        return;
-      }
-      ui.micLabel.textContent = mic.label || 'Микрофон по умолчанию';
-      btn.disabled = false;
-      btn.textContent = mic.pickerOpen ? 'Скрыть' : 'Сменить';
-      ui.micDevices.hidden = !mic.pickerOpen;
-      refreshComposer();
-    }
-
-    async function requestMicAccess() {
-      if (!micSupported) {
-        mic.denied = true;
-        setMicDiag('нет API');
-        renderMicInfo();
-        return;
-      }
-
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        });
-      } catch (err) {
-        mic.ready = false;
-        mic.denied = true;
-        setMicDiag('нет доступа: ' + (err.name || err.message));
-        if (err.name === 'NotAllowedError') {
-          showStatus('Микрофон заблокирован — разрешите доступ в настройках браузера', true);
-        }
-        renderMicInfo();
-        return;
-      }
-
-      const track = stream.getAudioTracks()[0];
-      const systemLabel = track ? track.label : '';
-      stream.getTracks().forEach((t) => t.stop());
-
-      mic.ready = true;
-      mic.denied = false;
-      mic.deviceId = null;
-      mic.label = systemLabel || 'Микрофон по умолчанию';
-      setMicDiag(systemLabel ? 'системный: ' + systemLabel : 'системный по умолчанию');
-      renderMicInfo();
+    function renderMicHint(text, isErr) {
+      ui.micHint.hidden = !text;
+      ui.micHint.textContent = text || '';
+      ui.micHint.classList.toggle('err', Boolean(isErr));
     }
 
     async function refreshMicDevices() {
-      if (!micSupported) { mic.devices = []; return; }
-      try {
-        const all = await navigator.mediaDevices.enumerateDevices();
-        mic.devices = all.filter((d) => d.kind === 'audioinput' && d.deviceId !== 'communications');
-      } catch {
-        mic.devices = [];
-      }
-    }
-
-    function populateMicSelect() {
-      const select = ui.micDeviceSelect;
-      select.length = 0;
-      select.add(new Option('По умолчанию (как в браузере)', ''));
-      mic.devices.forEach((d, i) => {
-        select.add(new Option(d.label || ('Микрофон ' + (i + 1)), d.deviceId));
-      });
-      select.value = mic.deviceId && mic.devices.some((d) => d.deviceId === mic.deviceId)
-        ? mic.deviceId
-        : '';
-    }
-
-    ui.micChangeBtn.addEventListener('click', async () => {
-      if (!micSupported) return;
-
-      if (mic.denied) {
-        await requestMicAccess();
+      if (!micSupported) {
+        ui.micSelect.disabled = true;
+        ui.micGrantBtn.hidden = true;
+        renderMicHint(
+          window.isSecureContext
+            ? 'Браузер не поддерживает захват микрофона'
+            : 'Микрофон доступен только по HTTPS или с localhost',
+          true
+        );
         return;
       }
 
-      mic.pickerOpen = !mic.pickerOpen;
-      if (mic.pickerOpen) {
-        await refreshMicDevices();
-        if (mic.devices.length === 0) {
-          showStatus('Устройства записи не найдены', true);
-          mic.pickerOpen = false;
-        } else {
-          populateMicSelect();
+      try {
+        const all = await navigator.mediaDevices.enumerateDevices();
+        const inputs = all.filter((d) => d.kind === 'audioinput' && d.deviceId !== 'communications');
+        const named = inputs.some((d) => Boolean(d.label));
+        mic.devices = inputs;
+        mic.granted = named;
+
+        ui.micSelect.length = 0;
+        ui.micSelect.add(new Option('По умолчанию (системный)', ''));
+        if (named) {
+          inputs.forEach((d, idx) => {
+            if (d.deviceId && d.deviceId !== 'default') {
+              ui.micSelect.add(new Option(d.label || ('Микрофон ' + (idx + 1)), d.deviceId));
+            }
+          });
         }
+        const validSaved = mic.deviceId && Array.from(ui.micSelect.options).some((o) => o.value === mic.deviceId);
+        ui.micSelect.value = validSaved ? mic.deviceId : '';
+        if (!validSaved) mic.deviceId = '';
+
+        const selOpt = ui.micSelect.selectedOptions[0];
+        mic.label = selOpt ? selOpt.textContent : 'По умолчанию (системный)';
+
+        ui.micGrantBtn.hidden = named;
+        if (mic.denied) {
+          renderMicHint('Доступ к микрофону заблокирован в браузере', true);
+        } else if (!named) {
+          renderMicHint('Нажмите «Обновить список», чтобы выбрать конкретный микрофон', false);
+        } else {
+          renderMicHint('', false);
+        }
+      } catch {
+        renderMicHint('Не удалось получить список аудиоустройств', true);
       }
-      renderMicInfo();
-      if (mic.pickerOpen) ui.micDeviceSelect.focus();
-    });
+    }
 
-    ui.micDeviceSelect.addEventListener('change', () => {
-      const id = ui.micDeviceSelect.value;
-      const opt = ui.micDeviceSelect.selectedOptions[0];
+    async function requestMicPermission() {
+      if (!micSupported) return;
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({
+          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        });
+        s.getTracks().forEach((t) => t.stop());
+        mic.denied = false;
+        await refreshMicDevices();
+      } catch (err) {
+        mic.denied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
+        renderMicHint('Нет доступа: ' + (err.message || err.name), true);
+      }
+    }
 
-      mic.deviceId = id || null;
-      mic.label = id ? (opt ? opt.textContent : '') : 'Микрофон по умолчанию';
-      setMicDiag(id ? 'выбран: ' + mic.label : 'системный по умолчанию');
-      renderMicInfo();
+    ui.micGrantBtn.addEventListener('click', requestMicPermission);
+
+    ui.micSelect.addEventListener('change', () => {
+      mic.deviceId = ui.micSelect.value || '';
+      if (mic.deviceId) localStorage.setItem('micDeviceId', mic.deviceId);
+      else localStorage.removeItem('micDeviceId');
+      const opt = ui.micSelect.selectedOptions[0];
+      mic.label = opt ? opt.textContent : 'По умолчанию (системный)';
 
       if (micStream.recording && !micStream.recognizer) {
         stopListening(false);
-        startListening().catch(reportMicError);
+        startListening().catch((err) => showStatus('Микрофон: ' + err.message, true));
       }
-      if (asr.recording) showStatus('Новый микрофон применится со следующей записи');
     });
 
     if (micSupported && navigator.mediaDevices.addEventListener) {
-      navigator.mediaDevices.addEventListener('devicechange', async () => {
-        await refreshMicDevices();
-        if (mic.deviceId && !mic.devices.some((d) => d.deviceId === mic.deviceId)) {
-          mic.deviceId = null;
-          mic.label = 'Микрофон по умолчанию';
-          setMicDiag('устройство отключено — системный по умолчанию');
-        }
-        if (mic.pickerOpen) populateMicSelect();
-        renderMicInfo();
-      });
+      navigator.mediaDevices.addEventListener('devicechange', () => refreshMicDevices());
     }
 
     async function micGetUserMedia() {
       const base = { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true };
-
       if (mic.deviceId) {
         try {
-          return await navigator.mediaDevices.getUserMedia({
+          const stream = await navigator.mediaDevices.getUserMedia({
             audio: Object.assign({}, base, { deviceId: { exact: mic.deviceId } }),
           });
+          mic.denied = false;
+          if (!mic.granted) refreshMicDevices();
+          return stream;
         } catch (err) {
           if (err.name === 'OverconstrainedError' || err.name === 'NotFoundError') {
-            showStatus('Выбранный микрофон недоступен — переключаюсь на системный', true);
-            mic.deviceId = null;
-            mic.label = 'Микрофон по умолчанию';
-            if (mic.pickerOpen) populateMicSelect();
-            renderMicInfo();
+            mic.deviceId = '';
+            localStorage.removeItem('micDeviceId');
+            await refreshMicDevices();
           } else {
+            if (err.name === 'NotAllowedError') mic.denied = true;
             throw err;
           }
         }
       }
-      return navigator.mediaDevices.getUserMedia({ audio: base });
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: base });
+        mic.denied = false;
+        if (!mic.granted) refreshMicDevices();
+        return stream;
+      } catch (err) {
+        if (err.name === 'NotAllowedError') mic.denied = true;
+        throw err;
+      }
     }
 
     /* =========================================================
-       Транскрипт + лог
+       Транскрипт + скачивание лога
        ========================================================= */
     const transcriptLog = [];
 
     function record(line) {
       const time = new Date().toLocaleTimeString('ru-RU', { hour12: false });
       transcriptLog.push('[' + time + '] ' + line);
-      refreshActions();
+      ui.downloadLogBtn.disabled = transcriptLog.length === 0;
     }
+
     function transcriptText() {
       const c = app.cfg;
       const head = [
         'Демо-стенд · Ассистент УК',
-        app.phone ? 'Звонок: ' + app.phone : null,
-        c.asr ? 'ASR ' + c.asr + ' · TTS ' + c.tts + ' · LLM ' + c.llm + ' · CRM ' + c.crm : null,
+        app.phone ? 'Звонок: ' + app.phone + ' (' + fmtTime(app.seconds) + ')' : null,
+        c.dialog ? 'Диалог ' + c.dialog + ' · ASR ' + c.asr + ' · TTS ' + c.tts + ' · CRM ' + c.crm : null,
         app.ttsSpeaker ? 'Голос бота: ' + app.ttsSpeaker : null,
-        app.callerSpeaker ? 'Голос звонящего: ' + app.callerSpeaker : null,
         mic.label ? 'Микрофон: ' + mic.label : null,
         new Date().toLocaleString('ru-RU'),
         '',
-      ].filter((line) => line !== null);
+      ].filter(Boolean);
       return head.concat(transcriptLog).join('\n');
     }
-    async function copyTranscript() {
-      try {
-        await navigator.clipboard.writeText(transcriptText());
-        showStatus('Лог скопирован в буфер');
-      } catch { downloadTranscript(); }
-    }
+
     function downloadTranscript() {
+      if (!transcriptLog.length) return;
       const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
       const phone = (app.phone || '').replace(/\D/g, '') || 'demo';
       const blob = new Blob([transcriptText()], { type: 'text/plain;charset=utf-8' });
@@ -1435,14 +1193,11 @@
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
+
     function clearTranscript() {
-      Array.from(ui.thread.children).forEach((node) => node.remove());
+      ui.thread.innerHTML = '';
       transcriptLog.length = 0;
-      refreshActions();
-    }
-    function refreshActions() {
-      const empty = transcriptLog.length === 0;
-      ui.copyBtn.disabled = ui.downloadBtn.disabled = ui.clearBtn.disabled = empty;
+      ui.downloadLogBtn.disabled = true;
     }
 
     function appendToThread(className, html) {
@@ -1453,23 +1208,14 @@
       ui.transcript.scrollTop = ui.transcript.scrollHeight;
       return node;
     }
+
     function addBubble(role, text, meta) {
-      meta = meta || '';
       const metaHtml = meta ? '<div class="meta">' + escapeHtml(meta) + '</div>' : '';
       const node = appendToThread('bubble ' + role, '<div class="text">' + escapeHtml(text) + '</div>' + metaHtml);
-      record((role === 'bot' ? 'бот' : 'звонящий') + ': ' + text + (meta ? '  (' + meta + ')' : ''));
+      record((role === 'bot' ? 'бот' : 'абонент') + ': ' + text + (meta ? '  (' + meta + ')' : ''));
       return node;
     }
-    function setBubbleMeta(node, meta) {
-      if (!node || !meta) return;
-      let el = node.querySelector('.meta');
-      if (!el) {
-        el = document.createElement('div');
-        el.className = 'meta';
-        node.appendChild(el);
-      }
-      el.textContent = meta;
-    }
+
     function addNote(kind, text) {
       appendToThread('note ' + kind, escapeHtml(text));
       record('— ' + text);
@@ -1498,18 +1244,19 @@
       const fields = p.fields || [];
       const markers = p.escalation_markers || [];
       const rows = [
-        ['Тема', escapeHtml(p.topic)],
-        ['Заявитель', p.owner ? escapeHtml(p.owner) + ' <small>из CRM</small>' : '<small>не идентифицирован, данные со слов</small>'],
+        ['Тема', escapeHtml(p.topic || '—')],
+        ['Заявитель', p.owner ? escapeHtml(p.owner) + ' <small>из CRM</small>' : '<small>не идентифицирован, со слов</small>'],
         ['Телефон', escapeHtml(p.phone || '')],
       ].concat(fields.map((f) => [f.label, escapeHtml(f.value)]));
 
       if (p.escalated) {
         rows.push(['Жалоба', '<span class="flag">' + escapeHtml(markers.length ? markers.join(', ') : 'угроза жалобы') + '</span>']);
       }
-      const risk = escapeHtml(p.risk_level);
+      const risk = escapeHtml(p.risk_level || 'normal');
+      const bitrix = p.bitrix_id ? '<span>' + escapeHtml(p.bitrix_id) + '</span>' : '';
       const html =
         '<header>' +
-          '<h3>Заявка № ' + escapeHtml(p.appeal_id) + '<span>' + escapeHtml(p.bitrix_id || '') + '</span></h3>' +
+          '<h3>Заявка № ' + escapeHtml(p.appeal_id) + bitrix + '</h3>' +
           '<span class="pill ' + risk + '">' + risk + (p.escalated ? ' · флаг' : '') + '</span>' +
         '</header>' +
         '<dl>' + rows.map((r) => '<dt>' + escapeHtml(r[0]) + '</dt><dd>' + r[1] + '</dd>').join('') + '</dl>' +
@@ -1517,7 +1264,7 @@
 
       appendToThread('card' + (p.escalated ? ' flagged' : ''), html);
       record([
-        'ЗАЯВКА №' + p.appeal_id, p.topic, 'риск ' + p.risk_level,
+        'ЗАЯВКА №' + p.appeal_id, p.topic, 'риск ' + (p.risk_level || 'normal'),
         p.escalated ? 'флаг жалобы: ' + (markers.join(', ') || 'да') : null,
         p.owner ? 'заявитель ' + p.owner : 'заявитель не идентифицирован',
       ].concat(fields.map((f) => f.label + ': ' + f.value)).filter(Boolean).join(' · '));
@@ -1533,10 +1280,10 @@
         if (rec && rec.status === 'sent') {
           box.className = 'crm ok';
           const link = rec.appeal.channel_link
-            ? ' · <a href="' + escapeHtml(rec.appeal.channel_link) + '" target="_blank" rel="noopener">заявка в канале</a>'
+            ? ' · <a href="' + escapeHtml(rec.appeal.channel_link) + '" target="_blank" rel="noopener">заявка в канале ↗</a>'
             : '';
-          box.innerHTML = 'CRM: отправлено · сделка <b>' + escapeHtml(rec.appeal.bitrix_deal_id) + '</b>' + link;
-          record('CRM: заявка №' + appealId + ' отправлена, сделка ' + rec.appeal.bitrix_deal_id);
+          box.innerHTML = 'CRM: отправлено · сделка <b>' + escapeHtml(rec.appeal.bitrix_deal_id || '—') + '</b>' + link;
+          record('CRM: заявка №' + appealId + ' отправлена, сделка ' + (rec.appeal.bitrix_deal_id || '—'));
           return;
         }
         if (rec && rec.status === 'failed') {
@@ -1551,7 +1298,7 @@
     }
 
     /* =========================================================
-       API
+       API + Конфигурация стенда
        ========================================================= */
     async function api(path, options) {
       const response = await fetch(path, options || {});
@@ -1559,7 +1306,7 @@
       return response.json();
     }
     function audioHeader() {
-      const h = { 'X-Audio': voiceOutOn() ? 'on' : 'off' };
+      const h = { 'X-Audio': app.voiceOut ? 'on' : 'off' };
       if (app.ttsSpeaker) h['X-Tts-Speaker'] = app.ttsSpeaker;
       return h;
     }
@@ -1571,20 +1318,27 @@
       };
     }
 
-    function fillVoiceSelect(speakers, defaultSpeaker) {
-      const botSelectors = [ui.voiceSelect, ui.ttsVoiceSelect];
-      botSelectors.forEach((sel) => { if (sel) sel.length = 0; });
-      ui.callerVoiceSelect.length = 0;
+    function syncSpeaker(speaker) {
+      app.ttsSpeaker = speaker || null;
+      if (ui.voiceSelect.options.length) ui.voiceSelect.value = speaker || '';
+      if (ui.ttsVoiceSelect.options.length) ui.ttsVoiceSelect.value = speaker || '';
+      if (app.ttsSpeaker) localStorage.setItem('ttsSpeaker', app.ttsSpeaker);
+      else localStorage.removeItem('ttsSpeaker');
+    }
+
+    function fillVoiceSelects(speakers, defaultSpeaker) {
+      ui.voiceSelect.length = 0;
+      ui.ttsVoiceSelect.length = 0;
 
       if (!speakers || !speakers.length) {
         ui.voiceField.hidden = true;
-        ui.callerVoiceField.hidden = true;
+        ui.ttsVoiceSelect.hidden = true;
         app.ttsSpeaker = null;
-        app.callerSpeaker = null;
         return;
       }
+
       ui.voiceField.hidden = false;
-      ui.callerVoiceField.hidden = false;
+      ui.ttsVoiceSelect.hidden = false;
 
       const sorted = speakers.slice().sort((a, b) => {
         const ar = a.startsWith('ru_') ? 0 : 1;
@@ -1593,27 +1347,20 @@
       });
       const label = (sp) => (sp.startsWith('ru_') ? sp + ' · RU' : sp);
 
-      const savedBot = localStorage.getItem('ttsSpeaker');
-      const bot = (savedBot && speakers.indexOf(savedBot) !== -1)
-        ? savedBot
-        : (defaultSpeaker && speakers.indexOf(defaultSpeaker) !== -1 ? defaultSpeaker : sorted[0]);
+      const saved = localStorage.getItem('ttsSpeaker');
+      const chosen = (saved && speakers.includes(saved))
+        ? saved
+        : (defaultSpeaker && speakers.includes(defaultSpeaker) ? defaultSpeaker : sorted[0]);
 
-      const savedCaller = localStorage.getItem('callerSpeaker');
-      const caller = (savedCaller && speakers.indexOf(savedCaller) !== -1)
-        ? savedCaller
-        : (sorted.find((sp) => sp !== bot) || bot);
-
-      botSelectors.forEach((sel) => {
-        if (!sel) return;
+      [ui.voiceSelect, ui.ttsVoiceSelect].forEach((sel) => {
         sorted.forEach((sp) => sel.add(new Option(label(sp), sp)));
-        sel.value = bot;
+        sel.value = chosen;
       });
-      sorted.forEach((sp) => ui.callerVoiceSelect.add(new Option(label(sp), sp)));
-      ui.callerVoiceSelect.value = caller;
-
-      app.ttsSpeaker = bot;
-      app.callerSpeaker = caller;
+      app.ttsSpeaker = chosen;
     }
+
+    ui.voiceSelect.addEventListener('change', () => syncSpeaker(ui.voiceSelect.value));
+    ui.ttsVoiceSelect.addEventListener('change', () => syncSpeaker(ui.ttsVoiceSelect.value));
 
     async function loadConfig() {
       app.cfg = await api('/debug/config');
@@ -1621,16 +1368,33 @@
         const el = $('#cfg-' + key);
         if (el) el.textContent = app.cfg[key] || '—';
       });
-      (app.cfg.demo_phones || []).forEach((phone) => ui.phoneSelect.add(new Option(phone + ' · есть в CRM', phone)));
+      if (ui.cfgLlmWrap) {
+        ui.cfgLlmWrap.hidden = app.cfg.dialog === 'cloudru';
+      }
+
+      ui.phoneSelect.length = 0;
+      (app.cfg.demo_phones || []).forEach((phone) => {
+        ui.phoneSelect.add(new Option(phone + ' · есть в CRM', phone));
+      });
       ui.phoneSelect.add(new Option('+70000000000 · нет в CRM', '+70000000000'));
-      fillVoiceSelect(app.cfg.tts_speakers || [], app.cfg.tts_speaker || null);
+
+      fillVoiceSelects(app.cfg.tts_speakers || [], app.cfg.tts_speaker || null);
+
+      if (app.cfg.tts) {
+        ui.ttsLead.textContent = 'Проверка адаптера ' + app.cfg.tts + ' отдельно от диалога.';
+      }
+      if (app.cfg.asr) {
+        ui.asrLead.textContent = 'Проверка адаптера ' + app.cfg.asr + ' отдельно от диалога.';
+      }
     }
 
     /* =========================================================
-       AudioContext
+       AudioContext & воспроизведение TTS
        ========================================================= */
     let audioCtx = null;
     let audioUnlocked = false;
+    let player = null;
+    let finishCurrentSpeech = null;
 
     function ensureAudioContext() {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -1641,277 +1405,11 @@
     function unlockAudio() {
       if (audioUnlocked) return;
       audioUnlocked = true;
-      try { ensureAudioContext(); } catch { /* нет аудио */ }
+      try { ensureAudioContext(); } catch { /* нет WebAudio */ }
       if ('speechSynthesis' in window) {
         try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch { /* нет синтеза */ }
       }
     }
-
-    /* =========================================================
-       Sidebar
-       ========================================================= */
-    const mobileMq = matchMedia('(max-width: 900px)');
-
-    mobileMq.addEventListener('change', () => {
-      if (mobileMq.matches) document.body.classList.remove('sidebar-open');
-    });
-
-    ui.sidebarToggle.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
-    ui.sidebarClose.addEventListener('click', () => document.body.classList.remove('sidebar-open'));
-    ui.scrim.addEventListener('click', () => document.body.classList.remove('sidebar-open'));
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && mobileMq.matches) document.body.classList.remove('sidebar-open');
-    });
-
-    if (!mobileMq.matches) document.body.classList.add('sidebar-open');
-
-    /* =========================================================
-       Режимы
-       ========================================================= */
-    function setMode(mode) {
-      if (['call', 'tts', 'asr'].indexOf(mode) === -1) mode = 'call';
-      app.mode = mode;
-      localStorage.setItem('mode', mode);
-      ui.modeTabs.forEach((tab) => tab.classList.toggle('on', tab.dataset.mode === mode));
-      document.querySelectorAll('[data-view]').forEach((view) => {
-        view.hidden = view.dataset.view !== mode;
-      });
-      refreshModeNav();
-    }
-
-    function refreshModeNav() {
-      const callActive = Boolean(app.callId);
-      ui.modeTabs.forEach((tab) => {
-        const isCall = tab.dataset.mode === 'call';
-        tab.disabled = !isCall && callActive;
-        tab.title = (!isCall && callActive) ? 'Недоступно во время звонка' : '';
-      });
-      ui.callTabLive.hidden = !callActive;
-    }
-
-    ui.modeTabs.forEach((tab) => tab.addEventListener('click', () => {
-      if (!tab.disabled) setMode(tab.dataset.mode);
-    }));
-
-    /* =========================================================
-       Call flow
-       ========================================================= */
-    function setBusy(value) { app.busy = value; refreshComposer(); }
-
-    function refreshLiveView() {
-      const live = app.sessionActive;
-      ui.callHero.hidden = live;
-      ui.callLive.hidden = !live;
-
-      const hasCall = Boolean(app.callId);
-      ui.callEndBtn.hidden = !hasCall;
-      ui.composerPanel.hidden = !hasCall;
-      ui.callEndedPanel.hidden = hasCall;
-
-      ui.phoneSelect.disabled = hasCall;
-      ui.callPhone.textContent = hasCall ? app.phone : '';
-      ui.stateDot.className = 'dot ' + (inCall() ? 'live' : hasCall ? 'hold' : '');
-      ui.stateText.textContent = hasCall
-        ? (app.ended ? 'Завершается' : 'Звонок')
-        : 'Звонок завершён';
-
-      if (!hasCall) ui.endedMeta.textContent = app.endedReason || app.phone;
-      refreshModeNav();
-      refreshComposer();
-    }
-
-    function resetToHero() {
-      app.sessionActive = false;
-      app.endedReason = '';
-      clearTranscript();
-      showStatus('');
-      refreshLiveView();
-    }
-
-    async function startCall() {
-      unlockAudio();
-      if (mobileMq.matches) document.body.classList.remove('sidebar-open');
-      app.phone = ui.phoneSelect.value;
-      app.ended = false;
-      app.endedReason = '';
-      app.sessionActive = true;
-      clearTranscript();
-      refreshLiveView();
-      addNote('mut', 'Звонок на ' + app.phone);
-      setBusy(true);
-      showStatus('Соединение…');
-      try {
-        const reply = await api('/call/start', postJson({ phone: app.phone }, audioHeader()));
-        app.callId = reply.call_id;
-        refreshLiveView();
-        await handleReply(reply);
-      } catch (err) {
-        showStatus('Ошибка: ' + err.message, true);
-        setBusy(false);
-        refreshLiveView();
-      }
-    }
-
-    function hangup(note, reason) {
-      note = note || 'Трубка положена';
-      if (!app.callId) return;
-      stopListening(false);
-      stopSpeaking();
-      fetch('/debug/call/' + app.callId, { method: 'DELETE' }).catch(() => {});
-      app.callId = null;
-      app.ended = false;
-      app.endedReason = reason || note;
-      setBusy(false);
-      showStatus('');
-      refreshLiveView();
-      addNote('mut', note);
-    }
-
-    /**
-     * Озвучка набранной реплики звонящего.
-     * Голос берём отдельный, чтобы стороны различались на слух.
-     * Возвращает строку для меты пузыря.
-     */
-    async function speakCallerText(text) {
-      if (!voiceOutOn()) return 'озвучка выключена';
-
-      let tts = null;
-      try {
-        const body = { text: text };
-        if (app.callerSpeaker) body.speaker = app.callerSpeaker;
-        tts = await api('/debug/tts', postJson(body));
-      } catch { tts = null; }
-
-      if (tts && tts.audio_b64) {
-        await speak(
-          { text: tts.spoken || text, audio_b64: tts.audio_b64, audio_mime: tts.audio_mime },
-          'Звонящий говорит', 'caller'
-        );
-        return 'озвучено: ' + app.cfg.tts + (app.callerSpeaker ? ' · ' + app.callerSpeaker : '');
-      }
-      if (canBrowserSpeak()) {
-        await speak({ text: text }, 'Звонящий говорит', 'caller');
-        return 'озвучено: браузер';
-      }
-      return 'без озвучки — нет голоса';
-    }
-
-    async function sendText(text) {
-      if (!text.trim() || !inCall() || composerLocked()) return;
-      stopListening(false);
-      stopSpeaking();
-
-      const node = addBubble('user', text);
-      setBusy(true);
-      showStatus('');
-
-      const callId = app.callId;
-
-      const pending = api('/debug/call/' + callId + '/say',
-        postJson({ call_id: callId, phone: app.phone, text: text }, audioHeader()));
-      pending.catch(() => {});
-
-      try {
-        setBubbleMeta(node, await speakCallerText(text));
-      } catch { /* озвучка не критична */ }
-
-      if (app.callId !== callId) return;
-
-      try {
-        const reply = await pending;
-        if (app.callId !== callId) return;
-        await handleReply(reply);
-      } catch (err) {
-        showStatus('Ошибка: ' + err.message, true);
-        setBusy(false);
-      }
-    }
-
-    async function sendAudio(pcmBlob, spokenText) {
-      if (!inCall()) return;
-      setBusy(true);
-      showStatus('Распознаю…');
-      try {
-        const reply = await api('/debug/call/' + app.callId + '/say-audio', {
-          method: 'POST',
-          headers: Object.assign({ 'Content-Type': 'audio/pcm', 'X-Phone': app.phone }, audioHeader()),
-          body: pcmBlob,
-        });
-        if (!reply.heard) {
-          addNote('bad', 'ASR ничего не распознал');
-          showStatus('');
-          setBusy(false);
-          return;
-        }
-        const mismatch = spokenText && spokenText.toLowerCase() !== reply.heard.toLowerCase();
-        const meta = 'распознано: ' + app.cfg.asr + (mismatch ? ' · сказано: «' + spokenText + '»' : '');
-        addBubble('user', reply.heard, meta);
-        await handleReply(reply);
-      } catch (err) {
-        showStatus('Ошибка: ' + err.message, true);
-        setBusy(false);
-      }
-    }
-
-    function describeVoicing(reply) {
-      if (!voiceOutOn()) return 'озвучка выключена';
-      if (reply.audio_b64) {
-        return 'озвучено: ' + app.cfg.tts + (app.ttsSpeaker ? ' · ' + app.ttsSpeaker : '');
-      }
-      if (canBrowserSpeak()) return 'озвучено: браузер';
-      return 'без озвучки — в браузере нет русского голоса';
-    }
-
-    async function handleReply(reply) {
-      const events = reply.events || [];
-      showStatus('');
-
-      events.forEach((ev) => { if (ev.type === 'outage_notice') addEvent(ev); });
-      if (reply.text) addBubble('bot', reply.text, describeVoicing(reply));
-      events.forEach((ev) => { if (ev.type !== 'outage_notice') addEvent(ev); });
-
-      if (reply.end_call || reply.transfer) {
-        app.ended = true;
-        stopListening(false);
-        setBusy(false);
-        refreshLiveView();
-        showStatus(reply.transfer ? 'Звонок передаётся оператору…' : 'Бот завершает разговор…');
-        if (reply.text && voiceOutOn()) await speak(reply);
-        hangup(
-          reply.transfer ? 'Звонок передан оператору' : 'Бот завершил разговор',
-          reply.transfer ? 'Передан оператору' : 'Бот завершил разговор'
-        );
-        return;
-      }
-
-      setBusy(false);
-
-      const canBarge = bargeInOn() && micOn() && micSupported
-        && app.cfg.asr !== 'fake' && voiceOutOn() && Boolean(reply.text);
-
-      if (canBarge) {
-        const speech = speak(reply);
-        startListening({ barge: true }).catch(reportMicError);
-        await speech;
-
-        if (micStream.recording && micStream.bargeMode) {
-          micStream.bargeMode = false;
-          updateMicButton();
-          showStatus('Микрофон открыт — скажите реплику и нажмите микрофон, чтобы отправить');
-          resetMaxTimer();
-        }
-      } else if (reply.text && voiceOutOn()) {
-        await speak(reply);
-      }
-
-      focusInput();
-    }
-
-    /* =========================================================
-       Озвучка
-       ========================================================= */
-    let player = null;
-    let finishCurrentSpeech = null;
 
     if ('speechSynthesis' in window) {
       speechSynthesis.getVoices();
@@ -1930,9 +1428,8 @@
       return new Blob([bytes], { type: mime });
     }
 
-    function setSpeaking(label, role) {
+    function setSpeaking(label) {
       ui.speakingBar.hidden = !label;
-      ui.speakingBar.classList.toggle('caller', role === 'caller');
       if (label) ui.speakingLabel.textContent = label;
     }
     function stopSpeaking() {
@@ -1941,17 +1438,16 @@
       if (finishCurrentSpeech) finishCurrentSpeech();
     }
 
-    function speak(reply, label, role) {
-      label = label || 'Бот говорит';
-      role = role || 'bot';
+    function speak(reply, customLabel) {
+      const voiceMeta = app.ttsSpeaker ? ' · ' + app.ttsSpeaker : '';
+      const label = customLabel || ('Бот говорит' + voiceMeta);
       return new Promise((resolve) => {
         let done = false;
         let guard = null;
 
         const begin = () => {
           app.speaking = true;
-          app.speakingRole = role;
-          setSpeaking(label, role);
+          setSpeaking(label);
           refreshComposer();
         };
         const finish = () => {
@@ -1960,7 +1456,6 @@
           clearTimeout(guard);
           finishCurrentSpeech = null;
           app.speaking = false;
-          app.speakingRole = null;
           setSpeaking(null);
           refreshComposer();
           resolve();
@@ -1978,17 +1473,16 @@
             finish();
           };
           player.play().catch((err) => {
-            showStatus('Браузер запретил воспроизведение: ' + err.message, true);
+            showStatus('Браузер заблокировал воспроизведение: ' + err.message, true);
             finish();
           });
           guard = setTimeout(finish, 60000);
-        } else if (canBrowserSpeak()) {
+        } else if (reply.text && canBrowserSpeak()) {
           begin();
           speechSynthesis.cancel();
           const utterance = new SpeechSynthesisUtterance(reply.text);
           utterance.lang = 'ru-RU';
           utterance.rate = 1.05;
-          utterance.pitch = role === 'caller' ? 1.25 : 1;
           utterance.voice = russianVoice();
           utterance.onend = utterance.onerror = finish;
           setTimeout(() => { if (!done) speechSynthesis.speak(utterance); }, 60);
@@ -2000,21 +1494,256 @@
     }
 
     /* =========================================================
-       Микрофон-поток в звонке
+       Переключение режимов
+       ========================================================= */
+    function setMode(mode) {
+      if (!['call', 'tts', 'asr'].includes(mode)) mode = 'call';
+      app.mode = mode;
+      localStorage.setItem('mode', mode);
+      ui.modeTabs.forEach((tab) => tab.classList.toggle('on', tab.dataset.mode === mode));
+      document.querySelectorAll('[data-view]').forEach((view) => {
+        view.hidden = view.dataset.view !== mode;
+      });
+      refreshModeNav();
+    }
+
+    function refreshModeNav() {
+      const callActive = Boolean(app.callId);
+      ui.modeTabs.forEach((tab) => {
+        const isCall = tab.dataset.mode === 'call';
+        tab.disabled = !isCall && callActive;
+        tab.title = (!isCall && callActive) ? 'Завершите активный звонок для перехода' : '';
+      });
+      ui.callTabLive.hidden = !callActive;
+    }
+
+    ui.modeTabs.forEach((tab) => tab.addEventListener('click', () => {
+      if (!tab.disabled) setMode(tab.dataset.mode);
+    }));
+
+    /* =========================================================
+       Логика звонка
+       ========================================================= */
+    function startCallTimer() {
+      stopCallTimer();
+      app.seconds = 0;
+      ui.liveTimer.textContent = '00:00';
+      app.timer = setInterval(() => {
+        app.seconds++;
+        ui.liveTimer.textContent = fmtTime(app.seconds);
+      }, 1000);
+    }
+    function stopCallTimer() {
+      if (app.timer) {
+        clearInterval(app.timer);
+        app.timer = null;
+      }
+    }
+
+    function setBusy(value) {
+      app.busy = value;
+      ui.startCallBtn.disabled = value;
+      refreshComposer();
+    }
+
+    function refreshLiveView() {
+      const live = app.sessionActive;
+      ui.callHero.hidden = live;
+      ui.callLive.hidden = !live;
+
+      const hasCall = Boolean(app.callId);
+      ui.hangupBtn.hidden = !hasCall;
+      ui.composer.hidden = !hasCall;
+      ui.callEndedBar.hidden = hasCall;
+
+      ui.phoneSelect.disabled = hasCall;
+      ui.livePhone.textContent = app.phone || '';
+      ui.liveDot.className = 'dot ' + (inCall() ? 'live' : hasCall ? 'hold' : '');
+
+      if (!hasCall && live) {
+        const reason = app.endedReason || 'трубка положена';
+        ui.endedReason.textContent = reason + ' · ' + fmtTime(app.seconds);
+      }
+      refreshModeNav();
+      refreshComposer();
+    }
+
+    function resetToHero() {
+      stopCallTimer();
+      app.sessionActive = false;
+      app.endedReason = '';
+      clearTranscript();
+      showStatus('');
+      refreshLiveView();
+    }
+
+    async function startCall() {
+      if (!ui.phoneSelect.value) return;
+      unlockAudio();
+      closePopover();
+
+      app.phone = ui.phoneSelect.value;
+      app.ended = false;
+      app.endedReason = '';
+      app.sessionActive = true;
+      clearTranscript();
+      startCallTimer();
+      refreshLiveView();
+      addNote('mut', 'Звонок с номера ' + app.phone);
+      setBusy(true);
+      showStatus('Соединение…');
+
+      try {
+        const reply = await api('/call/start', postJson({ phone: app.phone }, audioHeader()));
+        app.callId = reply.call_id;
+        refreshLiveView();
+        await handleReply(reply);
+      } catch (err) {
+        stopCallTimer();
+        app.sessionActive = false;
+        setBusy(false);
+        refreshLiveView();
+        showStatus('Не удалось начать звонок: ' + err.message, true);
+      }
+    }
+
+    function hangup(note, reason) {
+      note = note || 'Трубка положена';
+      if (!app.callId) return;
+      stopListening(false);
+      stopSpeaking();
+      stopCallTimer();
+      fetch('/debug/call/' + app.callId, { method: 'DELETE' }).catch(() => {});
+      app.callId = null;
+      app.ended = false;
+      app.endedReason = (reason || note).toLowerCase();
+      setBusy(false);
+      showStatus('');
+      addNote('mut', note);
+      refreshLiveView();
+    }
+
+    function describeVoicing(reply) {
+      if (!app.voiceOut) return 'озвучка выключена';
+      if (reply.audio_b64) {
+        return 'озвучено: ' + (app.cfg.tts || 'tts') + (app.ttsSpeaker ? ' · ' + app.ttsSpeaker : '');
+      }
+      if (canBrowserSpeak()) return 'озвучено: браузер';
+      return 'без озвучки';
+    }
+
+    async function sendText(text) {
+      const trimmed = text.trim();
+      if (!trimmed || !inCall() || composerLocked()) return;
+      stopListening(false);
+      stopSpeaking();
+
+      addBubble('user', trimmed);
+      setBusy(true);
+      showStatus('');
+
+      const callId = app.callId;
+      try {
+        const reply = await api(
+          '/debug/call/' + callId + '/say',
+          postJson({ call_id: callId, phone: app.phone, text: trimmed }, audioHeader())
+        );
+        if (app.callId !== callId) return;
+        await handleReply(reply);
+      } catch (err) {
+        showStatus('Ошибка: ' + err.message, true);
+        setBusy(false);
+      }
+    }
+
+    async function sendAudio(pcmBlob, durSec) {
+      if (!inCall()) return;
+      setBusy(true);
+      showStatus('Распознаю речь…');
+      const callId = app.callId;
+      try {
+        const reply = await api('/debug/call/' + callId + '/say-audio', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'audio/pcm', 'X-Phone': app.phone }, audioHeader()),
+          body: pcmBlob,
+        });
+        if (app.callId !== callId) return;
+        if (!reply.heard) {
+          addNote('bad', 'Речь не распознана — попробуйте сказать громче');
+          showStatus('');
+          setBusy(false);
+          return;
+        }
+        const meta = 'распознано: ' + (app.cfg.asr || 'asr') + (durSec ? ' · ' + durSec + ' с' : '');
+        addBubble('user', reply.heard, meta);
+        await handleReply(reply);
+      } catch (err) {
+        showStatus('Ошибка: ' + err.message, true);
+        setBusy(false);
+      }
+    }
+
+    async function handleReply(reply) {
+      const events = reply.events || [];
+      showStatus('');
+
+      events.forEach((ev) => { if (ev.type === 'outage_notice') addEvent(ev); });
+      if (reply.text) addBubble('bot', reply.text, describeVoicing(reply));
+      events.forEach((ev) => { if (ev.type !== 'outage_notice') addEvent(ev); });
+
+      if (reply.end_call || reply.transfer) {
+        app.ended = true;
+        stopListening(false);
+        setBusy(false);
+        refreshLiveView();
+        showStatus(reply.transfer ? 'Перевод на оператора…' : 'Завершение разговора…');
+        if (reply.text && app.voiceOut) await speak(reply);
+        hangup(
+          reply.transfer ? 'Звонок передан оператору' : 'Бот завершил разговор',
+          reply.transfer ? 'переведён на оператора' : 'бот завершил разговор'
+        );
+        return;
+      }
+
+      setBusy(false);
+
+      const canBarge = bargeInOn() && micSupported
+        && app.cfg.asr !== 'fake' && app.voiceOut && Boolean(reply.text);
+
+      if (canBarge) {
+        const speech = speak(reply);
+        startListening({ barge: true }).catch((err) => showStatus('Микрофон: ' + err.message, true));
+        await speech;
+
+        if (micStream.recording && micStream.bargeMode) {
+          micStream.bargeMode = false;
+          updateMicButton();
+          showStatus('Микрофон открыт — говорите и нажмите микрофон для отправки');
+          resetMaxTimer();
+        }
+      } else if (reply.text && app.voiceOut) {
+        await speak(reply);
+      }
+
+      focusInput();
+    }
+
+    /* =========================================================
+       Захват микрофона в звонке (16 kHz PCM + barge-in)
        ========================================================= */
     const SAMPLE_RATE = 16000;
     const MAX_RECORD_MS = 30000;
     const MIN_AUDIO_SEC = 0.3;
     const THRESHOLD_SPEECH = 0.010;
-    const THRESHOLD_BARGE = 0.060;   // выше обычного: голос бота из колонок не должен проходить
-    const BARGE_WARMUP_MS = 500;     // прогрев — первые полсекунды перебивание не слушаем
-    const BARGE_FRAMES = 3;          // нужно N подряд громких фреймов, а не один всплеск
+    const THRESHOLD_BARGE = 0.060;
+    const BARGE_WARMUP_MS = 500;
+    const BARGE_FRAMES = 3;
     const PREROLL_CHUNKS = 4;
 
     const micStream = {
       stream: null, source: null, processor: null, recognizer: null,
       chunks: [], recording: false, bargeMode: false, speechSeen: false,
-      maxTimer: null, frame: 0, startedAt: 0, bargeHits: 0,
+      maxTimer: null, startedAt: 0, bargeHits: 0,
     };
 
     function floatToInt16(samples) {
@@ -2041,24 +1770,28 @@
       if (!micStream.recording) ui.micBtn.style.removeProperty('--level');
       refreshComposer();
     }
+
     function resetMaxTimer() {
       clearTimeout(micStream.maxTimer);
       micStream.maxTimer = setTimeout(() => {
         const hadSpeech = micStream.speechSeen;
         stopListening(hadSpeech);
-        if (!hadSpeech) showStatus('Микрофон закрыт: 30 с тишины');
+        if (!hadSpeech) showStatus('Микрофон выключен: 30 с тишины');
       }, MAX_RECORD_MS);
     }
 
     async function startListening(opts) {
       const barge = Boolean(opts && opts.barge);
-      if (micStream.recording || !inCall() || !micOn()) return;
+      if (micStream.recording || !inCall()) return;
       if (!barge && composerLocked()) return;
       if (app.cfg.asr === 'fake') return startBrowserRecognition();
       if (!micSupported) {
-        showStatus(window.isSecureContext
-          ? 'Браузер не поддерживает захват микрофона.'
-          : 'Микрофон доступен только по HTTPS или с localhost.', true);
+        showStatus(
+          window.isSecureContext
+            ? 'Браузер не поддерживает захват микрофона.'
+            : 'Микрофон доступен только по HTTPS или с localhost.',
+          true
+        );
         return;
       }
 
@@ -2067,17 +1800,11 @@
       let ctx;
       try {
         micStream.stream = await micGetUserMedia();
-        const track = micStream.stream.getAudioTracks()[0];
-        if (track && track.label && !mic.deviceId && track.label !== mic.label) {
-          mic.label = track.label;
-          renderMicInfo();
-        }
         ctx = ensureAudioContext();
         micStream.source = ctx.createMediaStreamSource(micStream.stream);
         micStream.processor = ctx.createScriptProcessor(4096, 1, 1);
       } catch (err) {
-        showStatus('Микрофон не запустился: ' + err.name + ' — ' + err.message, true);
-        setMicDiag('ошибка');
+        showStatus('Микрофон не запустился: ' + (err.message || err.name), true);
         return;
       }
 
@@ -2091,15 +1818,11 @@
       micStream.speechSeen = false;
       micStream.recording = true;
       micStream.bargeMode = barge;
-      micStream.frame = 0;
       micStream.bargeHits = 0;
       micStream.startedAt = Date.now();
       updateMicButton();
 
-      const liveTrack = micStream.stream.getAudioTracks()[0];
-      const trackLabel = liveTrack ? liveTrack.label : '';
-      setMicDiag(ctx.sampleRate + ' Hz' + (trackLabel ? ' · ' + trackLabel.slice(0, 28) : ''));
-      showStatus(barge ? 'Бот говорит — можно перебить' : 'Слушаю… нажмите микрофон, чтобы отправить');
+      showStatus(barge ? 'Бот говорит — начните говорить, чтобы перебить' : 'Слушаю… нажмите микрофон для отправки');
 
       micStream.processor.onaudioprocess = (event) => {
         let frame = event.inputBuffer.getChannelData(0);
@@ -2107,9 +1830,6 @@
 
         const rms = rmsOf(frame);
         ui.micBtn.style.setProperty('--level', Math.min(1, rms * 10).toFixed(2));
-        if (++micStream.frame % 3 === 0) {
-          setMicDiag('уровень ' + ((rms * 1000) | 0) + (micStream.speechSeen ? ' · речь' : ''));
-        }
 
         if (micStream.bargeMode) {
           const warm = Date.now() - micStream.startedAt > BARGE_WARMUP_MS;
@@ -2121,8 +1841,8 @@
             micStream.speechSeen = true;
             stopSpeaking();
             updateMicButton();
-            addNote('mut', 'Бот перебит');
-            showStatus('Слушаю… нажмите микрофон, чтобы отправить');
+            addNote('mut', 'Бот перебит голосом');
+            showStatus('Слушаю… нажмите микрофон для отправки');
             resetMaxTimer();
           }
         } else if (rms > THRESHOLD_SPEECH) {
@@ -2156,7 +1876,6 @@
       micStream.bargeHits = 0;
       clearTimeout(micStream.maxTimer);
       updateMicButton();
-      setMicDiag('стоп');
       showStatus('');
 
       try {
@@ -2172,17 +1891,17 @@
         const pcm = new Int16Array(total);
         let offset = 0;
         micStream.chunks.forEach((chunk) => { pcm.set(chunk, offset); offset += chunk.length; });
-        addNote('mut', 'Отправлено ' + (total / SAMPLE_RATE).toFixed(1) + ' с аудио');
-        sendAudio(new Blob([pcm.buffer], { type: 'audio/pcm' }));
+        const dur = (total / SAMPLE_RATE).toFixed(1);
+        sendAudio(new Blob([pcm.buffer], { type: 'audio/pcm' }), dur);
       } else {
-        addNote('mut', 'Слишком коротко, не отправлено');
+        addNote('mut', 'Запись слишком короткая, не отправлена');
       }
     }
 
     function startBrowserRecognition() {
       const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!Recognition) {
-        showStatus('ASR на бэке выключен, а браузер не умеет распознавать. Пишите текстом или включите vosk.', true);
+        showStatus('ASR на сервере выключен (fake), а браузер не поддерживает Web Speech API.', true);
         return;
       }
       const recognizer = new Recognition();
@@ -2213,28 +1932,22 @@
       const active = inCall();
       const locked = composerLocked();
       const muted = speechLock();
-      const caller = muted && app.speakingRole === 'caller';
-
-      ui.bargeInRow.hidden = !active;
+      const hasText = Boolean(ui.input.value.trim());
 
       ui.input.disabled = !active;
       ui.input.readOnly = muted;
-      ui.input.placeholder = muted
-        ? (caller ? 'Звучит ваша реплика…' : 'Бот говорит — дождитесь ответа…')
-        : 'Реплика звонящего…';
+      ui.input.placeholder = micStream.recording && !micStream.bargeMode
+        ? 'Идёт запись… нажмите микрофон для отправки'
+        : (muted ? 'Бот говорит — дождитесь окончания…' : 'Реплика звонящего…');
 
-      ui.sendBtn.disabled = locked || !active;
-      ui.sendBtn.title = muted ? 'Идёт озвучка — дождитесь конца' : 'Отправить';
+      ui.sendBtn.disabled = !active || locked || !hasText;
+      ui.sendBtn.title = muted ? 'Идёт озвучка' : 'Отправить';
 
-      ui.micBtn.hidden = !micOn();
-      ui.micBtn.disabled = locked || !active || mic.denied;
-      ui.micBtn.title = mic.denied
-        ? 'Нет доступа к микрофону'
-        : muted
-          ? 'Идёт озвучка — дождитесь конца'
-          : (micStream.recording ? 'Остановить и отправить' : 'Записать реплику');
+      ui.micBtn.disabled = !active || (locked && !micStream.recording);
+      ui.micBtn.title = micStream.recording ? 'Остановить и отправить' : 'Записать голосом';
 
-      ui.optBargeIn.disabled = !voiceOutOn() || !micOn() || !micSupported;
+      ui.quickChips.forEach((chip) => { chip.disabled = !active || locked; });
+      ui.optBargeIn.disabled = !app.voiceOut || !micSupported;
       updateVoiceToggleBtn();
     }
 
@@ -2246,10 +1959,33 @@
       sendText(text);
     }
 
+    ui.startCallBtn.addEventListener('click', startCall);
+    ui.hangupBtn.addEventListener('click', () => hangup());
+    ui.newCallBtn.addEventListener('click', resetToHero);
+    ui.downloadLogBtn.addEventListener('click', downloadTranscript);
+
+    ui.sendBtn.addEventListener('click', submitComposer);
+    ui.input.addEventListener('input', autosizeInput);
+    ui.input.addEventListener('keydown', (e) => {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComposer(); }
+    });
+    ui.quickChips.forEach((chip) => {
+      chip.addEventListener('click', () => {
+        if (inCall() && !composerLocked()) sendText(chip.dataset.chip);
+      });
+    });
+    ui.micBtn.addEventListener('click', () => {
+      unlockAudio();
+      if (micStream.recording) stopListening(true);
+      else startListening().catch((err) => showStatus('Микрофон: ' + err.message, true));
+    });
+    ui.stopSpeakBtn.addEventListener('click', () => { stopSpeaking(); focusInput(); });
+
     /* =========================================================
-       TTS mode
+       Проба TTS (/debug/tts)
        ========================================================= */
-    let ttsPlaying = null;
+    let ttsPlaying = false;
 
     function updateTtsPlayBtn() {
       ui.ttsPlayLabel.textContent = ttsPlaying ? 'Остановить' : 'Озвучить';
@@ -2260,18 +1996,21 @@
       if (!text) return;
       if (ttsPlaying) { stopSpeaking(); return; }
       unlockAudio();
+      showTtsStatus('');
+
       const body = { text: text };
       if (app.ttsSpeaker) body.speaker = app.ttsSpeaker;
+
       try {
         ttsPlaying = true;
         updateTtsPlayBtn();
         const tts = await api('/debug/tts', postJson(body));
         addTtsHistory(text, tts);
-        await speak({ text: tts.spoken, audio_b64: tts.audio_b64, audio_mime: tts.audio_mime }, 'Проба синтеза');
+        await speak({ text: tts.spoken || text, audio_b64: tts.audio_b64, audio_mime: tts.audio_mime }, 'Проба синтеза');
       } catch (err) {
-        alert('Ошибка синтеза: ' + err.message);
+        showTtsStatus('Ошибка синтеза: ' + err.message, true);
       } finally {
-        ttsPlaying = null;
+        ttsPlaying = false;
         updateTtsPlayBtn();
       }
     }
@@ -2279,9 +2018,10 @@
     function addTtsHistory(text, tts) {
       const empty = ui.ttsHistory.querySelector('.history-empty');
       if (empty) empty.remove();
+
       const item = document.createElement('div');
       item.className = 'history-item';
-      const voice = tts.speaker || app.ttsSpeaker || app.cfg.tts || '';
+      const voice = [app.cfg.tts, tts.speaker || app.ttsSpeaker].filter(Boolean).join(' · ') || 'tts';
       const spokenAs = tts.spoken && tts.spoken !== text ? 'читаю как: «' + tts.spoken + '»' : '';
       const time = new Date().toLocaleTimeString('ru-RU', { hour12: false });
       item.innerHTML =
@@ -2290,13 +2030,11 @@
           '<div class="h-meta">' +
             '<span>' + escapeHtml(voice) + '</span>' +
             (spokenAs ? '<span>' + escapeHtml(spokenAs) + '</span>' : '') +
-            '<span class="h-time">' + time + '</span>' +
+            '<span>' + time + '</span>' +
           '</div>' +
         '</div>' +
-        '<button title="Переозвучить" aria-label="Переозвучить">' +
-          '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">' +
-            '<polygon points="6 4 20 12 6 20"/>' +
-          '</svg>' +
+        '<button type="button" title="Переозвучить" aria-label="Переозвучить">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>' +
         '</button>';
       item.querySelector('button').addEventListener('click', () => {
         ui.ttsInput.value = text;
@@ -2310,19 +2048,13 @@
     ui.ttsInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); playTts(); }
     });
-    ui.ttsVoiceSelect.addEventListener('change', () => {
-      app.ttsSpeaker = ui.ttsVoiceSelect.value || null;
-      ui.voiceSelect.value = ui.ttsVoiceSelect.value;
-      if (app.ttsSpeaker) localStorage.setItem('ttsSpeaker', app.ttsSpeaker);
-      else localStorage.removeItem('ttsSpeaker');
-    });
 
     /* =========================================================
-       ASR mode
+       Проба ASR (/debug/asr)
        ========================================================= */
     const asr = {
       stream: null, source: null, processor: null,
-      chunks: [], recording: false, frame: 0, seen: false,
+      chunks: [], recording: false,
     };
 
     function updateAsrUi() {
@@ -2334,24 +2066,27 @@
       if (!asr.recording) ui.asrMicBtn.style.removeProperty('--level');
     }
 
-    function setAsrResult(text, state) {
+    function setAsrResult(text, kind) {
       ui.asrResult.classList.remove('empty', 'error');
-      if (state === 'empty') { ui.asrResult.textContent = '—'; ui.asrResult.classList.add('empty'); return; }
-      if (state === 'error') { ui.asrResult.textContent = text; ui.asrResult.classList.add('error'); return; }
+      if (kind === 'empty') { ui.asrResult.textContent = text || '—'; ui.asrResult.classList.add('empty'); return; }
+      if (kind === 'error') { ui.asrResult.textContent = text; ui.asrResult.classList.add('error'); return; }
       ui.asrResult.textContent = text;
     }
 
     async function startAsr() {
       if (asr.recording) return;
-      if (!micSupported) {
-        setAsrResult(window.isSecureContext
-          ? 'Браузер не поддерживает захват микрофона.'
-          : 'Микрофон доступен только по HTTPS или с localhost.', 'error');
-        return;
-      }
       unlockAudio();
 
       if (app.cfg.asr === 'fake') return startBrowserAsr();
+      if (!micSupported) {
+        setAsrResult(
+          window.isSecureContext
+            ? 'Браузер не поддерживает захват микрофона.'
+            : 'Микрофон доступен только по HTTPS или с localhost.',
+          'error'
+        );
+        return;
+      }
 
       let ctx;
       try {
@@ -2360,23 +2095,20 @@
         asr.source = ctx.createMediaStreamSource(asr.stream);
         asr.processor = ctx.createScriptProcessor(4096, 1, 1);
       } catch (err) {
-        setAsrResult('Микрофон не запустился: ' + err.name + ' — ' + err.message, 'error');
+        setAsrResult('Микрофон не запустился: ' + (err.message || err.name), 'error');
         return;
       }
 
       asr.chunks = [];
       asr.recording = true;
-      asr.frame = 0;
-      asr.seen = false;
       updateAsrUi();
-      setAsrResult('Слушаю…');
+      setAsrResult('Запись потока 16 kHz PCM…', 'empty');
 
       asr.processor.onaudioprocess = (event) => {
         let frame = event.inputBuffer.getChannelData(0);
         if (ctx.sampleRate !== SAMPLE_RATE) frame = resample(frame, ctx.sampleRate, SAMPLE_RATE);
         const rms = rmsOf(frame);
         ui.asrMicBtn.style.setProperty('--level', Math.min(1, rms * 10).toFixed(2));
-        if (rms > THRESHOLD_SPEECH) asr.seen = true;
         asr.chunks.push(floatToInt16(frame));
       };
 
@@ -2394,7 +2126,7 @@
         asr.processor.disconnect();
         asr.source.disconnect();
         asr.stream.getTracks().forEach((track) => track.stop());
-      } catch { /* нет */ }
+      } catch { /* уже */ }
 
       const total = asr.chunks.reduce((n, c) => n + c.length, 0);
       if (total < SAMPLE_RATE * MIN_AUDIO_SEC) {
@@ -2405,8 +2137,9 @@
       const pcm = new Int16Array(total);
       let offset = 0;
       asr.chunks.forEach((chunk) => { pcm.set(chunk, offset); offset += chunk.length; });
+      const dur = (total / SAMPLE_RATE).toFixed(1) + ' с';
 
-      setAsrResult('Распознаю…');
+      setAsrResult('Распознаю…', 'empty');
       try {
         const reply = await api('/debug/asr', {
           method: 'POST',
@@ -2416,16 +2149,16 @@
         const text = reply.text || reply.recognized || '';
         if (!text) { setAsrResult('Ничего не распознано', 'error'); return; }
         setAsrResult(text);
-        addAsrHistory(text, reply);
+        addAsrHistory(text, app.cfg.asr || 'asr', dur);
       } catch (err) {
-        setAsrResult('Ошибка распознавания: ' + err.message + '. Проверьте, что у бэкенда есть POST /debug/asr.', 'error');
+        setAsrResult('Ошибка распознавания: ' + err.message, 'error');
       }
     }
 
     function startBrowserAsr() {
       const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!Recognition) {
-        setAsrResult('ASR на бэке выключен, а браузер не умеет распознавать.', 'error');
+        setAsrResult('ASR на сервере выключен (fake), а браузер не поддерживает Web Speech API.', 'error');
         return;
       }
       const r = new Recognition();
@@ -2433,30 +2166,31 @@
       r.interimResults = false;
       asr.recording = true;
       updateAsrUi();
-      setAsrResult('Слушаю (браузер)…');
+      setAsrResult('Слушаю (браузер)…', 'empty');
       r.onresult = (e) => {
         const text = e.results[0][0].transcript;
         setAsrResult(text);
-        addAsrHistory(text, { engine: 'браузер' });
+        addAsrHistory(text, 'браузер', '');
       };
       r.onerror = (e) => setAsrResult('Ошибка: ' + e.error, 'error');
       r.onend = () => { asr.recording = false; updateAsrUi(); };
       r.start();
     }
 
-    function addAsrHistory(text, meta) {
+    function addAsrHistory(text, engine, dur) {
       const empty = ui.asrHistory.querySelector('.history-empty');
       if (empty) empty.remove();
+
       const item = document.createElement('div');
       item.className = 'history-item';
       const time = new Date().toLocaleTimeString('ru-RU', { hour12: false });
-      const engine = meta.engine || app.cfg.asr || 'asr';
       item.innerHTML =
         '<div class="h-body">' +
           '<div class="h-text">' + escapeHtml(text) + '</div>' +
           '<div class="h-meta">' +
             '<span>' + escapeHtml(engine) + '</span>' +
-            '<span class="h-time">' + time + '</span>' +
+            (dur ? '<span>' + escapeHtml(dur) + '</span>' : '') +
+            '<span>' + time + '</span>' +
           '</div>' +
         '</div>';
       ui.asrHistory.prepend(item);
@@ -2465,67 +2199,20 @@
 
     ui.asrMicBtn.addEventListener('click', () => {
       if (asr.recording) stopAsrAndSend();
-      else startAsr().catch(reportMicError);
+      else startAsr().catch((err) => setAsrResult('Микрофон: ' + err.message, 'error'));
     });
 
     /* =========================================================
-       UI events
+       Инициализация
        ========================================================= */
-    ui.callToggle.addEventListener('click', startCall);
-    ui.callEndBtn.addEventListener('click', () => hangup());
-    ui.callNewBtn.addEventListener('click', resetToHero);
-
-    ui.sendBtn.addEventListener('click', submitComposer);
-    ui.input.addEventListener('input', autosizeInput);
-    ui.input.addEventListener('keydown', (e) => {
-      if (e.isComposing || e.keyCode === 229) return;
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComposer(); }
-    });
-    ui.micBtn.addEventListener('click', () => {
-      unlockAudio();
-      if (micStream.recording) stopListening(true);
-      else startListening().catch(reportMicError);
-    });
-    ui.stopSpeakBtn.addEventListener('click', () => { stopSpeaking(); focusInput(); });
-
-    ui.voiceSelect.addEventListener('change', () => {
-      app.ttsSpeaker = ui.voiceSelect.value || null;
-      ui.ttsVoiceSelect.value = ui.voiceSelect.value;
-      if (app.ttsSpeaker) localStorage.setItem('ttsSpeaker', app.ttsSpeaker);
-      else localStorage.removeItem('ttsSpeaker');
-      showStatus(app.ttsSpeaker ? 'Голос бота: ' + app.ttsSpeaker : '');
-    });
-
-    ui.callerVoiceSelect.addEventListener('change', () => {
-      app.callerSpeaker = ui.callerVoiceSelect.value || null;
-      if (app.callerSpeaker) localStorage.setItem('callerSpeaker', app.callerSpeaker);
-      else localStorage.removeItem('callerSpeaker');
-      showStatus(app.callerSpeaker ? 'Голос звонящего: ' + app.callerSpeaker : '');
-    });
-
-    ui.copyBtn.addEventListener('click', copyTranscript);
-    ui.downloadBtn.addEventListener('click', downloadTranscript);
-    ui.clearBtn.addEventListener('click', () => { clearTranscript(); showStatus(''); });
-
-    /* =========================================================
-       Init
-       ========================================================= */
-    loadConfig().catch((err) => showStatus('Не удалось получить /debug/config: ' + err.message, true));
-
     setMode(localStorage.getItem('mode') || 'call');
     refreshLiveView();
-    refreshActions();
-    refreshComposer();
     updateTtsPlayBtn();
     updateAsrUi();
     updateVoiceToggleBtn();
+    refreshMicDevices();
 
-    renderMicInfo();
-    requestMicAccess().catch((err) => {
-      console.warn('mic init failed', err);
-      mic.denied = true;
-      renderMicInfo();
-    });
+    loadConfig().catch((err) => showStatus('Не удалось загрузить /debug/config: ' + err.message, true));
 </script>
 </body>
 </html>
