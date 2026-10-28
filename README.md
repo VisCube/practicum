@@ -24,16 +24,13 @@
 │   routes/debug      /debug/* (только DEBUG_UI=true)       │
 │                                                           │
 │   dependencies.Container                                  │
-│      ├── Orchestrator            ← ядро диалога           │
-│      │     ├── SessionStore (in-memory, TTL)              │
-│      │     ├── TopicClassifier (ML + keywords, YAML)      │
-│      │     ├── EscalationDetector (YAML)                  │
-│      │     ├── Handlers: Intake / Consultation            │
-│      │     └── RuleSlotExtractor + (опц.) LlmTasks        │
-│      ├── Asr (fake | vosk | t-one)                        │
+│      ├── DialogRunner (DIALOG_ADAPTER=rules | cloudru)    │
+│      │     ├── Orchestrator (rules: YAML + ML + handlers) │
+│      │     └── CloudRuDialogAdapter (Cloud.ru LLM + RAG)  │
+│      ├── Asr (fake | vosk | t-one | cloudru)              │
 │      ├── Tts (fake | piper | silero)                      │
 │      ├── Crm (fake | telegram | bitrix*) + Outbox         │
-│      └── Llm (fake | openai-совместимый)                  │
+│      └── Llm (fake | openai | cloudru)                    │
 └───────────────────────────────────────────────────────────┘
                                           * в планах
 ```
@@ -51,11 +48,13 @@
 | Проверка/сериализация | Pydantic v2, pydantic-settings |
 | Конфигурация | Переменные окружения + `.env` |
 | Локальный ASR | Vosk (опц.) / T-one (sherpa-onnx) |
+| Облачный ASR | Cloud.ru Foundation Models (`openai/whisper-large-v3`) |
 | Локальный TTS | Piper (опц.) / Silero |
-| LLM | Любой OpenAI-совместимый endpoint (YandexGPT, OpenRouter, Ollama…) |
+| Диалог и RAG | Правила (`Orchestrator` + `MarkdownRetriever`) или агент Cloud.ru (LLM tool calling + Managed RAG) |
+| LLM | Любой OpenAI-совместимый endpoint / Cloud.ru Foundation Models |
 | CRM | fake (in-memory) / Telegram ; Битрикс24 — в планах |
 | Тесты | pytest + pytest-asyncio |
-| Упаковка | Docker (`Dockerfile`) / `pip install -e ".[local]"` |
+| Упаковка | Docker (`Dockerfile`, модульный `ARG EXTRAS`) / `pip install -e ".[...]"` |
 
 ---
 
@@ -87,10 +86,11 @@ src/assistant/
     text.py               нормализация, стемизация, числительные
     llm_tasks.py          классификация и слоты через LLM
   services/               каждый сервис: base.py + fake.py + реальный адаптер
-    asr/                  FakeAsr, VoskAsr, ToneAsr
+    asr/                  FakeAsr, VoskAsr, ToneAsr, CloudRuAsr
     tts/                  FakeTts, PiperTts, SileroTts
     llm/                  FakeLlm, OpenAICompatLlm
     crm/                  InMemoryCrm, TelegramCrm, Outbox
+    cloudru/              мост и адаптер звонка к моделям и Managed RAG Cloud.ru
     telephony/            FakeTelephony
   templates/phrases.py    Все фразы робота в одном dict
   utils/                  Вспомогательные модули
@@ -184,6 +184,36 @@ greeting → topic → [identify →] slots → confirm → done
 - **Emergency** на любом шаге → `transferred` со спец-фразой из `emergency_say`.
 - **Transfer** — перевод (emergency / просьба клиента / угроза жалобы / тех. ошибка).
 - Сессия живёт в памяти 30 минут с момента последнего обращения.
+
+---
+
+## Модульная установка и сборка Docker
+
+Локальные модели и облачные клиенты вынесены в независимые extras (`pyproject.toml` и `ARG EXTRAS` в `Dockerfile`):
+
+| Модуль | Назначение | Модель в `./models/` |
+|--------|------------|----------------------|
+| `cloudru` | Cloud.ru: LLM-агент, Whisper STT, Managed RAG | — |
+| `silero` | Локальный Silero TTS + нормализация/ударения | `models/v5_cis_base.pt` |
+| `piper` | Локальный Piper TTS | `models/ru_RU-ruslan-medium.onnx*` |
+| `tone` | Локальный T-one ASR (`sherpa-onnx`) | `models/t-one/` |
+| `vosk` | Локальный Vosk ASR | `models/vosk-model-small-ru-0.22` |
+| `clf` | Локальный ML-классификатор тем | `models/model.pkl` |
+| `local` | Все локальные модули сразу (`vosk,tone,piper,silero,clf`) | все 5 моделей |
+| `all` | `local` + `cloudru` | все 5 моделей |
+
+Примеры:
+
+```bash
+# Облачный режим Cloud.ru + локальный синтез Silero TTS
+pip install -e ".[cloudru,silero]"
+docker build --build-arg EXTRAS="cloudru,silero" -t dispatch:cloudru .
+
+# Полностью локальная сборка (по умолчанию)
+docker build -t dispatch:local .
+```
+
+Для облачного режима в `.env` задаются `DIALOG_ADAPTER=cloudru`, `ASR_ADAPTER=cloudru`, `TTS_ADAPTER=silero`, а также ключи `FM_API_KEY`, `LLM_MODEL`, `STT_MODEL`, `RAG_KEY_ID`, `RAG_KEY_SECRET`, `RAG_BASE_URL` (см. `.env.example`).
 
 ---
 

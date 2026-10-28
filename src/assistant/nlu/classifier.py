@@ -6,11 +6,9 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-import joblib
 import yaml
 
 from assistant.core.models import RiskLevel, SlotSpec, Topic, TopicKind
-from assistant.nlu.clf_preprocess import lemmatize_for_clf
 from assistant.nlu.text import contains_stem
 
 logger = logging.getLogger(__name__)
@@ -95,17 +93,33 @@ class TopicClassifier:
         if model_path is not None:
             model_path = Path(model_path)
             if not model_path.is_file():
-                raise FileNotFoundError(f"classifier model not found: {model_path}")
-            bundle = joblib.load(model_path)
-            for key in ("main", "sub", "map"):
-                if key not in bundle:
-                    raise ValueError(f"model.pkl must contain '{key}', got {list(bundle)}")
-            logger.info(
-                "topic clf loaded from %s (main=%d sub=%d)",
-                model_path,
-                len(bundle["main"].classes_),
-                len(bundle["sub"].classes_),
-            )
+                logger.warning(
+                    "classifier model not found at %s — using keyword fallback",
+                    model_path,
+                )
+            else:
+                try:
+                    import joblib
+                    import pymorphy3  # noqa: F401
+                except ImportError:
+                    logger.warning(
+                        "classifier dependencies (joblib/pymorphy3) not installed — "
+                        "skipping %s, using keyword fallback",
+                        model_path,
+                    )
+                else:
+                    bundle = joblib.load(model_path)
+                    for key in ("main", "sub", "map"):
+                        if key not in bundle:
+                            raise ValueError(
+                                f"model.pkl must contain '{key}', got {list(bundle)}"
+                            )
+                    logger.info(
+                        "topic clf loaded from %s (main=%d sub=%d)",
+                        model_path,
+                        len(bundle["main"].classes_),
+                        len(bundle["sub"].classes_),
+                    )
 
         return cls(
             topics,
@@ -242,6 +256,9 @@ class TopicClassifier:
         return TopicMatch(best_topic, best_score, ("keywords",))
 
     def _predict(self, text: str) -> tuple[str, float, str, float]:
+        from assistant.nlu.clf_preprocess import lemmatize_for_clf
+
+        assert self._bundle is not None
         cleaned = lemmatize_for_clf(text)
         main_model = self._bundle["main"]
         sub_model = self._bundle["sub"]

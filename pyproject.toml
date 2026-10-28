@@ -10,17 +10,44 @@ dependencies = [
     "pydantic-settings>=2.3",
     "PyYAML>=6.0",
     "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+cloudru = ["openai>=1.0", "requests>=2.31", "python-dotenv>=1.0"]
+silero = ["torch>=2.0.0", "numpy>=1.26", "rutextnorm>=2.1.0", "silero-stress>=1.5"]
+piper = ["piper-tts>=1.2"]
+tone = ["sherpa-onnx>=1.13.8", "text2num>=2.5.1,<3", "numpy>=1.26"]
+vosk = ["vosk>=0.3.45"]
+clf = ["scikit-learn==1.4.1.post1", "pymorphy3>=2.0.6", "joblib>=1.6.0"]
+local = [
+    "torch>=2.0.0",
     "rutextnorm>=2.1.0",
     "silero-stress>=1.5",
+    "piper-tts>=1.2",
     "sherpa-onnx>=1.13.8",
     "text2num>=2.5.1,<3",
+    "numpy>=1.26",
+    "vosk>=0.3.45",
     "scikit-learn==1.4.1.post1",
     "pymorphy3>=2.0.6",
     "joblib>=1.6.0",
 ]
-
-[project.optional-dependencies]
-local = ["vosk>=0.3.45", "piper-tts>=1.2", "torch>=2.0.0"]
+all = [
+    "openai>=1.0",
+    "requests>=2.31",
+    "python-dotenv>=1.0",
+    "torch>=2.0.0",
+    "rutextnorm>=2.1.0",
+    "silero-stress>=1.5",
+    "piper-tts>=1.2",
+    "sherpa-onnx>=1.13.8",
+    "text2num>=2.5.1,<3",
+    "numpy>=1.26",
+    "vosk>=0.3.45",
+    "scikit-learn==1.4.1.post1",
+    "pymorphy3>=2.0.6",
+    "joblib>=1.6.0",
+]
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.5", "mypy>=1.10"]
 
 [project.scripts]
@@ -37,6 +64,7 @@ packages = ["src/assistant"]
 line-length = 100
 target-version = "py312"
 src = ["src", "tests"]
+extend-exclude = ["src/assistant/services/cloudru/_upstream"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC", "SIM", "RUF"]
@@ -49,6 +77,7 @@ known-first-party = ["assistant"]
 python_version = "3.12"
 packages = ["assistant"]
 mypy_path = "src"
+exclude = ["^src/assistant/services/cloudru/_upstream/"]
 check_untyped_defs = true
 warn_unused_ignores = true
 ignore_missing_imports = true

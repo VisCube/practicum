@@ -117,6 +117,14 @@ def test_topic_names_are_speakable(classifier):
         assert "/" not in topic.name, f"{topic.id}: TTS прочитает слэш вслух"
 
 
+def test_missing_classifier_model_falls_back_to_keywords(tmp_path):
+    clf = TopicClassifier.from_yaml(
+        DATA / "classifier.yaml", model_path=tmp_path / "missing.pkl",
+    )
+    match = clf.classify("нет горячей воды")
+    assert match is not None and match.topic.id == "no_water"
+
+
 # ---------------------------------------------------------------- slots
 
 def test_slots(classifier):

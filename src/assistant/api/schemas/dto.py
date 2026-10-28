@@ -43,6 +43,7 @@ class SessionView(BaseModel):
 
 
 class DebugConfig(BaseModel):
+    dialog: str = "rules"
     asr: str
     tts: str
     llm: str

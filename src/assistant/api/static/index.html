@@ -822,6 +822,7 @@
             <section>
                 <h3>Система</h3>
                 <dl class="sys-flat">
+                    <dt>Диалог</dt><dd id="cfg-dialog">…</dd>
                     <dt>ASR</dt><dd id="cfg-asr">…</dd>
                     <dt>TTS</dt><dd id="cfg-tts">…</dd>
                     <dt>LLM</dt><dd id="cfg-llm">…</dd>
@@ -1616,7 +1617,10 @@
 
     async function loadConfig() {
       app.cfg = await api('/debug/config');
-      ['asr', 'tts', 'llm', 'crm'].forEach((key) => { $('#cfg-' + key).textContent = app.cfg[key]; });
+      ['dialog', 'asr', 'tts', 'llm', 'crm'].forEach((key) => {
+        const el = $('#cfg-' + key);
+        if (el) el.textContent = app.cfg[key] || '—';
+      });
       (app.cfg.demo_phones || []).forEach((phone) => ui.phoneSelect.add(new Option(phone + ' · есть в CRM', phone)));
       ui.phoneSelect.add(new Option('+70000000000 · нет в CRM', '+70000000000'));
       fillVoiceSelect(app.cfg.tts_speakers || [], app.cfg.tts_speaker || null);

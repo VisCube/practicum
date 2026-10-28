@@ -34,10 +34,16 @@ async def index() -> str:
 async def config(container: Container = Depends(get_container)) -> DebugConfig:
     settings = container.settings
     speakers, speaker = tts_voice_info(container.tts)
+    llm_name = (
+        "cloudru"
+        if settings.dialog_adapter == "cloudru"
+        else (settings.llm_adapter if container.orchestrator.llm else "fake")
+    )
     return DebugConfig(
+        dialog=settings.dialog_adapter,
         asr="fake" if isinstance(container.asr, FakeAsr) else settings.asr_adapter,
         tts="fake" if isinstance(container.tts, FakeTts) else settings.tts_adapter,
-        llm=settings.llm_adapter if container.orchestrator.llm else "fake",
+        llm=llm_name,
         crm=settings.crm_adapter,
         demo_phones=container.demo_phones,
         tts_speakers=speakers,
