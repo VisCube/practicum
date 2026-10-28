@@ -911,6 +911,7 @@
       ttsSpeaker: null,
       voiceOut: localStorage.getItem('voiceOut') !== 'false',
       sessionActive: false,
+      callStarted: false,
       seconds: 0,
       timer: null,
     };
@@ -1394,18 +1395,21 @@
     let audioCtx = null;
     let audioUnlocked = false;
     let player = null;
+    let playerUrl = null;
     let finishCurrentSpeech = null;
 
-    function ensureAudioContext() {
+    async function ensureAudioContext() {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!audioCtx || audioCtx.state === 'closed') audioCtx = new AC();
-      if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+      if (audioCtx.state === 'suspended') {
+        try { await audioCtx.resume(); } catch { /* браузер не разблокировал аудио */ }
+      }
       return audioCtx;
     }
-    function unlockAudio() {
+    async function unlockAudio() {
       if (audioUnlocked) return;
       audioUnlocked = true;
-      try { ensureAudioContext(); } catch { /* нет WebAudio */ }
+      try { await ensureAudioContext(); } catch { /* нет WebAudio */ }
       if ('speechSynthesis' in window) {
         try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch { /* нет синтеза */ }
       }
@@ -1433,7 +1437,14 @@
       if (label) ui.speakingLabel.textContent = label;
     }
     function stopSpeaking() {
-      if (player) { try { player.pause(); } catch { /* уже */ } }
+      if (player) {
+        try { player.onended = null; } catch { /* уже */ }
+        try { player.onerror = null; } catch { /* уже */ }
+        try { player.pause(); } catch { /* уже */ }
+        try { player.src = ''; player.load(); } catch { /* уже */ }
+        player = null;
+      }
+      if (playerUrl) { try { URL.revokeObjectURL(playerUrl); } catch { /* уже */ } playerUrl = null; }
       if ('speechSynthesis' in window) speechSynthesis.cancel();
       if (finishCurrentSpeech) finishCurrentSpeech();
     }
@@ -1465,14 +1476,19 @@
         if (reply.audio_b64) {
           begin();
           const url = URL.createObjectURL(base64ToBlob(reply.audio_b64, reply.audio_mime));
+          playerUrl = url;
           player = new Audio(url);
-          player.onended = () => { URL.revokeObjectURL(url); finish(); };
+          player.onended = () => {
+            if (playerUrl === url) { try { URL.revokeObjectURL(url); } catch {} playerUrl = null; }
+            finish();
+          };
           player.onerror = () => {
+            if (playerUrl === url) { try { URL.revokeObjectURL(url); } catch {} playerUrl = null; }
             showStatus('Аудио не воспроизвелось: ' + ((player.error && player.error.message) || reply.audio_mime), true);
-            URL.revokeObjectURL(url);
             finish();
           };
           player.play().catch((err) => {
+            if (done) return; // остановлено приложением (перебивание / следующий ответ) — не ошибка браузера
             showStatus('Браузер заблокировал воспроизведение: ' + err.message, true);
             finish();
           });
@@ -1554,13 +1570,15 @@
       const hasCall = Boolean(app.callId);
       ui.hangupBtn.hidden = !hasCall;
       ui.composer.hidden = !hasCall;
-      ui.callEndedBar.hidden = hasCall;
+      // «Разговор завершён» показываем только если звонок уже Started, сейчас не активен и нет call_id
+      const showEndedBar = !live && app.callStarted && !hasCall;
+      ui.callEndedBar.hidden = !showEndedBar;
 
       ui.phoneSelect.disabled = hasCall;
       ui.livePhone.textContent = app.phone || '';
       ui.liveDot.className = 'dot ' + (inCall() ? 'live' : hasCall ? 'hold' : '');
 
-      if (!hasCall && live) {
+      if (showEndedBar) {
         const reason = app.endedReason || 'трубка положена';
         ui.endedReason.textContent = reason + ' · ' + fmtTime(app.seconds);
       }
@@ -1571,6 +1589,7 @@
     function resetToHero() {
       stopCallTimer();
       app.sessionActive = false;
+      app.callStarted = false;
       app.endedReason = '';
       clearTranscript();
       showStatus('');
@@ -1586,12 +1605,13 @@
       app.ended = false;
       app.endedReason = '';
       app.sessionActive = true;
+      app.callStarted = true;
       clearTranscript();
       startCallTimer();
       refreshLiveView();
       addNote('mut', 'Звонок с номера ' + app.phone);
       setBusy(true);
-      showStatus('Соединение…');
+      showStatus('Начинаем звонок…');
 
       try {
         const reply = await api('/call/start', postJson({ phone: app.phone }, audioHeader()));
@@ -1601,6 +1621,7 @@
       } catch (err) {
         stopCallTimer();
         app.sessionActive = false;
+        app.callStarted = false;
         setBusy(false);
         refreshLiveView();
         showStatus('Не удалось начать звонок: ' + err.message, true);
@@ -1800,10 +1821,17 @@
       let ctx;
       try {
         micStream.stream = await micGetUserMedia();
-        ctx = ensureAudioContext();
+        ctx = await ensureAudioContext();
+        if (ctx.state !== 'running') {
+          throw new Error('AudioContext не запустился (' + ctx.state + ')');
+        }
         micStream.source = ctx.createMediaStreamSource(micStream.stream);
         micStream.processor = ctx.createScriptProcessor(4096, 1, 1);
       } catch (err) {
+        micStream.recording = false;
+        micStream.stream = null;
+        micStream.source = null;
+        micStream.processor = null;
         showStatus('Микрофон не запустился: ' + (err.message || err.name), true);
         return;
       }
@@ -1884,6 +1912,10 @@
         micStream.source.disconnect();
         micStream.stream.getTracks().forEach((track) => track.stop());
       } catch { /* уже */ }
+
+      micStream.processor = null;
+      micStream.source = null;
+      micStream.stream = null;
 
       if (!send || !inCall()) return;
       const total = micStream.chunks.reduce((n, chunk) => n + chunk.length, 0);
