@@ -4,6 +4,8 @@
 просмотр состояния сессии, содержимого outbox и проба TTS"""
 
 import base64
+import hashlib
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -25,9 +27,29 @@ router = APIRouter(prefix="/debug", tags=["debug"])
 _HTML = Path(__file__).resolve().parent.parent / "static" / "index.html"
 
 
+def ui_build() -> str:
+    """Короткий отпечаток статики: по нему видно, какая сборка открыта в браузере.
+
+    Стенд правится часто, а браузер любит держать старый HTML — отпечаток
+    снимает вопрос «я задеплоил, а поведение старое?».
+    """
+    try:
+        return hashlib.sha1(_HTML.read_bytes()).hexdigest()[:8]
+    except OSError:
+        return "?"
+
+
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
-async def index() -> str:
-    return _HTML.read_text(encoding="utf-8")
+async def index() -> HTMLResponse:
+    # no-store: иначе браузер (и прокси) показывают вчерашний стенд после деплоя
+    return HTMLResponse(
+        _HTML.read_text(encoding="utf-8"),
+        headers={
+            "Cache-Control": "no-store, max-age=0, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 @router.get("/config", response_model=DebugConfig)
@@ -48,6 +70,7 @@ async def config(container: Container = Depends(get_container)) -> DebugConfig:
         demo_phones=container.demo_phones,
         tts_speakers=speakers,
         tts_speaker=speaker,
+        ui_build=ui_build(),
     )
 
 
@@ -66,18 +89,20 @@ async def say_audio(call_id: str, request: Request, container: Container = Depen
     mime = request.headers.get("content-type", "audio/pcm")
     phone = request.headers.get("x-phone", "")
 
+    asr_started = time.perf_counter()
     try:
         heard = await container.asr.transcribe(Audio(data=body, mime=mime))
     except AsrError as exc:
         raise HTTPException(502, f"ASR: {exc}") from exc
+    timings = {"asr": int((time.perf_counter() - asr_started) * 1000)}
 
     if not heard:
         call = container.orchestrator.store.get(call_id)
         state = call.state if call else CallState.GREETING
-        return TurnResponse(call_id=call_id, text="", heard="", state=state)
+        return TurnResponse(call_id=call_id, text="", heard="", state=state, timings=timings)
 
     turn = container.orchestrator.handle_turn(call_id, phone, heard)
-    return await execute_turn(container, call_id, turn, request, heard=heard)
+    return await execute_turn(container, call_id, turn, request, heard=heard, timings=timings)
 
 
 @router.get("/call/{call_id}", response_model=SessionView)
@@ -130,8 +155,19 @@ async def asr_probe(request: Request, container: Container = Depends(get_contain
     if not body:
         raise HTTPException(400, "empty body")
     mime = request.headers.get("content-type", "audio/pcm")
+    started = time.perf_counter()
     try:
         text = await container.asr.transcribe(Audio(data=body, mime=mime))
     except AsrError as exc:
         raise HTTPException(502, f"ASR: {exc}") from exc
-    return AsrResponse(text=text or "")
+    return AsrResponse(text=text or "", ms=int((time.perf_counter() - started) * 1000))
+
+
+@router.post("/warmup")
+async def warmup(container: Container = Depends(get_container)) -> dict:
+    """Прогревает адаптеры: первый ход не должен платить за холодный старт.
+
+    Стенд зовёт это на старте звонка, пока играет приветствие; приложение —
+    один раз при запуске, чтобы первый пользователь после деплоя не ждал.
+    """
+    return await container.warm()

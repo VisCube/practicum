@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 from contextlib import asynccontextmanager
 
@@ -29,11 +30,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.container = container
         stop_event = asyncio.Event()
         worker = asyncio.create_task(container.outbox.run(stop_event, interval=1.0))
+        # прогреваем модели в фоне: первый пользователь после деплоя не должен
+        # ждать холодного старта TTS/LLM
+        warmup = asyncio.create_task(container.warm())
         try:
             yield
         finally:
             stop_event.set()
             await worker
+            warmup.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await warmup
             await container.aclose()
 
     app = FastAPI(title="Голосовой ассистент УК", version="0.1.0", lifespan=lifespan)

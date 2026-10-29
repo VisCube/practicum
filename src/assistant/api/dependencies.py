@@ -3,6 +3,7 @@
 import base64
 import contextlib
 import logging
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
@@ -32,6 +33,11 @@ from assistant.services.tts.fake import FakeTts
 from .schemas.dto import TurnResponse
 
 log = logging.getLogger(__name__)
+
+
+def _ms(started: float) -> int:
+    """Миллисекунды от perf_counter — для таймингов по этапам хода."""
+    return int((time.perf_counter() - started) * 1000)
 
 
 class DialogRunner(Protocol):
@@ -84,15 +90,19 @@ class Container:
         *,
         with_audio: bool = True,
         tts_speaker: str | None = None,
+        timings: dict[str, int] | None = None,
     ) -> TurnResponse:
         audio_b64, mime = None, "audio/ogg"
+        stages = dict(timings or {})
         if with_audio and reply.text:
+            started = time.perf_counter()
             try:
                 audio = await self.tts.synthesize(reply.text, speaker=tts_speaker)
                 if not audio.empty:
                     audio_b64, mime = base64.b64encode(audio.data).decode(), audio.mime
             except TtsError as error:
                 log.warning("tts failed, fallback to text: %s", error)
+            stages["tts"] = _ms(started)
         return TurnResponse(
             call_id=call_id,
             text=reply.text,
@@ -103,7 +113,37 @@ class Container:
             end_call=reply.end_call,
             state=reply.state,
             events=reply.events,
+            timings=stages or None,
         )
+
+    async def warm(self) -> dict[str, int]:
+        """Прогревает адаптеры, чтобы первый ход не платил за холодный старт.
+
+        TTS: короткая фраза — первый синтез дороже последующих (ленивая сборка
+        графа, кеш нормализатора). LLM: один дешёвый запрос — установка
+        соединения и JIT у провайдера. Ошибки не пробрасываем: прогрев
+        необязателен, а его сбой не должен ломать звонок.
+        """
+        stages: dict[str, int] = {}
+
+        started = time.perf_counter()
+        try:
+            await self.tts.synthesize("Проверка связи")
+        except Exception as error:  # noqa: BLE001 — прогрев не должен падать громко
+            log.info("warmup tts skipped: %s", error)
+        stages["tts"] = _ms(started)
+
+        llm = getattr(self.orchestrator, "llm", None)
+        if llm is not None:
+            started = time.perf_counter()
+            try:
+                await llm.complete("Отвечай одним словом.", "скажи: ок")
+            except Exception as error:  # noqa: BLE001
+                log.info("warmup llm skipped: %s", error)
+            stages["llm"] = _ms(started)
+
+        log.info("warmup: %s", stages)
+        return stages
 
     async def aclose(self) -> None:
         """Закрывает адаптеры из closeables — ошибки при завершении не мешают штатному выходу."""

@@ -30,6 +30,18 @@ def test_health_and_debug_config():
         assert "html" in client.get("/debug/").text.lower()
 
 
+def test_debug_ui_not_cached_and_versioned():
+    """Статика стенда не кешируется, а в /debug/config есть отпечаток сборки.
+
+    Иначе после деплоя браузер показывает вчерашний HTML и «фиксы не работают».
+    """
+    with _client() as client:
+        page = client.get("/debug/")
+        assert "no-store" in page.headers["cache-control"]
+        build = client.get("/debug/config").json()["ui_build"]
+        assert len(build) == 8
+
+
 def test_telephony_contract_full_call():
     with _client() as client:
         response = client.post("/call/start", json={"phone": KNOWN}).json()
@@ -76,6 +88,34 @@ def test_debug_say_audio_with_fake_asr_returns_silence():
             headers={"Content-Type": "audio/pcm", "X-Phone": "+70000000000"},
         ).json()
         assert response["heard"] == "" and response["text"] == ""
+
+
+def test_turn_reports_stage_timings():
+    """Ответ бота приносит тайминги этапов: по ним видно, что тормозит — asr, диалог или tts."""
+    with _client() as client:
+        response = client.post("/call/start", json={"phone": KNOWN}).json()
+        assert set(response["timings"]) == {"dialog", "tts"}
+        assert all(isinstance(value, int) and value >= 0 for value in response["timings"].values())
+        call_id = response["call_id"]
+
+        # тишина в записи: ASR отработал, дальше хода нет — этап asr всё равно измерен
+        silent = client.post(
+            f"/debug/call/{call_id}/say-audio", content=b"\x00" * 3200,
+            headers={"Content-Type": "audio/pcm", "X-Phone": KNOWN},
+        ).json()
+        assert silent["heard"] == "" and set(silent["timings"]) == {"asr"}
+
+        probe = client.post("/debug/asr", content=b"\x00" * 3200,
+                            headers={"Content-Type": "audio/pcm"}).json()
+        assert isinstance(probe["ms"], int)
+
+
+def test_debug_warmup_returns_stage_times():
+    """Прогрев адаптеров на старте звонка — чтобы первый ход не платил за холодный старт."""
+    with _client() as client:
+        response = client.post("/debug/warmup")
+        assert response.status_code == 200
+        assert "tts" in response.json()
 
 
 def test_debug_disabled_in_prod():

@@ -24,10 +24,12 @@ class TurnResponse(BaseModel):
     end_call: bool = False          # попросить платформу завершить звонок
     state: CallState
     events: list[Event] = Field(default_factory=list)
+    timings: dict[str, int] | None = None   # мс по этапам: asr / dialog / tts
 
 class AsrResponse(BaseModel):
     """Проба ASR: сырой/обработанный текст без диалога"""
     text: str = ""
+    ms: int = 0                     # сколько заняло распознавание
 
 class SessionView(BaseModel):
     call_id: str
@@ -51,6 +53,7 @@ class DebugConfig(BaseModel):
     demo_phones: list[str]
     tts_speakers: list[str] = Field(default_factory=list)
     tts_speaker: str | None = None
+    ui_build: str = ""              # отпечаток статики стенда — видно, какая сборка открыта
 
 
 class TtsRequest(BaseModel):

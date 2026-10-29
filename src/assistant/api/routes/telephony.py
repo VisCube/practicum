@@ -1,6 +1,7 @@
 """Управление телефонией: старт звонка, реплики клиента"""
 
 import logging
+import time
 from collections.abc import Awaitable
 from uuid import uuid4
 
@@ -17,9 +18,12 @@ router = APIRouter(prefix="/call", tags=["telephony"])
 
 
 async def execute_turn(container: Container, call_id: str, turn: Awaitable[Reply], request: Request,
-                       heard: str | None = None) -> TurnResponse:
+                       heard: str | None = None,
+                       timings: dict[str, int] | None = None) -> TurnResponse:
     """Общая обёртка для /start и /turn: запросы одного звонка идут по очереди, при любом сбое - перевод на оператора"""
     store = container.orchestrator.store
+    stages = dict(timings or {})
+    dialog_started = time.perf_counter()
     try:
         async with store.lock(call_id):
             reply = await turn
@@ -31,12 +35,14 @@ async def execute_turn(container: Container, call_id: str, turn: Awaitable[Reply
             session.state = CallState.TRANSFERRED
             session.say(reply.text)
             store.save(session)
+    stages["dialog"] = int((time.perf_counter() - dialog_started) * 1000)
     if reply.end_call:
         store.delete(call_id)
     return await container.to_response(
         call_id, reply, heard=heard,
         with_audio=want_audio(request),
         tts_speaker=want_tts_speaker(request),
+        timings=stages,
     )
 
 
