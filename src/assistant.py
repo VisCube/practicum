@@ -10,7 +10,7 @@ from openai.types.chat import (
 )
 
 from src.config import FM_API_KEY, FM_BASE_URL, LLM_MODEL, SYSTEM_PROMPT
-from src.tools.__init__ import handle_tool_call, TOOL_SCHEMAS
+from src.tools import handle_tool_call, TOOL_SCHEMAS
 
 
 class ToolCall:

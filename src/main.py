@@ -1,4 +1,4 @@
-from assistant import Assistant
+from src.assistant import Assistant
 
 
 def main() -> None:
