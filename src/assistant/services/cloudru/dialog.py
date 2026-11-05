@@ -4,7 +4,7 @@
 остаются на стороне промпта и `Assistant.handle_message`. Адаптер отвечает только за:
   - привязку экземпляра `Assistant` к `call_id` и синхронизацию `SessionStore`;
   - передачу сведений о звонящем и активных авариях из `CrmClient` на старте звонка;
-  - перекладывание результатов `create_ticket` в `Outbox` и `transfer_to_operator` в телефонию.
+  - эмиссию событий `tool_call` и перекладывание заявок в `Outbox` / переводов в телефонию.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Awaitable, Callable
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from assistant.core.models import (
     Appeal,
@@ -31,7 +31,9 @@ from assistant.core.session_store import SessionStore
 from assistant.services.cloudru.bridge import (
     UpstreamAssistant,
     UpstreamToolCall,
+    find_cloudru_category,
     load_assistant_cls,
+    load_cloudru_slot_labels,
     parse_tool_result,
 )
 from assistant.services.crm.base import CrmClient
@@ -42,11 +44,8 @@ from assistant.templates.phrases import is_goodbye, say
 log = logging.getLogger(__name__)
 T = TypeVar("T")
 
-_SLOT_LABELS = {
-    "full_name": "ФИО",
-    "address": "Адрес",
-    "details": "Подробности",
-}
+_IDENTITY_SLOTS = ("full_name", "address", "apartment", "flat")
+_RESERVED_TICKET_KEYS = {"id", "category", "missing_fields"}
 _FAREWELL_MARKERS = ("до свидания", "всего доброго", "всего хорошего", "хорошего дня")
 
 
@@ -156,11 +155,7 @@ class CloudRuDialogAdapter:
                 asyncio.to_thread(agent.handle_message, text),
                 timeout=self.agent_timeout,
             )
-        except Exception as error:
-            # Облачный агент недоступен (сеть, таймаут, 500 от Cloud.ru и т.д.).
-            # Не кидаем исключение в execute_turn — иначе звонок ломается с
-            # «технической ошибкой» и переводом на оператора. Вместо этого
-            # говорим пользователю, что временно не отвечаем, и держим звонок живым.
+        except Exception:
             log.exception("cloudru agent failed for call %s", session.call_id)
             self._save_agent(session.call_id, agent)
             spoken = say("tech_unavailable")
@@ -180,8 +175,22 @@ class CloudRuDialogAdapter:
         transferred = False
 
         for call in tool_calls:
-            if call.name == "create_ticket":
-                events.append(self._record_ticket(session, call))
+            parsed = parse_tool_result(call.result)
+            events.append(
+                Event(
+                    type="tool_call",
+                    payload={
+                        "name": call.name,
+                        "arguments": dict(call.arguments or {}),
+                        "result": parsed,
+                    },
+                ),
+            )
+            if call.name == "get_category":
+                self._record_category(session, call, parsed)
+            elif call.name == "create_ticket":
+                if ticket_event := self._record_ticket(session, call, parsed):
+                    events.append(ticket_event)
             elif call.name == "transfer_to_operator":
                 events.append(await self._record_transfer(session, call))
                 transferred = True
@@ -211,59 +220,86 @@ class CloudRuDialogAdapter:
             state=session.state,
         )
 
-    def _record_ticket(self, session: CallSession, call: UpstreamToolCall) -> Event:
+    def _record_category(
+        self,
+        session: CallSession,
+        call: UpstreamToolCall,
+        parsed: Any,
+    ) -> None:
         args = call.arguments or {}
-        parsed = parse_tool_result(call.result)
+        cat_info = (
+            parsed
+            if isinstance(parsed, dict) and "name" in parsed
+            else find_cloudru_category(str(args.get("category") or ""))
+        )
+        if not cat_info:
+            return
+        if session.state == CallState.DONE:
+            session.slots = {k: v for k, v in session.slots.items() if k in _IDENTITY_SLOTS}
+        session.topic = _build_topic(str(cat_info["name"]), cat_info)
+        if session.state != CallState.TRANSFERRED:
+            session.state = CallState.SLOTS
+
+    def _record_ticket(
+        self,
+        session: CallSession,
+        call: UpstreamToolCall,
+        parsed: Any,
+    ) -> Event | None:
+        args = call.arguments or {}
         data = parsed if isinstance(parsed, dict) else {}
 
-        full_name = str(data.get("full_name") or args.get("full_name") or "").strip()
-        address = str(data.get("address") or args.get("address") or "").strip()
-        details = str(data.get("details") or args.get("details") or "").strip()
-        category = str(
-            data.get("category") or args.get("category") or "Обращение"
+        category_name = str(
+            data.get("category") or args.get("category") or "Обращение",
         ).strip()
-        raw_id = data.get("id")
-
-        topic = Topic(
-            id="cloudru_ticket",
-            name=category,
-            kind=TopicKind.APPEAL,
-            bitrix_id="",
-            risk_level=RiskLevel.NORMAL,
+        cat_info = find_cloudru_category(category_name)
+        topic = _build_topic(
+            str(cat_info["name"]) if cat_info and not data.get("category") else category_name,
+            cat_info,
         )
-        slots = {
-            k: v
-            for k, v in (
-                ("full_name", full_name),
-                ("address", address),
-                ("details", details),
-            )
-            if v
-        }
         session.topic = topic
-        session.slots.update(slots)
 
-        appeal_kwargs: dict = {
+        # Если create_ticket вернул missing_fields — заявка ещё не создана, продолжаем опрос
+        if "missing_fields" in data:
+            partial = _extract_ticket_slots({}, args, cat_info)
+            session.slots.update(partial)
+            if session.state != CallState.TRANSFERRED:
+                session.state = CallState.SLOTS
+            return None
+
+        slots = _extract_ticket_slots(data, args, cat_info)
+        session.slots = {
+            **{k: v for k, v in session.slots.items() if k in _IDENTITY_SLOTS},
+            **slots,
+        }
+
+        risk = RiskLevel.CRITICAL if session.escalated else RiskLevel.NORMAL
+        appeal_kwargs: dict[str, Any] = {
             "call_id": session.call_id,
             "phone": session.phone,
             "owner": session.owner,
             "topic": topic,
             "slots": dict(slots),
-            "risk_level": RiskLevel.NORMAL,
+            "risk_level": risk,
+            "escalated": session.escalated,
+            "escalation_markers": list(session.escalation_markers),
             "transcript": list(session.transcript),
         }
+        raw_id = data.get("id")
         if raw_id is not None and str(raw_id).strip():
-            appeal_kwargs["id"] = str(raw_id).strip()
+            candidate_id = str(raw_id).strip()
+            if self.outbox.store.get(candidate_id) is None:
+                appeal_kwargs["id"] = candidate_id
 
         appeal = Appeal(**appeal_kwargs)
         local_id = self.outbox.enqueue(appeal)
         session.appeals.append(local_id)
         session.state = CallState.DONE
 
+        labels = load_cloudru_slot_labels()
         fields = [
-            {"id": slot_id, "label": _SLOT_LABELS[slot_id], "value": value}
+            {"id": slot_id, "label": labels.get(slot_id, slot_id), "value": value}
             for slot_id, value in slots.items()
-            if slot_id in _SLOT_LABELS
         ]
         return Event(
             type="appeal_created",
@@ -273,8 +309,8 @@ class CloudRuDialogAdapter:
                 "topic_id": topic.id,
                 "bitrix_id": topic.bitrix_id,
                 "risk_level": appeal.risk_level,
-                "escalated": False,
-                "escalation_markers": [],
+                "escalated": appeal.escalated,
+                "escalation_markers": list(appeal.escalation_markers),
                 "phone": appeal.phone,
                 "owner": appeal.owner.full_name if appeal.owner else None,
                 "identified": appeal.owner is not None,
@@ -343,6 +379,51 @@ class CloudRuDialogAdapter:
             return default
 
 
+def _slot_str(value: Any) -> str:
+    if value is None or isinstance(value, bool):
+        return ""
+    return str(value).strip()
+
+
+def _build_topic(category_name: str, cat_info: dict[str, Any] | None) -> Topic:
+    raw_id = cat_info.get("id") if isinstance(cat_info, dict) else None
+    bitrix_id = str(raw_id) if raw_id is not None else ""
+    topic_id = f"cloudru_{bitrix_id}" if bitrix_id else "cloudru_ticket"
+    return Topic(
+        id=topic_id,
+        name=category_name,
+        kind=TopicKind.APPEAL,
+        bitrix_id=bitrix_id,
+        risk_level=RiskLevel.NORMAL,
+    )
+
+
+def _extract_ticket_slots(
+    data: dict[str, Any],
+    args: dict[str, Any],
+    cat_info: dict[str, Any] | None,
+) -> dict[str, str]:
+    """Собирает базовые и категорийные поля заявки в детерминированном порядке."""
+    merged: dict[str, Any] = {**args, **data}
+    schema_props = list(
+        (cat_info.get("parameters", {}).get("properties", {}) if cat_info else {}).keys(),
+    )
+    ordered_keys = list(
+        dict.fromkeys(["full_name", "address", *schema_props, *merged.keys(), "details"]),
+    )
+    # Ставим details последним для аккуратного отображения в карточке и Telegram
+    ordered_keys = [k for k in ordered_keys if k != "details"] + ["details"]
+
+    slots: dict[str, str] = {}
+    for key in ordered_keys:
+        if key in _RESERVED_TICKET_KEYS or key not in merged:
+            continue
+        rendered = _slot_str(merged[key])
+        if rendered:
+            slots[key] = rendered
+    return slots
+
+
 def _format_caller_context(
     *,
     phone: str,
@@ -355,6 +436,9 @@ def _format_caller_context(
     if owner:
         lines.append(f"Собственник в CRM: {owner.full_name}")
         lines.append(f"Адрес из CRM: {owner.address}, кв. {owner.apartment}")
+        lines.append(
+            f"(для полей заявки: address=\"{owner.address}\", flat={owner.apartment})"
+        )
     if outages:
         lines.append("Активные отключения по адресу звонящего:")
         for outage in outages:

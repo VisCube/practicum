@@ -320,15 +320,51 @@
         .bubble .meta { font: 11px var(--mono); color: var(--mute); margin-top: 5px; }
         .bubble.user .meta { color: var(--user-fg); opacity: .65; }
 
-        .note {
-          align-self: center; display: inline-flex; align-items: center; gap: 8px;
-          font: 12px var(--mono); color: var(--mute);
-          padding: 4px 11px; border-radius: 8px;
-          text-align: center;
+        .tool-call {
+          align-self: flex-start; width: min(560px, 100%);
+          background: var(--panel); border: 1px solid var(--line);
+          border-left: 3px solid var(--accent);
+          border-radius: 10px; font: 12px/1.45 var(--mono); color: var(--ink-2);
+          animation: rise .15s ease-out; overflow: hidden;
         }
-        .note::before { content: ""; width: 6px; height: 6px; flex: none; border-radius: 50%; background: currentColor; }
-        .note.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 13%, transparent); }
-        .note.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 13%, transparent); }
+        .tool-call.ok { border-left-color: var(--ok); }
+        .tool-call.warn { border-left-color: var(--warn); }
+        .tool-call.bad { border-left-color: var(--bad); }
+        .tool-call > summary {
+          list-style: none; cursor: pointer; user-select: none;
+          display: flex; align-items: center; gap: 8px;
+          padding: 7px 11px;
+        }
+        .tool-call > summary::-webkit-details-marker { display: none; }
+        .tool-call > summary:hover { background: var(--hover); }
+        .tool-fn {
+          display: inline-flex; align-items: center; gap: 5px;
+          color: var(--ink); font-weight: 600; flex: none;
+        }
+        .tool-fn i {
+          font-style: normal; font-size: 11px; padding: 1px 5px;
+          border-radius: 4px; background: color-mix(in srgb, var(--accent) 14%, transparent);
+          color: var(--accent);
+        }
+        .tool-call.ok .tool-fn i { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+        .tool-call.warn .tool-fn i { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+        .tool-call.bad .tool-fn i { background: color-mix(in srgb, var(--bad) 15%, transparent); color: var(--bad); }
+        .tool-brief {
+          color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+          min-width: 0; flex: 1;
+        }
+        .tool-chev { color: var(--mute); flex: none; transition: transform .15s; }
+        .tool-call[open] .tool-chev { transform: rotate(90deg); }
+        .tool-body {
+          border-top: 1px dashed var(--line);
+          padding: 8px 11px; display: grid; gap: 6px;
+          background: color-mix(in srgb, var(--paper) 55%, var(--panel));
+        }
+        .tool-sec-lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--mute); }
+        .tool-pre {
+          margin: 2px 0 0; white-space: pre-wrap; word-break: break-word;
+          color: var(--ink); max-height: 220px; overflow-y: auto;
+        }
 
         .card {
           align-self: center; width: min(560px, 100%);
@@ -398,7 +434,7 @@
           transition: border-color .15s, color .15s, opacity .15s;
         }
         .quick-chips button:hover:not(:disabled) { border-color: var(--accent); color: var(--ink); }
-        .quick-chips button:disabled { opacity: .4; cursor: default; }
+        .quick-chips button:disabled { opacity: .38; cursor: not-allowed; pointer-events: none; }
 
         .composer-row {
           display: flex; align-items: flex-end; gap: 4px;
@@ -406,7 +442,11 @@
           border: 1px solid var(--line-strong);
           border-radius: 24px;
           padding: 4px 6px;
-          transition: border-color .15s, box-shadow .15s;
+          transition: border-color .15s, box-shadow .15s, opacity .15s;
+        }
+        .composer-row.locked {
+          background: var(--paper);
+          opacity: .72;
         }
         .composer-row:focus-within {
           border-color: var(--accent);
@@ -421,7 +461,7 @@
           transition: background .15s, color .15s, transform .1s;
         }
         .composer-row button:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
-        .composer-row button:disabled { opacity: .35; cursor: default; }
+        .composer-row button:disabled { opacity: .35; cursor: not-allowed; pointer-events: none; }
 
         .composer-row .voice-toggle.off { color: var(--mute); }
         .composer-row .voice-toggle .ico-off { display: none; }
@@ -457,6 +497,7 @@
           max-height: 140px; resize: none;
         }
         .composer-row textarea::placeholder { color: var(--mute); }
+        .composer-row textarea:disabled,
         .composer-row textarea:read-only { color: var(--mute); cursor: not-allowed; }
 
         .composer-row .send-btn { background: var(--accent); color: #fff; }
@@ -669,12 +710,6 @@
                 <div class="field-hint" id="micHint" hidden></div>
             </div>
 
-            <label class="switch">
-                <span class="lbl">Перебивание голосом<small>Слушать микрофон во время речи бота</small></span>
-                <input type="checkbox" id="optBargeIn">
-                <span class="track"></span>
-            </label>
-
             <div class="sys-pill" id="sysPill">
                 <span>диалог: <b id="cfg-dialog">—</b></span>
                 <span>asr: <b id="cfg-asr">—</b></span>
@@ -728,7 +763,6 @@
                     <div class="speaking" id="speakingBar" hidden>
                         <span class="eq"><i></i><i></i><i></i><i></i></span>
                         <span id="speakingLabel">Бот говорит</span>
-                        <button type="button" class="btn small" id="stopSpeakBtn">Стоп</button>
                     </div>
 
                     <div class="quick-chips" id="quickChips">
@@ -737,7 +771,7 @@
                         <button type="button" data-chip="Соедините меня с живым оператором">Перевод на оператора</button>
                     </div>
 
-                    <div class="composer-row">
+                    <div class="composer-row" id="composerRow">
                         <button type="button" id="voiceToggleBtn" class="voice-toggle" title="Озвучка ответа бота">
                             <svg class="ico-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M11 5 6 9H2v6h4l5 4z"/>
@@ -860,7 +894,6 @@
       micSelect: $('#micSelect'),
       micGrantBtn: $('#micGrantBtn'),
       micHint: $('#micHint'),
-      optBargeIn: $('#optBargeIn'),
       cfgLlmWrap: $('#cfg-llm-wrap'),
       cfgUiBuild: $('#cfg-uibuild'),
 
@@ -878,9 +911,9 @@
       thread: $('#thread'),
 
       composer: $('#composer'),
+      composerRow: $('#composerRow'),
       speakingBar: $('#speakingBar'),
       speakingLabel: $('#speakingLabel'),
-      stopSpeakBtn: $('#stopSpeakBtn'),
       quickChips: document.querySelectorAll('#quickChips [data-chip]'),
       voiceToggleBtn: $('#voiceToggleBtn'),
       input: $('#input'),
@@ -937,10 +970,20 @@
     const micSupported = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
     const mobileMq = matchMedia('(max-width: 720px)');
 
+    let player = null;
+    let playerUrl = null;
+    let finishCurrentSpeech = null;
+
     const inCall = () => Boolean(app.callId) && !app.ended;
-    const bargeInOn = () => ui.optBargeIn.checked;
-    const speechLock = () => app.speaking && !bargeInOn();
-    const composerLocked = () => app.busy || speechLock();
+    const bargeInOn = () => false;
+    function isBotSpeaking() {
+      if (app.speaking) return true;
+      if (player && !player.paused && !player.ended) return true;
+      if ('speechSynthesis' in window && app.callId && (speechSynthesis.speaking || speechSynthesis.pending)) return true;
+      return false;
+    }
+    const speechLock = () => isBotSpeaking();
+    const composerLocked = () => app.busy || isBotSpeaking();
 
     /* =========================================================
        Хелперы
@@ -978,7 +1021,7 @@
     }
     function focusInput() {
       if (!inCall() || mobileMq.matches) return;
-      if (micStream.recording || speechLock()) return;
+      if (micStream.recording || micStream.pending || composerLocked()) return;
       if (document.activeElement === ui.input) return;
       ui.input.focus();
     }
@@ -1018,16 +1061,9 @@
     });
 
     /* =========================================================
-       Озвучка и перебивание
+       Озвучка
        ========================================================= */
-    ui.optBargeIn.checked = localStorage.getItem('bargeIn') === 'true';
-    ui.optBargeIn.addEventListener('change', () => {
-      localStorage.setItem('bargeIn', String(ui.optBargeIn.checked));
-      if (!ui.optBargeIn.checked && micStream.recording && micStream.bargeMode) {
-        stopListening(false);
-      }
-      refreshComposer();
-    });
+    localStorage.removeItem('bargeIn');
 
     function updateVoiceToggleBtn() {
       ui.voiceToggleBtn.classList.toggle('off', !app.voiceOut);
@@ -1255,28 +1291,67 @@
       return node;
     }
 
-    function addNote(kind, text) {
-      appendToThread('note ' + kind, escapeHtml(text));
-      record('— ' + text);
+    function formatToolValue(val) {
+      if (val === null || val === undefined) return 'null';
+      if (typeof val === 'string') return val;
+      try { return JSON.stringify(val, null, 2); } catch { return String(val); }
     }
 
-    const EVENT_VIEW = {
-      outage_notice: (p) => ['warn', 'Авария по адресу: ' + (p.address || '')],
-      escalated:     (p) => ['warn', 'Угроза жалобы: ' + (p.markers || []).join(', ') + ' — заявка уйдёт с флагом'],
-      transfer:      (p) => ['bad',  describeTransfer(p)],
-      call_ended:    ()  => ['mut',  'Разговор завершён'],
-    };
-    function describeTransfer(p) {
-      const parts = ['Перевод на оператора' + (p.reason ? ': ' + p.reason : '')];
-      if (p.markers && p.markers.length) parts.push(p.markers.join(', '));
-      if (p.topic) parts.push('тема: ' + p.topic);
-      return parts.join(' · ');
+    function summarizeToolCall(name, args, res) {
+      let tone = '';
+      let brief = '';
+      if (name === 'get_category') {
+        const cat = (res && res.name) || args.category || '';
+        const id = res && res.id != null ? ' #' + res.id : '';
+        brief = cat + id;
+      } else if (name === 'create_ticket') {
+        if (res && Array.isArray(res.missing_fields) && res.missing_fields.length) {
+          tone = 'warn';
+          brief = 'missing_fields: ' + res.missing_fields.join(', ');
+        } else if (res && res.id != null) {
+          tone = 'ok';
+          brief = '№ ' + res.id + (res.category ? ' · ' + res.category : '');
+        } else {
+          brief = args.category || '';
+        }
+      } else if (name === 'search_knowledge_base') {
+        brief = args.query ? '«' + args.query + '»' : '';
+      } else if (name === 'transfer_to_operator') {
+        tone = 'bad';
+        brief = args.reason || (typeof res === 'string' ? res : '');
+      } else {
+        const pairs = Object.entries(args).slice(0, 2).map(([k, v]) => k + '=' + v);
+        brief = pairs.join(', ');
+      }
+      return { tone, brief };
     }
+
+    function addToolCall(p) {
+      const name = (p && p.name) || 'tool';
+      const args = (p && p.arguments) || {};
+      const res = p ? p.result : undefined;
+      const { tone, brief } = summarizeToolCall(name, args, res);
+
+      const node = document.createElement('details');
+      node.className = 'tool-call' + (tone ? ' ' + tone : '');
+      node.innerHTML =
+        '<summary>' +
+          '<span class="tool-fn"><i>tool</i>' + escapeHtml(name) + '</span>' +
+          (brief ? '<span class="tool-brief">' + escapeHtml(brief) + '</span>' : '<span class="tool-brief"></span>') +
+          '<span class="tool-chev">▸</span>' +
+        '</summary>' +
+        '<div class="tool-body">' +
+          '<div><div class="tool-sec-lbl">аргументы</div><pre class="tool-pre">' + escapeHtml(formatToolValue(args)) + '</pre></div>' +
+          '<div><div class="tool-sec-lbl">результат</div><pre class="tool-pre">' + escapeHtml(formatToolValue(res)) + '</pre></div>' +
+        '</div>';
+      ui.thread.appendChild(node);
+      ui.transcript.scrollTop = ui.transcript.scrollHeight;
+      record('[tool] ' + name + '(' + JSON.stringify(args) + ') → ' + JSON.stringify(res));
+    }
+
     function addEvent(event) {
+      if (event.type === 'tool_call') return addToolCall(event.payload);
       if (event.type === 'appeal_created') return addAppealCard(event.payload);
-      const view = EVENT_VIEW[event.type];
-      const pair = view ? view(event.payload || {}) : ['mut', event.type];
-      addNote(pair[0], pair[1]);
     }
 
     function addAppealCard(p) {
@@ -1286,7 +1361,7 @@
         ['Тема', escapeHtml(p.topic || '—')],
         ['Заявитель', p.owner ? escapeHtml(p.owner) + ' <small>из CRM</small>' : '<small>не идентифицирован, со слов</small>'],
         ['Телефон', escapeHtml(p.phone || '')],
-      ].concat(fields.map((f) => [f.label, escapeHtml(f.value)]));
+      ].concat(fields.map((f) => [f.label, escapeHtml(String(f.value ?? ''))]));
 
       if (p.escalated) {
         rows.push(['Жалоба', '<span class="flag">' + escapeHtml(markers.length ? markers.join(', ') : 'угроза жалобы') + '</span>']);
@@ -1444,9 +1519,6 @@
        AudioContext & воспроизведение TTS
        ========================================================= */
     let audioCtx = null;
-    let player = null;
-    let playerUrl = null;
-    let finishCurrentSpeech = null;
 
     // Контекст живёт весь звонок: закрывать и создавать его заново на каждой
     // реплике — это и пауза в несколько секунд на раскрутку устройства, и
@@ -1521,10 +1593,11 @@
     let unlockedPrimed = false;
 
     async function unlockAudio() {
+      if (isBotSpeaking()) return;
       let ctx = null;
       try { ctx = await ensureAudioContext(); } catch { /* нет WebAudio */ }
       if (!ctx || ctx.state !== 'running') return;
-      if (!unlockedPrimed) {
+      if (!unlockedPrimed && !isBotSpeaking()) {
         unlockedPrimed = true;
         if ('speechSynthesis' in window) {
           try { speechSynthesis.speak(new SpeechSynthesisUtterance(' ')); } catch { /* нет синтеза */ }
@@ -1949,7 +2022,7 @@
       clearTranscript();
       startCallTimer();
       refreshLiveView();
-      addNote('mut', 'Звонок с номера ' + app.phone);
+      record('— Звонок с номера ' + app.phone);
       setBusy(true);
       showStatus('Начинаем звонок…');
       // пока идёт /call/start и играет приветствие — греем TTS/LLM на сервере
@@ -1989,7 +2062,7 @@
       app.endedReason = (reason || note).toLowerCase();
       setBusy(false);
       showStatus('');
-      addNote('mut', note);
+      record('— ' + note);
       // звук не гасим: AudioContext и устройство живут дальше, иначе следующий
       // звонок может стартовать «молча» и с медленным микрофоном
       scheduleMicRelease(4000);
@@ -2070,8 +2143,7 @@
         const serverMs = Math.round(performance.now() - startedAt);
         if (app.callId !== callId) return;
         if (!reply.heard) {
-          addNote('bad', 'Речь не распознана — попробуйте сказать громче');
-          showStatus('');
+          showStatus('Речь не распознана — попробуйте сказать громче', true);
           setBusy(false);
           return;
         }
@@ -2090,11 +2162,12 @@
 
     async function handleReply(reply) {
       const events = reply.events || [];
+      stopListening(false);
       showStatus('');
 
-      events.forEach((ev) => { if (ev.type === 'outage_notice') addEvent(ev); });
+      events.forEach((ev) => { if (ev.type === 'tool_call') addToolCall(ev.payload); });
       if (reply.text) addBubble('bot', reply.text, describeVoicing(reply));
-      events.forEach((ev) => { if (ev.type !== 'outage_notice') addEvent(ev); });
+      events.forEach((ev) => { if (ev.type === 'appeal_created') addAppealCard(ev.payload); });
 
       if (reply.end_call || reply.transfer) {
         app.ended = true;
@@ -2110,24 +2183,10 @@
         return;
       }
 
+      const speech = (reply.text && app.voiceOut) ? speak(reply) : null;
       setBusy(false);
-
-      const canBarge = bargeInOn() && micSupported
-        && app.cfg.asr !== 'fake' && app.voiceOut && Boolean(reply.text);
-
-      if (canBarge) {
-        const speech = speak(reply);
-        startListening({ barge: true }).catch((err) => showStatus('Микрофон: ' + err.message, true));
+      if (speech) {
         await speech;
-
-        if (micStream.recording && micStream.bargeMode) {
-          micStream.bargeMode = false;
-          updateMicButton();
-          showStatus('Микрофон открыт — говорите и нажмите микрофон для отправки');
-          resetMaxTimer();
-        }
-      } else if (reply.text && app.voiceOut) {
-        await speak(reply);
       }
 
       // прогреваем захват, пока пользователь думает над следующей репликой
@@ -2388,7 +2447,7 @@
           micStream.speechSeen = true;
           stopSpeaking();
           updateMicButton();
-          addNote('mut', 'Бот перебит голосом');
+          record('— Бот перебит голосом');
           showStatus('Слушаю… нажмите микрофон для отправки');
           resetMaxTimer();
         }
@@ -2397,10 +2456,8 @@
       }
     }
 
-    async function startListening(opts) {
-      const barge = Boolean(opts && opts.barge);
-      if (micStream.recording || micStream.pending || !inCall()) return;
-      if (!barge && composerLocked()) return;
+    async function startListening() {
+      if (micStream.recording || micStream.pending || !inCall() || composerLocked()) return;
       if (app.cfg.asr === 'fake') return startBrowserRecognition();
       if (!micSupported) {
         showStatus(
@@ -2412,14 +2469,12 @@
         return;
       }
 
-      if (!barge) stopSpeaking();
-
       const token = ++micStream.token;
       micStream.requestedAt = Date.now();
       micStream.pending = true;
-      micStream.bargeMode = barge;
+      micStream.bargeMode = false;
       updateMicButton();
-      showStatus(barge ? 'Микрофон открывается…' : 'Открываю микрофон…');
+      showStatus('Открываю микрофон…');
 
       let ctx;
       let stream;
@@ -2439,9 +2494,9 @@
         return;
       }
 
-      // пока открывалось устройство, запись могли отменить или звонок завершиться
+      // пока открывалось устройство, запись могли отменить, звонок завершиться или бот заговорить
       if (token !== micStream.token) return;
-      if (!inCall() || (barge && !app.speaking)) {
+      if (!inCall() || composerLocked()) {
         micStream.pending = false;
         micStream.bargeMode = false;
         updateMicButton();
@@ -2465,7 +2520,7 @@
       micStream.speechSeen = false;
       micStream.pending = false;
       micStream.recording = true;
-      micStream.bargeMode = barge;
+      micStream.bargeMode = false;
       micStream.bargeHits = 0;
       micStream.bargeFloor = 0;
       micStream.startedAt = Date.now();
@@ -2473,7 +2528,7 @@
       micStream.meter = createMeter(ctx, micStream.source, ui.micBtn, onMicLevel);
       updateMicButton();
 
-      showStatus(barge ? 'Бот говорит — начните говорить, чтобы перебить' : 'Слушаю… нажмите микрофон для отправки');
+      showStatus('Слушаю… нажмите микрофон для отправки');
 
       micStream.processor.onaudioprocess = (event) => {
         let frame = event.inputBuffer.getChannelData(0);
@@ -2548,7 +2603,7 @@
         sendAudio(new Blob([pcm.buffer], { type: 'audio/pcm' }), dur);
       } else {
         micStream.chunks = [];
-        addNote('mut', 'Запись слишком короткая, не отправлена');
+        showStatus('Запись слишком короткая, не отправлена');
       }
     }
 
@@ -2588,34 +2643,45 @@
       const active = inCall();
       const locked = composerLocked();
       const muted = speechLock();
+      const recActive = micStream.recording || micStream.pending;
       const hasText = Boolean(ui.input.value.trim());
 
-      ui.input.disabled = !active;
-      ui.input.readOnly = muted;
+      ui.composerRow.classList.toggle('locked', !active || locked);
+      ui.input.disabled = !active || locked || recActive;
+      if (ui.input.disabled && document.activeElement === ui.input) {
+        ui.input.blur();
+      }
       ui.input.placeholder = micStream.pending
         ? 'Открываю микрофон…'
-        : micStream.recording && !micStream.bargeMode
+        : micStream.recording
           ? 'Идёт запись… нажмите микрофон для отправки'
-          : (muted ? 'Бот говорит — дождитесь окончания…' : 'Реплика звонящего…');
+          : muted
+            ? 'Бот говорит — дождитесь окончания…'
+            : app.busy
+              ? 'Ждём ответ бота…'
+              : 'Реплика звонящего…';
 
-      ui.sendBtn.disabled = !active || locked || !hasText;
-      ui.sendBtn.title = muted ? 'Идёт озвучка' : 'Отправить';
+      ui.sendBtn.disabled = !active || locked || recActive || !hasText;
+      ui.sendBtn.title = muted ? 'Дождитесь окончания речи бота' : 'Отправить';
 
-      ui.micBtn.disabled = !active || (locked && !micStream.recording && !micStream.pending);
-      ui.micBtn.title = micStream.pending
-        ? 'Открываю микрофон — нажмите, чтобы отменить'
-        : micStream.recording ? 'Остановить и отправить' : 'Записать голосом';
+      ui.micBtn.disabled = !active || locked;
+      ui.micBtn.title = locked
+        ? (muted ? 'Дождитесь окончания речи бота' : 'Ждём ответ бота')
+        : micStream.pending
+          ? 'Открываю микрофон — нажмите, чтобы отменить'
+          : micStream.recording
+            ? 'Остановить и отправить'
+            : 'Записать голосом';
 
-      ui.quickChips.forEach((chip) => { chip.disabled = !active || locked; });
-      ui.optBargeIn.disabled = !app.voiceOut || !micSupported;
+      ui.quickChips.forEach((chip) => { chip.disabled = !active || locked || recActive; });
       updateVoiceToggleBtn();
     }
 
     function submitComposer() {
+      if (!inCall() || composerLocked() || micStream.recording || micStream.pending) return;
       const text = ui.input.value.trim();
-      if (!text || !inCall() || composerLocked()) return;
+      if (!text) return;
       clearInput();
-      ui.input.focus();
       sendText(text);
     }
 
@@ -2631,22 +2697,28 @@
     ui.input.addEventListener('input', autosizeInput);
     ui.input.addEventListener('keydown', (e) => {
       if (e.isComposing || e.keyCode === 229) return;
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComposer(); }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (!composerLocked()) submitComposer();
+      }
     });
     ui.quickChips.forEach((chip) => {
       chip.addEventListener('click', () => {
-        if (inCall() && !composerLocked()) sendText(chip.dataset.chip);
+        if (!inCall() || composerLocked() || micStream.recording || micStream.pending) return;
+        sendText(chip.dataset.chip);
       });
     });
-    ui.micBtn.addEventListener('pointerenter', () => { prewarmCapture(); });
+    ui.micBtn.addEventListener('pointerenter', () => {
+      if (!composerLocked()) prewarmCapture();
+    });
 
     ui.micBtn.addEventListener('click', () => {
+      if (!inCall() || composerLocked()) return;
       unlockAudio();
       if (micStream.pending) stopListening(false);
       else if (micStream.recording) stopListening(true);
       else startListening().catch((err) => showStatus('Микрофон: ' + err.message, true));
     });
-    ui.stopSpeakBtn.addEventListener('click', () => { stopSpeaking(); focusInput(); });
 
     /* =========================================================
        Проба TTS (/debug/tts)

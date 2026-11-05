@@ -1,5 +1,4 @@
 from json import dumps, loads
-from pathlib import Path
 
 from openai.types.chat import (
     ChatCompletionFunctionToolParam as FunctionTool,
@@ -8,12 +7,26 @@ from openai.types.chat import (
 from openai.types.shared_params import FunctionDefinition
 
 from src.tools.search import search_knowledge_base
-from src.tools.crm import create_ticket
-
-CATEGORIES_PATH = Path(__file__).parent.parent.parent / "classifier" / "categories.json"
-CATEGORIES: list[str] = loads(CATEGORIES_PATH.read_text(encoding="utf-8"))
+from src.tools.crm import CATEGORIES_NAMES, create_ticket, get_category
 
 TOOL_SCHEMAS = [
+    FunctionTool(
+        type="function",
+        function=FunctionDefinition(
+            name="get_category",
+            description="Получить категорию и её JSON Schema",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "enum": CATEGORIES_NAMES
+                    }
+                },
+                "required": ["category"]
+            }
+        )
+    ),
     FunctionTool(
         type="function",
         function=FunctionDefinition(
@@ -24,23 +37,24 @@ TOOL_SCHEMAS = [
                 "properties": {
                     "full_name": {
                         "type": "string",
-                        "description": "Фамилия, имя, отчество"
+                        "description": "Фамилия, имя, отчество звонящего полностью"
                     },
                     "address": {
                         "type": "string",
-                        "description": "Адрес: улица, дом, квартира"
+                        "description": "Улица и дом звонящего"
                     },
                     "details": {
                         "type": "string",
-                        "description": "Подробное описание обращения"
+                        "description": "Описание обращения"
                     },
                     "category": {
                         "type": "string",
-                        "enum": CATEGORIES,
+                        "enum": CATEGORIES_NAMES,
                         "description": "Наиболее подходящая категория обращения из классификатора"
                     },
                 },
-                "required": ["full_name", "address", "details", "category"]
+                "required": ["full_name", "address", "details", "category"],
+                "additionalProperties": {"type": ["string", "number"]}
             }
         )
     ),
@@ -82,8 +96,7 @@ TOOL_SCHEMAS = [
 
 
 def transfer_to_operator(reason: str) -> str:
-    print(f"[Перевод на оператора: {reason}]")
-    return "Диалог переведён на оператора."
+    return reason
 
 
 def handle_tool_call(tool_call: FunctionToolCall) -> str:
@@ -95,6 +108,7 @@ def handle_tool_call(tool_call: FunctionToolCall) -> str:
 
 
 TOOL_HANDLERS = {
+    "get_category": get_category,
     "create_ticket": create_ticket,
     "transfer_to_operator": transfer_to_operator,
     "search_knowledge_base": search_knowledge_base

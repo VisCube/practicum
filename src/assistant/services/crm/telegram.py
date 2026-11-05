@@ -16,7 +16,7 @@ from assistant.services.crm.base import CrmClient, CrmError
 log = logging.getLogger(__name__)
 
 _RISK = {RiskLevel.CRITICAL: "СРОЧНО", RiskLevel.NORMAL: "обычный", RiskLevel.LOW: "низкий"}
-_IDENTITY = ("full_name", "address", "apartment")
+_IDENTITY = ("full_name", "address", "apartment", "flat")
 _TRANSCRIPT_TURNS = 12
 _MAX_LEN = 4000          # лимит Telegram — 4096
 
@@ -36,8 +36,8 @@ def render_appeal(appeal: Appeal, labels: dict[str, str]) -> str:
     ordered = [slot_id for slot_id in _IDENTITY if slot_id in appeal.slots] + \
               [slot_id for slot_id in appeal.slots if slot_id not in _IDENTITY]
     for slot_id in ordered:
-        if appeal.owner and slot_id in _IDENTITY and slot_id != "apartment":
-            continue          # ФИО и адрес известного собственника уже сказаны строкой выше
+        if appeal.owner and slot_id in ("full_name", "address"):
+            continue          # ФИО и адрес известного собственника не дублируем
         lines.append(f"{escape(labels.get(slot_id, slot_id))}: {escape(appeal.slots[slot_id])}")
 
     turns = appeal.transcript[-_TRANSCRIPT_TURNS:]

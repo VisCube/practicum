@@ -177,14 +177,19 @@ def build_container(settings: Settings) -> Container:
     elif settings.crm_adapter == "telegram":
         if not (settings.telegram_bot_token and settings.telegram_chat_id):
             raise RuntimeError("CRM_ADAPTER=telegram: нужны TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID")
+        from assistant.services.cloudru.bridge import load_cloudru_slot_labels
         from assistant.services.crm.telegram import TelegramCrm
 
+        slot_labels = {
+            **load_cloudru_slot_labels(),
+            **{s.id: s.label for s in classifier.slots.values()},
+        }
         crm = TelegramCrm(
             demo_crm,
             settings.telegram_bot_token,
             settings.telegram_chat_id,
             channel_username=settings.telegram_channel_username,
-            slot_labels={s.id: s.label for s in classifier.slots.values()},
+            slot_labels=slot_labels,
             timeout=settings.outbox_crm_timeout,
         )
         closeables.append(crm)

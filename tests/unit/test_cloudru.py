@@ -21,13 +21,16 @@ from assistant.services.asr.base import AsrError
 from assistant.services.asr.cloudru import CloudRuAsr, pcm16_to_wav
 from assistant.services.cloudru.bridge import (
     ensure_upstream_src,
+    find_cloudru_category,
     load_assistant_cls,
+    load_cloudru_slot_labels,
     load_transcribe,
     parse_tool_result,
 )
 from assistant.services.cloudru.dialog import CloudRuDialogAdapter
 from assistant.services.crm.fake import InMemoryCrm
 from assistant.services.crm.outbox import InMemoryOutboxStore, Outbox
+from assistant.services.crm.telegram import render_appeal
 from assistant.services.telephony.fake import FakeTelephony
 
 _CLOUDRU_ENV = {
@@ -48,7 +51,7 @@ def cloudru_env(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(key, value)
 
 
-def test_bridge_isolates_upstream_src_without_shadowing_assistant(cloudru_env: None) -> None:
+def test_bridge_isolates_upstream_src_and_loads_category_metadata(cloudru_env: None) -> None:
     transcribe_fn = load_transcribe()
     assistant_cls = load_assistant_cls()
 
@@ -58,31 +61,58 @@ def test_bridge_isolates_upstream_src_without_shadowing_assistant(cloudru_env: N
     ensure_upstream_src()
     cfg = importlib.import_module("src.config")
     tools = importlib.import_module("src.tools")
+    crm = importlib.import_module("src.tools.crm")
     assert "Территория" in cfg.SYSTEM_PROMPT
-    assert len(tools.CATEGORIES) > 100
+    assert len(crm.CATEGORIES) >= 145
+    tool_names = [schema["function"]["name"] for schema in tools.TOOL_SCHEMAS]
+    assert "get_category" in tool_names and "create_ticket" in tool_names
+
+    labels = load_cloudru_slot_labels()
+    assert labels["entry"] == "Номер подъезда"
+    assert labels["flat"] == "Номер квартиры"
+    assert labels["account"] == "Лицевой счёт"
+
+    lift = find_cloudru_category("Лифты / Неисправность лифта")
+    assert lift is not None and lift["id"] == 304688
+    fallback = find_cloudru_category("несуществующая тема xyz")
+    assert fallback is not None and fallback["name"] == "Иное / Иное" and fallback["id"] is None
 
     # Наш пакет assistant не должен быть задет синтетическим sys.modules["src"]
-    from assistant.core.models import CallState
-
     assert CallState.GREETING == "greeting"
 
 
-def test_parse_tool_result_unwraps_double_json(cloudru_env: None) -> None:
-    ensure_upstream_src()
-    crm_mod = importlib.import_module("src.tools.crm")
-    from json import dumps
+def test_ticket_guard_validates_required_blank_and_oneof(cloudru_env: None) -> None:
+    load_assistant_cls()
+    tools = importlib.import_module("src.tools")
+    create_fn = tools.TOOL_HANDLERS["create_ticket"]
 
-    inner = crm_mod.create_ticket(
+    missing = create_fn(
         full_name="Иванов Иван Иванович",
-        address="ул. Ленина, д. 10, кв. 42",
+        address="ул. Ленина, д. 10",
         details="Не работает лифт",
         category="Лифты / Неисправность лифта",
+        entry="   ",
     )
-    double_encoded = dumps(inner, ensure_ascii=False)
-    parsed = parse_tool_result(double_encoded)
-    assert isinstance(parsed, dict)
-    assert parsed["category"] == "Лифты / Неисправность лифта"
-    assert isinstance(parsed["id"], int)
+    assert missing == {"missing_fields": ["entry"]}
+
+    oneof_missing = create_fn(
+        full_name="Иванов Иван Иванович",
+        address="ул. Ленина, д. 10",
+        details="Капает вода",
+        category="Водоснабжение / Протечка",
+    )
+    assert oneof_missing == {"missing_fields": ["flat", "entry"]}
+
+    created = create_fn(
+        full_name="Иванов Иван Иванович",
+        address="ул. Ленина, д. 10",
+        details="Капает вода в квартире",
+        category="Водоснабжение / Протечка",
+        flat=42,
+    )
+    assert created["flat"] == 42
+    assert isinstance(created["id"], int)
+    assert parse_tool_result(json.dumps(created, ensure_ascii=False))["id"] == created["id"]
 
 
 async def test_cloudru_asr_wraps_pcm_into_wav_and_passes_wav_through() -> None:
@@ -105,7 +135,6 @@ async def test_cloudru_asr_wraps_pcm_into_wav_and_passes_wav_through() -> None:
         assert wf.getframerate() == 16000
         assert wf.getnframes() == 800
 
-    # Готовый WAV передаётся без двойной обёртки
     ready_wav = pcm16_to_wav(b"\x00\x00" * 400, sample_rate=8000)
     await asr.transcribe(Audio(data=ready_wav, mime="audio/wav"))
     assert received[1] == ready_wav
@@ -171,28 +200,58 @@ def _build_dialog(
     return dialog, outbox, telephony, created
 
 
-async def test_dialog_adapter_injects_crm_context_and_routes_ticket_to_outbox() -> None:
+async def test_dialog_adapter_handles_get_category_missing_fields_and_extra_slots() -> None:
+    lift_cat = {
+        "id": 304688,
+        "name": "Лифты / Неисправность лифта",
+        "parameters": {
+            "type": "object",
+            "properties": {"entry": {"type": "integer", "description": "Номер подъезда"}},
+            "required": ["entry"],
+        },
+    }
     ticket_payload = {
         "full_name": "Иванов Иван Иванович",
-        "address": "ул. Ленина, д. 10, кв. 42",
-        "details": "Не работает лифт",
+        "address": "ул. Ленина, д. 10",
+        "details": "Не работает лифт во 2 подъезде",
         "category": "Лифты / Неисправность лифта",
+        "entry": 2,
         "id": 5432,
     }
-    double_json = json.dumps(json.dumps(ticket_payload, ensure_ascii=False), ensure_ascii=False)
     script = [
         (
-            "Создал заявку номер 5432. Могу ещё чем-то помочь?",
+            "Подскажите, пожалуйста, номер подъезда?",
+            [
+                _FakeToolCall(
+                    name="get_category",
+                    arguments={"category": "Лифты / Неисправность лифта"},
+                    result=json.dumps(lift_cat, ensure_ascii=False),
+                ),
+                _FakeToolCall(
+                    name="create_ticket",
+                    arguments={
+                        "full_name": "Иванов Иван Иванович",
+                        "address": "ул. Ленина, д. 10",
+                        "details": "Не работает лифт",
+                        "category": "Лифты / Неисправность лифта",
+                    },
+                    result=json.dumps({"missing_fields": ["entry"]}, ensure_ascii=False),
+                ),
+            ],
+        ),
+        (
+            "Создал заявку номер 5 4 3 2. Могу ещё чем-то помочь?",
             [
                 _FakeToolCall(
                     name="create_ticket",
                     arguments={
                         "full_name": "Иванов Иван Иванович",
-                        "address": "ул. Ленина, д. 10, кв. 42",
-                        "details": "Не работает лифт",
+                        "address": "ул. Ленина, д. 10",
+                        "details": "Не работает лифт во 2 подъезде",
                         "category": "Лифты / Неисправность лифта",
+                        "entry": 2,
                     },
-                    result=double_json,
+                    result=json.dumps(ticket_payload, ensure_ascii=False),
                 ),
             ],
         ),
@@ -208,25 +267,102 @@ async def test_dialog_adapter_injects_crm_context_and_routes_ticket_to_outbox() 
     system_ctx = agent.messages[1]["content"]
     assert "Иванов Иван Иванович" in system_ctx
     assert "ул. Ленина, д. 10, кв. 42" in system_ctx
+    assert "flat=42" in system_ctx
     assert "горячей воды" in system_ctx
-    assert agent.messages[2] == {"role": "assistant", "content": start_reply.text}
 
-    reply = await dialog.handle_turn("c1", "+79990000001", "у нас сломался лифт")
-    assert reply.state == CallState.DONE
-    assert "5432" in reply.text
-    assert [e.type for e in reply.events] == ["appeal_created"]
-    ev = reply.events[0].payload
+    # Ход 1: get_category + create_ticket(missing_fields) -> заявка в outbox ещё НЕ создана
+    step1 = await dialog.handle_turn("c1", "+79990000001", "у нас сломался лифт")
+    assert step1.state == CallState.SLOTS
+    assert [e.type for e in step1.events] == ["tool_call", "tool_call"]
+    assert step1.events[0].payload["name"] == "get_category"
+    assert step1.events[1].payload["result"] == {"missing_fields": ["entry"]}
+    assert outbox.store.all() == []
+
+    # Ход 2: подъезд уточнён -> заявка уходит в outbox со всеми доп. полями и bitrix_id
+    step2 = await dialog.handle_turn("c1", "+79990000001", "второй подъезд")
+    assert step2.state == CallState.DONE
+    assert [e.type for e in step2.events] == ["tool_call", "appeal_created"]
+    ev = step2.events[1].payload
     assert ev["appeal_id"] == "5432"
+    assert ev["bitrix_id"] == "304688"
     assert ev["topic"] == "Лифты / Неисправность лифта"
-    assert ev["owner"] == "Иванов Иван Иванович"
+    assert ev["slots"]["entry"] == "2"
+    assert {"id": "entry", "label": "Номер подъезда", "value": "2"} in ev["fields"]
 
     rec = outbox.store.get("5432")
-    assert rec is not None and rec.appeal.topic.name == "Лифты / Неисправность лифта"
+    assert rec is not None
+    rendered_tg = render_appeal(rec.appeal, load_cloudru_slot_labels())
+    assert "Номер подъезда: 2" in rendered_tg
     assert await outbox.process_once() == 1
 
     bye_reply = await dialog.handle_turn("c1", "+79990000001", "нет, спасибо")
     assert bye_reply.end_call is True
     assert [e.type for e in bye_reply.events] == ["call_ended"]
+
+
+async def test_dialog_adapter_null_category_id_and_second_ticket_isolation() -> None:
+    script = [
+        (
+            "Заявка 1111 создана.",
+            [
+                _FakeToolCall(
+                    name="create_ticket",
+                    arguments={
+                        "full_name": "Иванов Иван Иванович",
+                        "address": "ул. Ленина, д. 10",
+                        "details": "Лифт не едет",
+                        "category": "Лифты / Неисправность лифта",
+                        "entry": 3,
+                    },
+                    result=json.dumps(
+                        {
+                            "full_name": "Иванов Иван Иванович",
+                            "address": "ул. Ленина, д. 10",
+                            "details": "Лифт не едет",
+                            "category": "Лифты / Неисправность лифта",
+                            "entry": 3,
+                            "id": 1111,
+                        },
+                        ensure_ascii=False,
+                    ),
+                ),
+            ],
+        ),
+        (
+            "Вторая заявка 2222 создана.",
+            [
+                _FakeToolCall(
+                    name="create_ticket",
+                    arguments={
+                        "full_name": "Иванов Иван Иванович",
+                        "address": "ул. Ленина, д. 10",
+                        "details": "Общий вопрос",
+                        "category": "Иное / Иное",
+                    },
+                    result=json.dumps(
+                        {
+                            "full_name": "Иванов Иван Иванович",
+                            "address": "ул. Ленина, д. 10",
+                            "details": "Общий вопрос",
+                            "category": "Иное / Иное",
+                            "id": 2222,
+                        },
+                        ensure_ascii=False,
+                    ),
+                ),
+            ],
+        ),
+    ]
+    dialog, outbox, _, _ = _build_dialog(script)
+    await dialog.start("c-multi", "+79990000001")
+    await dialog.handle_turn("c-multi", "+79990000001", "сломался лифт в 3 подъезде")
+    second = await dialog.handle_turn("c-multi", "+79990000001", "и ещё один общий вопрос")
+
+    rec2 = outbox.store.get("2222")
+    assert rec2 is not None
+    assert rec2.appeal.topic.bitrix_id == ""
+    assert "entry" not in rec2.appeal.slots
+    assert second.events[-1].payload["bitrix_id"] == ""
 
 
 async def test_dialog_adapter_handles_transfer_and_autostart() -> None:
@@ -237,7 +373,7 @@ async def test_dialog_adapter_handles_transfer_and_autostart() -> None:
                 _FakeToolCall(
                     name="transfer_to_operator",
                     arguments={"reason": "авария: прорыв трубы"},
-                    result='"Диалог переведён на оператора."',
+                    result='"авария: прорыв трубы"',
                 ),
             ],
         ),
@@ -249,6 +385,7 @@ async def test_dialog_adapter_handles_transfer_and_autostart() -> None:
     assert "Перевожу вас на оператора" in reply.text
     assert reply.transfer is True and reply.state == CallState.TRANSFERRED
     assert telephony.transfers == [("c2", "авария: прорыв трубы")]
+    assert [e.type for e in reply.events] == ["tool_call", "transfer"]
     transfer_ev = next(e for e in reply.events if e.type == "transfer")
     assert transfer_ev.payload["reason"] == "авария: прорыв трубы"
 
@@ -283,34 +420,32 @@ def test_fastapi_container_wires_cloudru_dialog_and_asr(
         assert cfg["llm"] == "cloudru"
         assert len(cfg["demo_phones"]) == 3
 
-        # Подменяем сетевые вызовы на уровне адаптеров контейнера для сквозной проверки роутов
         container = client.app.state.container
         container.asr._transcribe_fn = lambda wav: (
-            "сломался лифт" if wav[:4] == b"RIFF" else ""
+            "сломался лифт во втором подъезде" if wav[:4] == b"RIFF" else ""
         )
         script = [
             (
-                "Заявка 7788 создана.",
+                "Заявка 7 7 8 8 создана.",
                 [
                     _FakeToolCall(
                         name="create_ticket",
                         arguments={
                             "full_name": "Иванов Иван Иванович",
-                            "address": "ул. Ленина, д. 10, кв. 42",
-                            "details": "сломался лифт",
+                            "address": "ул. Ленина, д. 10",
+                            "details": "сломался лифт во втором подъезде",
                             "category": "Лифты / Неисправность лифта",
+                            "entry": 2,
                         },
                         result=json.dumps(
-                            json.dumps(
-                                {
-                                    "full_name": "Иванов Иван Иванович",
-                                    "address": "ул. Ленина, д. 10, кв. 42",
-                                    "details": "сломался лифт",
-                                    "category": "Лифты / Неисправность лифта",
-                                    "id": 7788,
-                                },
-                                ensure_ascii=False,
-                            ),
+                            {
+                                "full_name": "Иванов Иван Иванович",
+                                "address": "ул. Ленина, д. 10",
+                                "details": "сломался лифт во втором подъезде",
+                                "category": "Лифты / Неисправность лифта",
+                                "entry": 2,
+                                "id": 7788,
+                            },
                             ensure_ascii=False,
                         ),
                     ),
@@ -328,9 +463,12 @@ def test_fastapi_container_wires_cloudru_dialog_and_asr(
             content=b"\x01\x00" * 1600,
             headers={"Content-Type": "audio/pcm", "X-Phone": "+79990000001"},
         ).json()
-        assert audio_turn["heard"] == "сломался лифт"
+        assert audio_turn["heard"] == "сломался лифт во втором подъезде"
         assert audio_turn["state"] == "done"
-        assert audio_turn["events"][0]["payload"]["appeal_id"] == "7788"
+        assert [e["type"] for e in audio_turn["events"]] == ["tool_call", "appeal_created"]
+        assert audio_turn["events"][1]["payload"]["appeal_id"] == "7788"
+        assert audio_turn["events"][1]["payload"]["slots"]["entry"] == "2"
 
         outbox = client.get("/debug/outbox").json()
         assert len(outbox) == 1 and outbox[0]["appeal"]["id"] == "7788"
+        assert outbox[0]["appeal"]["slots"]["entry"] == "2"
