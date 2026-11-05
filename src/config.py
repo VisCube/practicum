@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 SYSTEM_PROMPT = (
-    Path(__file__).parent.parent / "prompts" / "assistant.md"
+    Path(__file__).parent.parent / "prompts" / "Assistant.md"
 ).read_text(encoding="utf-8")
 
 FM_API_KEY = environ["FM_API_KEY"]
