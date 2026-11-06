@@ -261,13 +261,33 @@
         .call-hero h1 { margin: 0 0 8px; font-size: 23px; font-weight: 600; letter-spacing: -.01em; }
         .call-hero p { margin: 0 0 24px; color: var(--ink-2); font-size: 14.5px; }
         .hero-form { display: flex; gap: 8px; }
-        .hero-form select {
+        .hero-form input {
           flex: 1; min-width: 0;
           background: var(--field); color: var(--ink);
           border: 1px solid var(--line-strong); border-radius: 10px;
-          padding: 11px 13px; font: 14px var(--sans); outline: none;
+          padding: 11px 13px; font: 14px var(--mono); outline: none;
         }
-        .hero-form select:focus { border-color: var(--accent); }
+        .hero-form input:focus { border-color: var(--accent); }
+        .hero-form input:disabled { opacity: .6; cursor: not-allowed; }
+        .phone-presets {
+          display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;
+          margin-top: 10px;
+        }
+        .phone-presets:empty { display: none; }
+        .phone-presets button {
+          background: var(--panel); color: var(--mute);
+          border: 1px solid var(--line); border-radius: 999px;
+          padding: 4px 10px; font: 11.5px var(--mono); cursor: pointer;
+          transition: border-color .12s, color .12s, background .12s;
+        }
+        .phone-presets button:hover:not(:disabled) {
+          border-color: var(--line-strong); color: var(--ink);
+        }
+        .phone-presets button.on {
+          border-color: var(--accent); color: var(--accent);
+          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+        }
+        .phone-presets button:disabled { opacity: .45; cursor: not-allowed; }
         .hero-status {
           margin-top: 12px; min-height: 18px;
           font: 12px var(--mono); color: var(--mute);
@@ -733,11 +753,21 @@
                     </svg>
                 </div>
                 <h1>Диспетчерская УК «Территория»</h1>
-                <p>Выберите абонента и начните тестовый звонок голосовому ассистенту.</p>
+                <p>Введите номер абонента и начните тестовый звонок голосовому ассистенту.</p>
                 <div class="hero-form">
-                    <select id="phoneSelect" aria-label="Номер абонента"></select>
+                    <input
+                        id="phoneInput"
+                        type="tel"
+                        inputmode="tel"
+                        autocomplete="off"
+                        spellcheck="false"
+                        value="+79990000001"
+                        placeholder="+79990000001"
+                        aria-label="Номер абонента"
+                    >
                     <button type="button" id="startCallBtn" class="btn call">Позвонить</button>
                 </div>
+                <div class="phone-presets" id="phonePresets" aria-label="Быстрый выбор номера"></div>
                 <div class="hero-status" id="heroStatus"></div>
             </div>
         </div>
@@ -767,6 +797,7 @@
 
                     <div class="quick-chips" id="quickChips">
                         <button type="button" data-chip="Не работает лифт в нашем подъезде">Не работает лифт</button>
+                        <button type="button" data-chip="Подскажите статус заявки 1234">Статус заявки №1234</button>
                         <button type="button" data-chip="Подскажите, как часто нужна поверка счётчика воды?">Вопрос по базе знаний</button>
                         <button type="button" data-chip="Соедините меня с живым оператором">Перевод на оператора</button>
                     </div>
@@ -899,7 +930,8 @@
 
       callHero: $('#callHero'),
       callLive: $('#callLive'),
-      phoneSelect: $('#phoneSelect'),
+      phoneInput: $('#phoneInput'),
+      phonePresets: $('#phonePresets'),
       startCallBtn: $('#startCallBtn'),
       heroStatus: $('#heroStatus'),
 
@@ -1300,17 +1332,56 @@
     function summarizeToolCall(name, args, res) {
       let tone = '';
       let brief = '';
-      if (name === 'get_category') {
+      if (name === 'get_resident_by_phone') {
+        if (res && typeof res === 'object' && res.name) {
+          tone = 'ok';
+          const addrObj = res.address || {};
+          const loc = [
+            addrObj.street ? 'ул. ' + addrObj.street : '',
+            addrObj.house ? 'д. ' + addrObj.house : '',
+            res.apartment != null ? 'кв. ' + res.apartment : '',
+          ].filter(Boolean).join(', ');
+          brief = res.name + (loc ? ' · ' + loc : '');
+        } else {
+          tone = 'warn';
+          brief = (args.phone || '') + (args.phone ? ' · ' : '') + 'нет в CRM';
+        }
+      } else if (name === 'get_category') {
         const cat = (res && res.name) || args.category || '';
         const id = res && res.id != null ? ' #' + res.id : '';
-        brief = cat + id;
+        const act = res && res.action ? ' [' + res.action + ']' : '';
+        brief = cat + id + act;
+      } else if (name === 'get_tickets_by_address') {
+        const loc = [
+          args.street ? 'ул. ' + args.street : '',
+          args.house ? 'д. ' + args.house : '',
+          args.apartment != null ? 'кв. ' + args.apartment : '',
+        ].filter(Boolean).join(', ');
+        if (Array.isArray(res) && res.length) {
+          tone = 'warn';
+          brief = (loc ? loc + ' → ' : '') + 'найдено: ' + res.map((t) => '№' + t.id).join(', ');
+        } else {
+          brief = (loc ? loc + ' → ' : '') + 'дублей нет';
+        }
+      } else if (name === 'get_ticket') {
+        if (res && typeof res === 'object' && res.id != null) {
+          tone = 'ok';
+          brief = '№ ' + res.id
+            + (res.status ? ' · ' + res.status : '')
+            + (res.deadline ? ' · до ' + res.deadline : '');
+        } else {
+          tone = 'warn';
+          brief = '№ ' + (args.number || '?') + ' · не найдена';
+        }
       } else if (name === 'create_ticket') {
         if (res && Array.isArray(res.missing_fields) && res.missing_fields.length) {
           tone = 'warn';
           brief = 'missing_fields: ' + res.missing_fields.join(', ');
         } else if (res && res.id != null) {
           tone = 'ok';
-          brief = '№ ' + res.id + (res.category ? ' · ' + res.category : '');
+          brief = '№ ' + res.id
+            + (res.category ? ' · ' + res.category : '')
+            + (res.deadline ? ' · до ' + res.deadline : '');
         } else {
           brief = args.category || '';
         }
@@ -1486,6 +1557,49 @@
     ui.voiceSelect.addEventListener('change', () => syncSpeaker(ui.voiceSelect.value));
     ui.ttsVoiceSelect.addEventListener('change', () => syncSpeaker(ui.ttsVoiceSelect.value));
 
+    let phoneTouched = false;
+
+    function syncPhonePresetsActive() {
+      const current = (ui.phoneInput.value || '').trim();
+      ui.phonePresets.querySelectorAll('button').forEach((btn) => {
+        btn.classList.toggle('on', btn.dataset.phone === current);
+      });
+    }
+
+    function renderPhonePresets(demoPhones) {
+      ui.phonePresets.innerHTML = '';
+      const items = (demoPhones || []).map((p) => ({ phone: p, tag: 'в CRM' }));
+      items.push({ phone: '+70000000000', tag: 'нет в CRM' });
+      items.forEach(({ phone, tag }) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.phone = phone;
+        btn.textContent = phone + ' · ' + tag;
+        btn.disabled = app.sessionActive;
+        btn.addEventListener('click', () => {
+          if (app.sessionActive) return;
+          phoneTouched = true;
+          ui.phoneInput.value = phone;
+          syncPhonePresetsActive();
+          showStatus('');
+          ui.phoneInput.focus();
+        });
+        ui.phonePresets.appendChild(btn);
+      });
+      syncPhonePresetsActive();
+    }
+
+    ui.phoneInput.addEventListener('input', () => {
+      phoneTouched = true;
+      syncPhonePresetsActive();
+    });
+    ui.phoneInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!app.busy && !app.sessionActive) startCall();
+      }
+    });
+
     async function loadConfig() {
       app.cfg = await api('/debug/config');
       ['dialog', 'asr', 'tts', 'llm', 'crm'].forEach((key) => {
@@ -1499,11 +1613,11 @@
         ui.cfgLlmWrap.hidden = app.cfg.dialog === 'cloudru';
       }
 
-      ui.phoneSelect.length = 0;
-      (app.cfg.demo_phones || []).forEach((phone) => {
-        ui.phoneSelect.add(new Option(phone + ' · есть в CRM', phone));
-      });
-      ui.phoneSelect.add(new Option('+70000000000 · нет в CRM', '+70000000000'));
+      const demoPhones = app.cfg.demo_phones || [];
+      if (!phoneTouched) {
+        ui.phoneInput.value = demoPhones[0] || '+79990000001';
+      }
+      renderPhonePresets(demoPhones);
 
       fillVoiceSelects(app.cfg.tts_speakers || [], app.cfg.tts_speaker || null);
 
@@ -1988,7 +2102,8 @@
       const showEndedBar = live && app.callStarted && !hasCall;
       ui.callEndedBar.hidden = !showEndedBar;
 
-      ui.phoneSelect.disabled = live;
+      ui.phoneInput.disabled = live;
+      ui.phonePresets.querySelectorAll('button').forEach((btn) => { btn.disabled = live; });
       ui.livePhone.textContent = app.phone || '';
       ui.liveDot.className = 'dot ' + (inCall() ? 'live' : hasCall ? 'hold' : '');
 
@@ -2005,7 +2120,12 @@
     }
 
     async function startCall() {
-      if (!ui.phoneSelect.value) return;
+      const cleanPhone = (ui.phoneInput.value || '').replace(/\s+/g, ' ').trim();
+      if (!cleanPhone || !/\d/.test(cleanPhone)) {
+        showStatus('Укажите номер телефона абонента', true);
+        ui.phoneInput.focus();
+        return;
+      }
       unlockAudio();
       closePopover();
 
@@ -2014,7 +2134,9 @@
       stopListening(false);
       micStream.readyMs = 0;
 
-      app.phone = ui.phoneSelect.value;
+      app.phone = cleanPhone;
+      ui.phoneInput.value = cleanPhone;
+      syncPhonePresetsActive();
       app.ended = false;
       app.endedReason = '';
       app.sessionActive = true;
@@ -2137,7 +2259,10 @@
       try {
         const reply = await api('/debug/call/' + callId + '/say-audio', {
           method: 'POST',
-          headers: Object.assign({ 'Content-Type': 'audio/pcm', 'X-Phone': app.phone }, audioHeader()),
+          headers: Object.assign(
+            { 'Content-Type': 'audio/pcm', 'X-Phone': (app.phone || '').replace(/[^\x20-\x7E]/g, '') },
+            audioHeader()
+          ),
           body: pcmBlob,
         });
         const serverMs = Math.round(performance.now() - startedAt);

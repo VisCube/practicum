@@ -1,9 +1,10 @@
 """Тонкий адаптер звонка вокруг `Assistant` из Cloud.ru (`_upstream/src/assistant.py`).
 
-Ведение диалога, выбор инструментов, поиск в Managed RAG и категоризация полностью
-остаются на стороне промпта и `Assistant.handle_message`. Адаптер отвечает только за:
-  - привязку экземпляра `Assistant` к `call_id` и синхронизацию `SessionStore`;
-  - передачу сведений о звонящем и активных авариях из `CrmClient` на старте звонка;
+Ведение диалога, выбор инструментов, поиск в Managed RAG, идентификация в CRM-заглушке
+и категоризация полностью остаются на стороне промпта и `Assistant.handle_message`.
+Адаптер отвечает только за:
+  - передачу номера звонящего в `Assistant(phone=...)` и привязку агента к `call_id`;
+  - синхронизацию `SessionStore` и карточки `session.owner` по результатам тулов;
   - эмиссию событий `tool_call` и перекладывание заявок в `Outbox` / переводов в телефонию.
 """
 
@@ -12,15 +13,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable, Callable
-from typing import Any, TypeVar
+from collections.abc import Callable
+from typing import Any
 
 from assistant.core.models import (
     Appeal,
     CallSession,
     CallState,
     Event,
-    Outage,
     Owner,
     Reply,
     RiskLevel,
@@ -32,9 +32,11 @@ from assistant.services.cloudru.bridge import (
     UpstreamAssistant,
     UpstreamToolCall,
     find_cloudru_category,
+    find_cloudru_resident,
     load_assistant_cls,
     load_cloudru_slot_labels,
     parse_tool_result,
+    resident_dict_to_owner,
 )
 from assistant.services.crm.base import CrmClient
 from assistant.services.crm.outbox import Outbox
@@ -42,10 +44,11 @@ from assistant.services.telephony.base import TelephonyClient
 from assistant.templates.phrases import is_goodbye, say
 
 log = logging.getLogger(__name__)
-T = TypeVar("T")
 
-_IDENTITY_SLOTS = ("full_name", "address", "apartment", "flat")
-_RESERVED_TICKET_KEYS = {"id", "category", "missing_fields"}
+_START_CUE = "Алло"
+_IDENTITY_SLOTS = ("resident", "street", "house", "apartment", "full_name", "address", "flat")
+_RESERVED_TICKET_KEYS = {"id", "category", "phone", "missing_fields"}
+_TAIL_TICKET_KEYS = ("details", "description", "status", "deadline")
 _FAREWELL_MARKERS = ("до свидания", "всего доброго", "всего хорошего", "хорошего дня")
 
 
@@ -57,14 +60,14 @@ class CloudRuDialogAdapter:
     def __init__(
         self,
         store: SessionStore,
-        crm: CrmClient,
+        crm: CrmClient | None,
         outbox: Outbox,
         telephony: TelephonyClient,
         *,
         crm_timeout: float = 2.0,
         agent_timeout: float = 45.0,
         session_ttl_sec: float = 1800.0,
-        assistant_factory: Callable[[], UpstreamAssistant] | None = None,
+        assistant_factory: Callable[[str], UpstreamAssistant] | None = None,
     ) -> None:
         self.store = store
         self.crm = crm
@@ -73,46 +76,62 @@ class CloudRuDialogAdapter:
         self.crm_timeout = crm_timeout
         self.agent_timeout = agent_timeout
         self._ttl_sec = session_ttl_sec
-        self._factory: Callable[[], UpstreamAssistant] = assistant_factory or load_assistant_cls()
+        self._factory: Callable[[str], UpstreamAssistant] = (
+            assistant_factory or load_assistant_cls()
+        )
         self._agents: dict[str, tuple[UpstreamAssistant, float]] = {}
 
     async def start(self, call_id: str, phone: str) -> Reply:
-        """Начало звонка: подтягиваем карточку жителя/аварии из CRM и передаём в контекст агента."""
+        """Начало звонка: передаём `phone` в `Assistant(phone)` и получаем приветствие."""
         self._sweep_agents()
-        session = CallSession(call_id=call_id, phone=phone)
+        clean_phone = phone.strip()
+        session = CallSession(call_id=call_id, phone=clean_phone, owner_lookup_done=True)
+        agent = self._new_agent(phone=clean_phone)
+
         events: list[Event] = []
+        transferred = False
+        spoken = ""
+        ran_ok = False
 
-        session.owner = await self._crm(
-            self.crm.find_owner_by_phone(phone), default=None, what="owner lookup",
-        )
-        session.owner_lookup_done = True
-
-        outages: list[Outage] = []
-        if session.owner:
-            session.slots["full_name"] = session.owner.full_name
-            session.slots["address"] = session.owner.address
-            session.slots["apartment"] = session.owner.apartment
-            parts = [say("greeting_known", name=_first_name(session.owner.full_name))]
-            outages = await self._crm(
-                self.crm.active_outages(session.owner), default=[], what="outages",
+        try:
+            response_text, tool_calls = await asyncio.wait_for(
+                asyncio.to_thread(agent.handle_message, _START_CUE),
+                timeout=self.agent_timeout,
             )
-            for outage in outages:
-                parts.append(
-                    say("outage_notice", address=outage.address, description=outage.description),
-                )
-                events.append(Event(type="outage_notice", payload=outage.model_dump(mode="json")))
+            ran_ok = True
+            events, transferred = await self._apply_tool_calls(session, tool_calls)
+            spoken = response_text.strip()
+        except Exception:
+            log.exception("cloudru agent failed on start for call %s", call_id)
+
+        if not spoken:
+            if session.owner is None and not transferred:
+                session.owner = find_cloudru_resident(clean_phone)
+                if session.owner:
+                    _populate_owner_slots(session, None, session.owner)
+            if transferred:
+                spoken = say("transfer_requested")
+            elif session.owner:
+                spoken = say("greeting_known", name=_first_name(session.owner.full_name))
+            else:
+                spoken = say("greeting")
+            if not ran_ok:
+                agent.messages.append({"role": "assistant", "content": spoken})
+
+        session.state = CallState.TRANSFERRED if transferred else CallState.TOPIC
+        if transferred:
+            self._agents.pop(call_id, None)
         else:
-            parts = [say("greeting")]
+            self._save_agent(call_id, agent)
 
-        greeting_text = " ".join(parts)
-        agent = self._new_agent(phone=phone, owner=session.owner, outages=outages)
-        agent.messages.append({"role": "assistant", "content": greeting_text})
-        self._save_agent(call_id, agent)
-
-        session.state = CallState.TOPIC
-        session.say(greeting_text)
+        session.say(spoken)
         self.store.save(session)
-        return Reply(text=greeting_text, state=session.state, events=events)
+        return Reply(
+            text=spoken,
+            transfer=transferred,
+            state=session.state,
+            events=events,
+        )
 
     async def handle_turn(self, call_id: str, phone: str, text: str) -> Reply:
         """Один ход диалога через `Assistant.handle_message`."""
@@ -170,32 +189,7 @@ class CloudRuDialogAdapter:
             )
 
         self._save_agent(session.call_id, agent)
-
-        events: list[Event] = []
-        transferred = False
-
-        for call in tool_calls:
-            parsed = parse_tool_result(call.result)
-            events.append(
-                Event(
-                    type="tool_call",
-                    payload={
-                        "name": call.name,
-                        "arguments": dict(call.arguments or {}),
-                        "result": parsed,
-                    },
-                ),
-            )
-            if call.name == "get_category":
-                self._record_category(session, call, parsed)
-            elif call.name == "create_ticket":
-                if ticket_event := self._record_ticket(session, call, parsed):
-                    events.append(ticket_event)
-            elif call.name == "transfer_to_operator":
-                events.append(await self._record_transfer(session, call))
-                transferred = True
-            elif call.name == "search_knowledge_base" and session.state != CallState.TRANSFERRED:
-                session.state = CallState.DONE
+        events, transferred = await self._apply_tool_calls(session, tool_calls)
 
         spoken = response_text.strip()
         if not spoken:
@@ -220,6 +214,57 @@ class CloudRuDialogAdapter:
             state=session.state,
         )
 
+    async def _apply_tool_calls(
+        self,
+        session: CallSession,
+        tool_calls: list[UpstreamToolCall],
+    ) -> tuple[list[Event], bool]:
+        events: list[Event] = []
+        transferred = False
+
+        for call in tool_calls:
+            parsed = parse_tool_result(call.result)
+            events.append(
+                Event(
+                    type="tool_call",
+                    payload={
+                        "name": call.name,
+                        "arguments": dict(call.arguments or {}),
+                        "result": parsed,
+                    },
+                ),
+            )
+            if call.name == "get_resident_by_phone":
+                self._record_resident(session, parsed)
+            elif call.name == "get_category":
+                self._record_category(session, call, parsed)
+            elif call.name == "get_tickets_by_address":
+                if isinstance(parsed, list) and parsed and session.state != CallState.TRANSFERRED:
+                    session.state = CallState.DONE
+            elif call.name == "get_ticket":
+                if isinstance(parsed, dict) and session.state != CallState.TRANSFERRED:
+                    session.state = CallState.DONE
+            elif call.name == "create_ticket":
+                if ticket_event := self._record_ticket(session, call, parsed):
+                    events.append(ticket_event)
+            elif call.name == "transfer_to_operator":
+                events.append(await self._record_transfer(session, call))
+                transferred = True
+            elif call.name == "search_knowledge_base" and session.state != CallState.TRANSFERRED:
+                session.state = CallState.DONE
+
+        return events, transferred
+
+    def _record_resident(self, session: CallSession, parsed: Any) -> None:
+        session.owner_lookup_done = True
+        if not isinstance(parsed, dict):
+            return
+        owner = resident_dict_to_owner(parsed, fallback_phone=session.phone)
+        if owner is None:
+            return
+        session.owner = owner
+        _populate_owner_slots(session, parsed, owner)
+
     def _record_category(
         self,
         session: CallSession,
@@ -238,7 +283,8 @@ class CloudRuDialogAdapter:
             session.slots = {k: v for k, v in session.slots.items() if k in _IDENTITY_SLOTS}
         session.topic = _build_topic(str(cat_info["name"]), cat_info)
         if session.state != CallState.TRANSFERRED:
-            session.state = CallState.SLOTS
+            action = str(cat_info.get("action") or "ticket")
+            session.state = CallState.DONE if action == "office" else CallState.SLOTS
 
     def _record_ticket(
         self,
@@ -273,10 +319,11 @@ class CloudRuDialogAdapter:
             **slots,
         }
 
+        ticket_phone = _slot_str(data.get("phone") or args.get("phone")) or session.phone
         risk = RiskLevel.CRITICAL if session.escalated else RiskLevel.NORMAL
         appeal_kwargs: dict[str, Any] = {
             "call_id": session.call_id,
-            "phone": session.phone,
+            "phone": ticket_phone,
             "owner": session.owner,
             "topic": topic,
             "slots": dict(slots),
@@ -338,24 +385,24 @@ class CloudRuDialogAdapter:
         }
         return Event(type="transfer", payload=context)
 
-    def _new_agent(
-        self,
-        *,
-        phone: str,
-        owner: Owner | None,
-        outages: list[Outage],
-    ) -> UpstreamAssistant:
-        agent = self._factory()
-        context_msg = _format_caller_context(phone=phone, owner=owner, outages=outages)
-        if context_msg:
-            agent.messages.append({"role": "system", "content": context_msg})
-        return agent
+    def _new_agent(self, *, phone: str) -> UpstreamAssistant:
+        return self._factory(phone)
 
     def _get_or_restore_agent(self, session: CallSession) -> UpstreamAssistant:
         entry = self._agents.get(session.call_id)
         if entry is not None:
             return entry[0]
-        agent = self._new_agent(phone=session.phone, owner=session.owner, outages=[])
+        agent = self._new_agent(phone=session.phone)
+        if session.owner:
+            agent.messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        f"Звонящий идентифицирован: {session.owner.full_name}, "
+                        f"адрес: {session.owner.address}, кв. {session.owner.apartment}."
+                    ),
+                },
+            )
         for turn in session.transcript:
             role = "assistant" if turn.role == "bot" else "user"
             agent.messages.append({"role": role, "content": turn.text})
@@ -371,13 +418,6 @@ class CloudRuDialogAdapter:
         for cid in expired:
             self._agents.pop(cid, None)
 
-    async def _crm(self, call: Awaitable[T], *, default: T, what: str) -> T:
-        try:
-            return await asyncio.wait_for(call, self.crm_timeout)
-        except Exception as error:
-            log.warning("crm %s failed: %s", what, error)
-            return default
-
 
 def _slot_str(value: Any) -> str:
     if value is None or isinstance(value, bool):
@@ -385,14 +425,34 @@ def _slot_str(value: Any) -> str:
     return str(value).strip()
 
 
+def _populate_owner_slots(
+    session: CallSession,
+    raw: dict[str, Any] | None,
+    owner: Owner,
+) -> None:
+    session.slots["resident"] = owner.full_name
+    raw_addr = raw.get("address") if isinstance(raw, dict) else None
+    addr = raw_addr if isinstance(raw_addr, dict) else {}
+    street = _slot_str(addr.get("street"))
+    house = _slot_str(addr.get("house"))
+    if street:
+        session.slots["street"] = street
+    if house:
+        session.slots["house"] = house
+    if owner.apartment:
+        session.slots["apartment"] = owner.apartment
+
+
 def _build_topic(category_name: str, cat_info: dict[str, Any] | None) -> Topic:
     raw_id = cat_info.get("id") if isinstance(cat_info, dict) else None
     bitrix_id = str(raw_id) if raw_id is not None else ""
     topic_id = f"cloudru_{bitrix_id}" if bitrix_id else "cloudru_ticket"
+    action = str(cat_info.get("action") or "ticket") if isinstance(cat_info, dict) else "ticket"
+    kind = TopicKind.CONSULT if action in ("consult", "office") else TopicKind.APPEAL
     return Topic(
         id=topic_id,
         name=category_name,
-        kind=TopicKind.APPEAL,
+        kind=kind,
         bitrix_id=bitrix_id,
         risk_level=RiskLevel.NORMAL,
     )
@@ -409,10 +469,22 @@ def _extract_ticket_slots(
         (cat_info.get("parameters", {}).get("properties", {}) if cat_info else {}).keys(),
     )
     ordered_keys = list(
-        dict.fromkeys(["full_name", "address", *schema_props, *merged.keys(), "details"]),
+        dict.fromkeys(
+            [
+                "resident",
+                "full_name",
+                "street",
+                "house",
+                "apartment",
+                "address",
+                *schema_props,
+                *merged.keys(),
+            ],
+        ),
     )
-    # Ставим details последним для аккуратного отображения в карточке и Telegram
-    ordered_keys = [k for k in ordered_keys if k != "details"] + ["details"]
+    for tail_key in _TAIL_TICKET_KEYS:
+        if tail_key in ordered_keys:
+            ordered_keys = [k for k in ordered_keys if k != tail_key] + [tail_key]
 
     slots: dict[str, str] = {}
     for key in ordered_keys:
@@ -422,30 +494,6 @@ def _extract_ticket_slots(
         if rendered:
             slots[key] = rendered
     return slots
-
-
-def _format_caller_context(
-    *,
-    phone: str,
-    owner: Owner | None,
-    outages: list[Outage],
-) -> str:
-    lines: list[str] = []
-    if phone:
-        lines.append(f"Телефон звонящего: {phone}")
-    if owner:
-        lines.append(f"Собственник в CRM: {owner.full_name}")
-        lines.append(f"Адрес из CRM: {owner.address}, кв. {owner.apartment}")
-        lines.append(
-            f"(для полей заявки: address=\"{owner.address}\", flat={owner.apartment})"
-        )
-    if outages:
-        lines.append("Активные отключения по адресу звонящего:")
-        for outage in outages:
-            lines.append(f"- {outage.address}: {outage.description}")
-    if not lines:
-        return ""
-    return "Сведения о звонящем из CRM:\n" + "\n".join(lines)
 
 
 def _first_name(full_name: str) -> str:

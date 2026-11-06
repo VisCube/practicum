@@ -21,10 +21,11 @@ class ToolCall:
 
 
 class Assistant:
-    def __init__(self):
+    def __init__(self, phone: str):
         self.client = OpenAI(api_key=FM_API_KEY, base_url=FM_BASE_URL)
         self.messages: list[Message] = [
-            SystemMessage(role="system", content=SYSTEM_PROMPT)
+            SystemMessage(role="system", content=SYSTEM_PROMPT),
+            SystemMessage(role="system", content=f"Звонок с номера {phone}")
         ]
 
     def handle_message(self, user_input: str) -> tuple[str, list[ToolCall]]:

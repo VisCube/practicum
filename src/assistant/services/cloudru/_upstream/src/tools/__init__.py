@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from json import dumps, loads
 
 from openai.types.chat import (
@@ -7,7 +8,14 @@ from openai.types.chat import (
 from openai.types.shared_params import FunctionDefinition
 
 from src.tools.search import search_knowledge_base
-from src.tools.crm import CATEGORIES_NAMES, create_ticket, get_category
+from src.tools.telephony import transfer_to_operator
+from src.tools.classifier import CATEGORIES_NAMES, get_category
+from src.tools.crm.residents import Resident, get_resident_by_phone
+from src.tools.crm.tickets import (
+    create_ticket,
+    get_ticket,
+    get_tickets_by_address,
+)
 
 TOOL_SCHEMAS = [
     FunctionTool(
@@ -30,31 +38,86 @@ TOOL_SCHEMAS = [
     FunctionTool(
         type="function",
         function=FunctionDefinition(
+            name="get_resident_by_phone",
+            description="Получить жильца по номеру телефона",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "phone": {
+                        "type": "string",
+                        "description": "Номер телефона жильца"
+                    }
+                },
+                "required": ["phone"]
+            }
+        )
+    ),
+    FunctionTool(
+        type="function",
+        function=FunctionDefinition(
+            name="get_ticket",
+            description="Получить заявку по её номеру",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "number": {
+                        "type": "string",
+                        "description": "Номер заявки"
+                    }
+                },
+                "required": ["number"]
+            }
+        )
+    ),
+    FunctionTool(
+        type="function",
+        function=FunctionDefinition(
+            name="get_tickets_by_address",
+            description="Получить заявки по адресу.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "street": {
+                        "type": "string",
+                        "description": "Название улицы"
+                    },
+                    "house": {
+                        "type": "string",
+                        "description": "Номер дома"
+                    },
+                    "apartment": {
+                        "type": "integer",
+                        "description": "Номер квартиры, если категория относится к персональным"
+                    }
+                },
+                "required": ["street", "house"]
+            }
+        )
+    ),
+    FunctionTool(
+        type="function",
+        function=FunctionDefinition(
             name="create_ticket",
             description="Создать заявку в CRM",
             parameters={
                 "type": "object",
                 "properties": {
-                    "full_name": {
+                    "phone": {
                         "type": "string",
-                        "description": "Фамилия, имя, отчество звонящего полностью"
-                    },
-                    "address": {
-                        "type": "string",
-                        "description": "Улица и дом звонящего"
-                    },
-                    "details": {
-                        "type": "string",
-                        "description": "Описание обращения"
+                        "description": "Номер телефона звонящего"
                     },
                     "category": {
                         "type": "string",
                         "enum": CATEGORIES_NAMES,
                         "description": "Наиболее подходящая категория обращения из классификатора"
                     },
+                    "description": {
+                        "type": "string",
+                        "description": "Краткая суммаризация обращения"
+                    }
                 },
-                "required": ["full_name", "address", "details", "category"],
-                "additionalProperties": {"type": ["string", "number"]}
+                "required": ["category", "phone", "description"],
+                "additionalProperties": {"type": ["string", "integer"]}
             }
         )
     ),
@@ -95,19 +158,20 @@ TOOL_SCHEMAS = [
 ]
 
 
-def transfer_to_operator(reason: str) -> str:
-    return reason
-
-
 def handle_tool_call(tool_call: FunctionToolCall) -> str:
     function = TOOL_HANDLERS[tool_call.function.name]
     arguments = loads(tool_call.function.arguments)
 
     result = function(**arguments)
-    return dumps(result, ensure_ascii=False)
+    if isinstance(result, Resident):
+        result = {**asdict(result), "phone": result.phone.number}
+    return dumps(result, ensure_ascii=False, default=vars)
 
 
 TOOL_HANDLERS = {
+    "get_resident_by_phone": get_resident_by_phone,
+    "get_ticket": get_ticket,
+    "get_tickets_by_address": get_tickets_by_address,
     "get_category": get_category,
     "create_ticket": create_ticket,
     "transfer_to_operator": transfer_to_operator,

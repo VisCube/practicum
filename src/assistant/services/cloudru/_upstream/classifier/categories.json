@@ -2,1139 +2,2090 @@
   {
     "id": 304649,
     "name": "Уборка и санитарный контроль / Грязь, мусор на территории двора",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 304650,
     "name": "Уборка и санитарный контроль / Уборка контейнерной площадки",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
-  },
-  {
-    "id": 304651,
-    "name": "Уборка и санитарный контроль / Строительный мусор в подъезде",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
       },
-      "required": ["entry"]
+      "required": ["street", "house", "resident", "details"]
+    }
+  },
+  {
+    "id": 304651,
+    "name": "Уборка и санитарный контроль / Строительный  мусор в подъезде",
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "floor": { "type": "integer", "description": "на каком этаже" },
+        "entry": { "type": "integer", "description": "в каком подъезде" }
+      },
+      "required": ["street", "house", "resident", "floor", "entry"]
     }
   },
   {
     "id": 304652,
     "name": "Уборка и санитарный контроль / Грязь, мусор в подъезде",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "floor": { "type": "integer", "description": "на каком этаже" },
+        "entry": { "type": "integer", "description": "в каком подъезде" }
       },
-      "required": ["entry"]
+      "required": ["street", "house", "resident", "floor", "entry"]
     }
   },
   {
     "id": 304653,
     "name": "Уборка и санитарный контроль / Несогласованная реклама",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "advertising_location": { "type": "string", "description": "где размещена реклама? Лифт, информационная доска, на дверях в подъезде?" }
+      },
+      "required": ["street", "house", "resident", "advertising_location"]
+    }
   },
   {
     "id": 304654,
     "name": "Уборка и санитарный контроль / Грязь, мусор в паркинге",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "space": { "type": "string", "description": "Парковочное место" },
-        "access": { "type": "string", "description": "Заезд" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "parking_level": { "type": "integer", "description": "На каком уровне?" }
       },
-      "required": [],
-      "oneOf": [
-        { "required": ["space"] },
-        { "required": ["access"] }
-      ]
+      "required": ["street", "house", "resident", "parking_level"]
     }
   },
   {
     "id": 304655,
     "name": "Уборка и санитарный контроль / Вывоз мусора",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "consult",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 76493,
     "name": "Уборка и санитарный контроль / Неисправность крышек / педалей контейнера",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 304656,
     "name": "Уборка и санитарный контроль / Услуги по дератизации, дезинсекции",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 427505,
     "name": "Уборка и санитарный контроль / Механизированная уборка (сдвигание снега\\сметание мусора",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": null,
     "name": "Дополнительная уборка / Уборка последствий НЕОРДИНАРНЫХ событий в подъезде, паркинге",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "floor": { "type": "integer", "description": "на каком этаже" },
+        "entry": { "type": "integer", "description": "в каком подъезде" }
+      },
+      "required": ["street", "house", "resident", "floor", "entry"]
+    }
   },
   {
     "id": null,
-    "name": "Дополнительная уборка / Уборка строительного и прочего мусора, посторонних предметов в подъезде, паркинге",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "name": "Дополнительная уборка / Уборка строительного и прочего мусора, посторонних предметов  в подъезде, паркинге",
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "floor": { "type": "integer", "description": "на каком этаже" },
+        "entry": { "type": "integer", "description": "в каком подъезде" }
+      },
+      "required": ["street", "house", "resident", "floor", "entry"]
+    }
   },
   {
     "id": 304657,
     "name": "Дворовая территория / Детская площадка",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304658,
     "name": "Дворовая территория / Тротуары, проезды",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304659,
     "name": "Дворовая территория / Открыта/отсутствует крышка люка, решетка колодца",
+    "type": "Общедомовая",
+    "action": "operator",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304660,
     "name": "Дворовая территория / Озеленение",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 304661,
     "name": "Дворовая территория / Повреждение забора, ограждения",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 304662,
     "name": "Дворовая территория / Неисправность ворот, калиток",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 304663,
     "name": "Дворовая территория / Длительная стоянка транспортного средства",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304664,
     "name": "Дворовая территория / Иное",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304665,
     "name": "Домофоны, шлагбаумы, ворота, видеонаблюдение / Неисправность домофона, переговорного устройства, считывателя, кнопки открывания",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" },
-        "door": { "type": "string", "description": "Внешняя дверь" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
       },
-      "required": [],
-      "oneOf": [
-        { "required": ["entry"] },
-        { "required": ["door"] }
-      ]
+      "required": ["street", "house", "resident", "details"]
     }
   },
   {
     "id": 304666,
     "name": "Домофоны, шлагбаумы, ворота, видеонаблюдение / Неисправность шлагбаумов",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 598322,
     "name": "Домофоны, шлагбаумы, ворота, видеонаблюдение / Неисправность ворот",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 304667,
     "name": "Домофоны, шлагбаумы, ворота, видеонаблюдение / Неисправность видеонаблюдения",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 304668,
     "name": "Вентиляция / Неисправность вентиляции в квартире",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "details"]
     }
   },
   {
     "id": 304669,
     "name": "Вентиляция / Шум при работе вентиляции",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304670,
     "name": "Вентиляция / Посторонние запахи",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 305004,
     "name": "Вентиляция / Иное",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304671,
     "name": "Канализация / Протечка канализации",
+    "type": "Общедомовая",
+    "action": "operator",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 631652,
     "name": "Канализация / Наружная сеть",
+    "type": "Общедомовая",
+    "action": "operator",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 305114,
     "name": "Канализация / Посторонние запахи",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "entry": { "type": "integer", "description": "в каком подъезде" }
+      },
+      "required": ["street", "house", "resident", "entry"]
+    }
   },
   {
     "id": 304672,
     "name": "Канализация / Засор канализации",
+    "type": "Общедомовая",
+    "action": "operator",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304673,
     "name": "Квитанции, начисления / Вопрос по начислениям платы за ЖКУ и капитальный ремонт",
+    "type": "Персональная",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "account": { "type": "string", "description": "Лицевой счёт" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" },
+        "period": { "type": "string", "description": "За какой период?" }
       },
-      "required": ["account"]
+      "required": ["street", "house", "resident", "apartment", "period"]
     }
   },
   {
     "id": 304674,
     "name": "Квитанции, начисления / Передача показаний ИПУ в личном кабинете БРИС ЖКХ",
+    "type": "Персональная",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "account": { "type": "string", "description": "Лицевой счёт" },
-        "reading": { "type": "string", "description": "Показания счётчика" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
       },
-      "required": ["account", "reading"]
+      "required": ["street", "house", "resident", "apartment"]
     }
   },
   {
     "id": 304675,
     "name": "Квитанции, начисления / Вопросы в отношении льгот и компенсаций",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "account": { "type": "string", "description": "Лицевой счёт" }
-      },
-      "required": ["account"]
-    }
+    "type": "Персональная",
+    "action": "operator",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304676,
     "name": "Квитанции, начисления / Запрос квитанции",
+    "type": "Персональная",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "account": { "type": "string", "description": "Лицевой счёт" },
-        "period": { "type": "string", "description": "Период" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" },
+        "period": { "type": "string", "description": "За какой период?" }
       },
-      "required": ["account", "period"]
+      "required": ["street", "house", "resident", "apartment", "period"]
     }
   },
   {
     "id": 304677,
     "name": "Квитанции, начисления / Необходим счет для нежилых помещений",
+    "type": "Персональная",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "account": { "type": "string", "description": "Лицевой счёт" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" },
+        "period": { "type": "string", "description": "За какой период?" }
       },
-      "required": ["account"]
+      "required": ["street", "house", "resident", "apartment", "period"]
     }
   },
   {
     "id": 304678,
     "name": "Квитанции, начисления / Необходима справка об отсутсвии задолженности",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "account": { "type": "string", "description": "Лицевой счёт" },
-        "period": { "type": "string", "description": "Период" }
-      },
-      "required": ["account", "period"]
-    }
+    "type": "Персональная",
+    "action": "operator",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304679,
     "name": "Квитанции, начисления / Необходима справка по оплате ТКО, субсидии",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "account": { "type": "string", "description": "Лицевой счёт" },
-        "period": { "type": "string", "description": "Период" }
-      },
-      "required": ["account", "period"]
-    }
+    "type": "Персональная",
+    "action": "office",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304680,
     "name": "Квитанции, начисления / Необходима выписка из лицевого счета (с обязательным уточнением периода)",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "account": { "type": "string", "description": "Лицевой счёт" },
-        "period": { "type": "string", "description": "Период" }
-      },
-      "required": ["account", "period"]
-    }
+    "type": "Персональная",
+    "action": "office",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 305166,
     "name": "Квитанции, начисления / Иное",
+    "type": "Персональная",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "account": { "type": "string", "description": "Лицевой счёт" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
       },
-      "required": ["account"]
+      "required": ["street", "house", "resident", "apartment"]
     }
   },
   {
     "id": 304681,
     "name": "Квитанции, начисления / Возврат/перенос денежных средств по ЖКУ/ТКО (с указанием периода)",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "account": { "type": "string", "description": "Лицевой счёт" },
-        "period": { "type": "string", "description": "Период" }
-      },
-      "required": ["account", "period"]
-    }
+    "type": "Персональная",
+    "action": "office",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304682,
     "name": "Квитанции, начисления / Возврат оплаты, переплаты по капремонту",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "account": { "type": "string", "description": "Лицевой счёт" }
-      },
-      "required": ["account"]
-    }
+    "type": "Персональная",
+    "action": "office",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304683,
     "name": "Квитанции, начисления / Найти и учесть платеж по ЖКУ/капремонту",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "account": { "type": "string", "description": "Лицевой счёт" },
-        "period": { "type": "string", "description": "Период" }
-      },
-      "required": ["account", "period"]
-    }
+    "type": "Персональная",
+    "action": "office",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304684,
     "name": "Квитанции, начисления / Перерасчет ЖКУ/ Пени",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "account": { "type": "string", "description": "Лицевой счёт" },
-        "period": { "type": "string", "description": "Период" }
-      },
-      "required": ["account", "period"]
-    }
+    "type": "Персональная",
+    "action": "office",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 414807,
     "name": "Квитанции, начисления / Внесение изменений в Лицевой счет (НЕ ДЛЯ МП)",
+    "type": "Персональная",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "account": { "type": "string", "description": "Лицевой счёт" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
       },
-      "required": ["account"]
+      "required": ["street", "house", "resident", "apartment"]
     }
   },
   {
     "id": 414808,
     "name": "Квитанции, начисления / Смена собственника (НЕ ДЛЯ МП)",
+    "type": "Персональная",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "account": { "type": "string", "description": "Лицевой счёт" },
-        "date": { "type": "string", "description": "Дата смены собственника" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
       },
-      "required": ["account", "date"]
+      "required": ["street", "house", "resident", "apartment"]
     }
   },
   {
     "id": 304685,
     "name": "Кровля / Протечки кровли",
+    "type": "Общедомовая",
+    "action": "operator",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304686,
     "name": "Кровля / Протечки на балконе",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident"]
     }
   },
   {
     "id": 304687,
     "name": "Кровля / Неисправность кровли",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "room": { "type": "string", "description": "В какой комнате?" }
+      },
+      "required": ["street", "house", "resident", "room"]
+    }
   },
   {
     "id": 305188,
     "name": "Кровля / Иное",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304688,
     "name": "Лифты / Неисправность лифта",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "entry": { "type": "integer", "description": "в каком подъезде" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
       },
-      "required": ["entry"]
+      "required": ["street", "house", "resident", "entry", "details"]
     }
   },
   {
     "id": 304689,
     "name": "Лифты / Неисправность подъёмной платформы для инвалидов",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
       },
-      "required": ["entry"]
+      "required": ["street", "house", "resident"]
     }
   },
   {
     "id": 304690,
     "name": "Лифты / Авария",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" }
-      },
-      "required": ["entry"]
-    }
+    "type": "Общедомовая",
+    "action": "operator",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304691,
     "name": "Водоснабжение / Прорыв водопроводной трубы (дворовая территория, наружная сеть)",
+    "type": "Общедомовая",
+    "action": "operator",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304692,
     "name": "Водоснабжение / Протечка",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" },
-        "entry": { "type": "integer", "description": "Номер подъезда" }
-      },
-      "required": [],
-      "oneOf": [
-        { "required": ["flat"] },
-        { "required": ["entry"] }
-      ]
-    }
+    "type": "Общедомовая",
+    "action": "operator",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304693,
     "name": "Водоснабжение / Нарушение качества услуги холодного, горячего водоснабжения",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "details"]
     }
   },
   {
     "id": 304694,
     "name": "Водоснабжение / Непрогрев полотенцесушителя",
+    "type": "Персональная",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "apartment"]
     }
   },
   {
     "id": 304695,
     "name": "Водоснабжение / Посторонний запах у воды",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident"]
     }
   },
   {
     "id": 841939,
     "name": "Водоснабжение / Шум, гул, вибрация по системе водоснабжения",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident"]
     }
   },
   {
     "id": 304696,
     "name": "Водоснабжение / Ржавая вода",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "water_supply": { "type": "string", "description": "холодное водоснабжение или горячее водоснабжение?" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "water_supply"]
     }
   },
   {
     "id": 304697,
     "name": "Водоснабжение / Продолжительное отсутствие холодного, горячего водоснабжения",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
-      },
-      "required": ["flat"]
-    }
+    "type": "Общедомовая",
+    "action": "operator",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304698,
     "name": "Приборы учета / Неисправность индивидуального счетчика воды/отопления",
+    "type": "Персональная",
+    "action": "consult",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "apartment"]
     }
   },
   {
     "id": 304699,
     "name": "Приборы учета / Установка пломбы на счетчик воды/отопления",
+    "type": "Персональная",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" },
+        "meter_type": { "type": "string", "description": "Уточните на какой прибор учета необходимо установить пломбу?" },
+        "meter_location": { "type": "string", "description": "Где он находится? В квартире или МОП?" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "apartment", "meter_type", "meter_location"]
     }
   },
   {
     "id": 304700,
     "name": "Приборы учета / Составление акта по ИПУ",
+    "type": "Персональная",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "apartment", "details"]
     }
   },
   {
     "id": 304701,
     "name": "Приборы учета / Установка пломбы на счетчик электричества",
+    "type": "Персональная",
+    "action": "consult",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "apartment"]
     }
   },
   {
     "id": 414806,
     "name": "Приборы учета / Выявление неисправности по ОДПУ электрической энергии (НЕ ДЛЯ МП)",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident"]
     }
   },
   {
-    "id": 1182559,
-    "name": "Приборы учета / Поверка ОДПУ холодного водоснабжения (НЕ ДЛЯ МП)",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "id": 414803,
+    "name": "Приборы учета / Замена/поверка ОДПУ холодного водоснабжения (НЕ ДЛЯ МП)",
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
-    "id": null,
-    "name": "Приборы учета / Замена ОДПУ холодного водоснабжения (НЕ ДЛЯ МП)",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "id": 678405,
+    "name": "Приборы учета / Замена/поверка ОДПУ УКУТ (НЕ ДЛЯ МП)",
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 678532,
     "name": "Приборы учета / Поверка ИПУ (НЕ ДЛЯ МП)",
+    "type": "Персональная",
+    "action": "consult",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "apartment"]
     }
   },
   {
     "id": 678534,
     "name": "Приборы учета / Смена ИПУ/Акт контр.снятия показаний (НЕ ДЛЯ МП)",
+    "type": "Персональная",
+    "action": "consult",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "apartment"]
     }
   },
   {
     "id": 304702,
     "name": "Общие вопросы / Размещение рекламы, объявлений, предложение сотрудничества",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304704,
     "name": "Общие вопросы / Жалобы на работу Управляющей компании",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 304705,
-    "name": "Общие вопросы / Пригласить УК в свой дом (НЕ ДЛЯ МП)",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "name": "Общие вопросы / Пригласить УК в свой дом",
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304706,
-    "name": "Общие вопросы / Заказать услуги для ТСЖ (НЕ ДЛЯ МП)",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "name": "Общие вопросы / Заказать услуги для ТСЖ",
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304707,
     "name": "Общие вопросы / Информационные стенды",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304708,
     "name": "Общие вопросы / Вопросы по содержанию и управлению общим имуществом",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 304703,
-    "name": "Общие вопросы / Операторы связи (НЕ ДЛЯ МП)",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "name": "Общие вопросы / Операторы связи  (НЕ ДЛЯ МП)",
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304709,
     "name": "Общие вопросы / Необходим доступ в технические помещения (НЕ ДЛЯ МП)",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 304710,
     "name": "Освещение, электричество / Неисправность освещения в подъезде / во дворе",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "entry": { "type": "integer", "description": "в каком подъезде" },
+        "floor": { "type": "integer", "description": "на каком этаже" }
+      },
+      "required": ["street", "house", "resident", "entry", "floor"]
+    }
   },
   {
     "id": 305217,
     "name": "Освещение, электричество / Авария на внутренних электрических сетях",
+    "type": "Общедомовая",
+    "action": "operator",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 726615,
-    "name": "Освещение, электричество / Авария на наружных электрических сетях (НЕ ДЛЯ МП)",
+    "name": "Освещение, электричество / Авария на наружных электрических  сетях  (НЕ ДЛЯ МП)",
+    "type": "Общедомовая",
+    "action": "operator",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304711,
     "name": "Освещение, электричество / Неисправность в квартире",
+    "type": "Персональная",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "apartment", "details"]
     }
   },
   {
     "id": 304712,
     "name": "Освещение, электричество / Открыта дверь в электрощитовую",
+    "type": "Общедомовая",
+    "action": "operator",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 631666,
     "name": "Отопление / Наружная сеть",
+    "type": "Общедомовая",
+    "action": "operator",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304713,
     "name": "Отопление / Протечка отопления",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" },
-        "entry": { "type": "integer", "description": "Номер подъезда" }
-      },
-      "required": [],
-      "oneOf": [
-        { "required": ["flat"] },
-        { "required": ["entry"] }
-      ]
-    }
+    "type": "Общедомовая",
+    "action": "operator",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304715,
     "name": "Отопление / Шум, гул, вибрация в системе отопления",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "details"]
     }
   },
   {
     "id": 304716,
     "name": "Отопление / Отсутствие отопления",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
-      },
-      "required": ["flat"]
-    }
+    "type": "Общедомовая",
+    "action": "operator",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 841941,
     "name": "Отопление / Превышение температурного режима (НЕ ДЛЯ МП)",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
-      },
-      "required": ["flat"]
-    }
+    "type": "Общедомовая",
+    "action": "operator",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304717,
     "name": "Отопление / Необходимо закрепить прибор отопления в подъезде",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "entry": { "type": "integer", "description": "в каком подъезде" }
       },
-      "required": ["entry"]
+      "required": ["street", "house", "resident", "entry"]
     }
   },
   {
     "id": 304718,
     "name": "Охрана / Замечания по качеству предоставления услуг",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 304719,
     "name": "Охрана / Нарушение правил проживания",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 304720,
     "name": "Охрана / Посторонние лица на территории",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 305219,
     "name": "Охрана / Иное",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304721,
     "name": "Охрана / Открыта дверь в техническое помещение",
+    "type": "Общедомовая",
+    "action": "operator",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304722,
     "name": "Охрана / Снять запись с камеры видеонаблюдения",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "time": { "type": "string", "description": "Дата и время события" }
-      },
-      "required": ["time"]
-    }
+    "type": "Персональная",
+    "action": "office",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304723,
     "name": "Общестроительные работы / Отсутствие остекления",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" },
-        "floor": { "type": "integer", "description": "Номер этажа" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "entry": { "type": "integer", "description": "в каком подъезде" },
+        "floor": { "type": "integer", "description": "на каком этаже" }
       },
-      "required": ["entry", "floor"]
+      "required": ["street", "house", "resident", "entry", "floor"]
     }
   },
   {
     "id": 304724,
     "name": "Общестроительные работы / Неисправность окон, дверей, ручек на переходных лоджиях, тамбурах и в подъезде",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "entry": { "type": "integer", "description": "в каком подъезде" },
+        "floor": { "type": "integer", "description": "на каком этаже" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
       },
-      "required": ["entry"]
+      "required": ["street", "house", "resident", "entry", "floor", "details"]
     }
   },
   {
     "id": 304725,
     "name": "Общестроительные работы / Неисправность входной уличной двери, тамбурной двери, алюминиевой (или ПВХ) 1 этаж",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
       },
-      "required": ["entry"]
+      "required": ["street", "house", "resident", "details"]
     }
   },
   {
     "id": 304726,
-    "name": "Общестроительные работы / Неисправность доводчика входной уличной глухой металлической двери",
+    "name": "Общестроительные работы / Неисправность доводчика входной уличной глухой металлической  двери",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "entry": { "type": "integer", "description": "в каком подъезде" }
       },
-      "required": ["entry"]
+      "required": ["street", "house", "resident", "entry"]
     }
   },
   {
     "id": 678414,
     "name": "Общестроительные работы / Закрыть/открыть окно/дверь в МОП",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "entry": { "type": "integer", "description": "в каком подъезде" },
+        "floor": { "type": "integer", "description": "на каком этаже" }
       },
-      "required": ["entry"]
+      "required": ["street", "house", "resident", "entry", "floor"]
     }
   },
   {
     "id": 304727,
     "name": "Общестроительные работы / Восстановление отделки в подъезде",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "entry": { "type": "integer", "description": "в каком подъезде" },
+        "floor": { "type": "integer", "description": "на каком этаже" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
       },
-      "required": ["entry"]
+      "required": ["street", "house", "resident", "entry", "floor", "details"]
     }
   },
   {
     "id": 304728,
     "name": "Общестроительные работы / Требуется ремонт/замена почтового ящика",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "entry": { "type": "integer", "description": "в каком подъезде" }
       },
-      "required": ["entry"]
+      "required": ["street", "house", "resident", "entry"]
     }
   },
   {
     "id": 304729,
     "name": "Общестроительные работы / Неисправность двери пожарного шкафа",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "entry": { "type": "integer", "description": "в каком подъезде" },
+        "floor": { "type": "integer", "description": "на каком этаже" }
       },
-      "required": ["entry"]
+      "required": ["street", "house", "resident", "entry", "floor"]
     }
   },
   {
     "id": 304730,
     "name": "Общестроительные работы / Отслоение отделки с угрозой обрушения",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" }
-      },
-      "required": ["entry"]
-    }
+    "type": "Общедомовая",
+    "action": "operator",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304731,
     "name": "Общестроительные работы / Нарушение отделки в квартире",
+    "type": "Персональная",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "apartment", "details"]
     }
   },
   {
     "id": 304732,
     "name": "Общестроительные работы / Следы промочки, грибок, плесень в квартире",
+    "type": "Персональная",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "apartment", "details"]
     }
   },
   {
     "id": 304735,
     "name": "Общестроительные работы / Первичная регулировка оконных конструкций",
+    "type": "Персональная",
+    "action": "office",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304736,
     "name": "Общестроительные работы / Протечка в паркинге на машину",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "space": { "type": "string", "description": "Парковочное место" }
-      },
-      "required": ["space"]
-    }
+    "type": "Общедомовая",
+    "action": "operator",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304737,
     "name": "Общестроительные работы / Восстановление отделки в паркинге",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 304738,
     "name": "Общестроительные работы / Необходимо открыть/закрыть продухи в подвале (НЕ ДЛЯ МП)",
+    "type": "Общедомовая",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "entry": { "type": "integer", "description": "Номер подъезда" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
       },
-      "required": ["entry"]
+      "required": ["street", "house", "resident"]
     }
   },
   {
     "id": 304733,
     "name": "Общестроительные работы / Устранение строительных замечаний по Гарантии Застройщика (НЕ ДЛЯ МП)",
+    "type": "Персональная",
+    "action": "office",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304734,
     "name": "Общестроительные работы / Устранение неисправностей после аварий на инженерных системах и оборудования (НЕ ДЛЯ МП)",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304739,
-    "name": "Техническая документация / Запрос технических условий и справок (платная услуга)",
+    "name": "Техническая документация / Запрос технических условий  и справок (платная услуга)",
+    "type": "Персональная",
+    "action": "office",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304740,
     "name": "Техническая документация / Запрос справок и технической документации (платная услуга)",
+    "type": "Персональная",
+    "action": "office",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304741,
     "name": "Техническая документация / Запрос акта разграничения сетей водоснабжения, отопления и канализации (платная услуга)",
+    "type": "Персональная",
+    "action": "office",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304742,
     "name": "Техническая документация / Запрос акта разграничения сетей электричества (платная услуга)",
+    "type": "Персональная",
+    "action": "office",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304743,
     "name": "Техническая документация / Согласование проектов перепланировки/переоборудования (НЕ ДЛЯ МП)",
+    "type": "Персональная",
+    "action": "office",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304744,
     "name": "Пожарная безопасность / Замечания по системе пожарной безопасности",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 304745,
     "name": "Пожарная безопасность / Сработка системы",
+    "type": "Общедомовая",
+    "action": "operator",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304746,
     "name": "Пожарная безопасность / Сработка автономного датчика в квартире",
+    "type": "Персональная",
+    "action": "consult",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "apartment"]
     }
   },
   {
     "id": 305918,
     "name": "Пожарная безопасность / Иное",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304747,
     "name": "Пожарная безопасность / Отключение / включение системы в квартире",
+    "type": "Персональная",
+    "action": "consult",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "apartment"]
     }
   },
   {
     "id": 304748,
     "name": "Фасад / Нарушение целостности фасада",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
+      },
+      "required": ["street", "house", "resident", "details"]
+    }
   },
   {
     "id": 304749,
     "name": "Фасад / Установка ограждения при нарушении целостности фасада, угрожающему безопасности",
+    "type": "Общедомовая",
+    "action": "operator",
     "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 304750,
     "name": "Фасад / Вандальные надписи",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304751,
     "name": "Документы / Акт о фактическом проживании",
-    "parameters": {
-      "type": "object",
-      "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
-      },
-      "required": ["flat"]
-    }
+    "type": "Персональная",
+    "action": "office",
+    "parameters": { "type": "object", "properties": {}, "required": [] }
   },
   {
     "id": 760706,
     "name": "Документы / Подать заявку на бумажный ЛГ",
+    "type": "Персональная",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "apartment"]
     }
   },
   {
     "id": 304752,
     "name": "Документы / Акт осмотра помещения (НЕ ДЛЯ МП)",
+    "type": "Персональная",
+    "action": "ticket",
     "parameters": {
       "type": "object",
       "properties": {
-        "flat": { "type": "integer", "description": "Номер квартиры" }
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" },
+        "details": { "type": "string", "description": "опишите проблему подробнее" }
       },
-      "required": ["flat"]
+      "required": ["street", "house", "resident", "apartment", "details"]
     }
   },
   {
     "id": 304755,
     "name": "Входящая регистрация Сроки / Жалоба на запах газа в помещении или придомовой территории",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Персональная",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
+      },
+      "required": ["street", "house", "resident", "apartment"]
+    }
   },
   {
     "id": 304756,
     "name": "Входящая регистрация Сроки / Нарушение качества коммунальной услуги",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Персональная",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
+      },
+      "required": ["street", "house", "resident", "apartment"]
+    }
   },
   {
     "id": 304757,
     "name": "Входящая регистрация Сроки / Нарушение качества коммунальной услуги, повлекшее причинение ущерба жизни, здоровью, имуществу",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Персональная",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
+      },
+      "required": ["street", "house", "resident", "apartment"]
+    }
   },
   {
     "id": 304758,
     "name": "Входящая регистрация Сроки / Запрос информации о показаниях общедомовых приборов учета",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304759,
-    "name": "Входящая регистрация Сроки / Запрос общих сведений, в соответствии со Стандартом раскрытия информации",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "name": "Входящая регистрация Сроки / Запрос общих  сведений, в соответствии со Стандартом раскрытия информации",
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304760,
     "name": "Входящая регистрация Сроки / Об изменении размера платы за ЖКУ и выполнение работ по управлению",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Персональная",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
+      },
+      "required": ["street", "house", "resident", "apartment"]
+    }
   },
   {
     "id": 304761,
     "name": "Входящая регистрация Сроки / Жалоба/заявление/обращение на качество предоставления КУ",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Персональная",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
+      },
+      "required": ["street", "house", "resident", "apartment"]
+    }
   },
   {
     "id": 304762,
     "name": "Входящая регистрация Сроки / Запрос информации об объемах потребленных КУ, объемах КР на СОИ, показаниях ОДПУ",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304763,
     "name": "Входящая регистрация Сроки / Запрос копий актов: о причинении ущерба жизни, имуществу; о нарушении качества оказания услуг; акта проверки КУ",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Персональная",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
+      },
+      "required": ["street", "house", "resident", "apartment"]
+    }
   },
   {
     "id": null,
     "name": "Входящая регистрация Сроки / О вводе ИПУ в эксплуатацию",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Персональная",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
+      },
+      "required": ["street", "house", "resident", "apartment"]
+    }
   },
   {
     "id": 304765,
     "name": "Входящая регистрация Сроки / Запрос информации о перечнях, объемах и качестве оказанных услуг/выполненных работ",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 304766,
     "name": "Входящая регистрация Сроки / О перерасчете платы за КУ на период временного отсутсвия потребителя",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Персональная",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
+      },
+      "required": ["street", "house", "resident", "apartment"]
+    }
   },
   {
     "id": 304767,
     "name": "Входящая регистрация Сроки / О проведении ОСС в письменной форме",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 407491,
     "name": "Мобильное приложение / Тех.поддержка (НЕ ДЛЯ МП)",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
+  },
+  {
+    "id": 304768,
+    "name": "Мобильное приложение и ЛК / Добавить пользователя в ЛС",
+    "type": "Персональная",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
+      },
+      "required": ["street", "house", "resident", "apartment"]
+    }
+  },
+  {
+    "id": 304769,
+    "name": "Мобильное приложение и ЛК / Сообщить об ошибке",
+    "type": "Персональная",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
+      },
+      "required": ["street", "house", "resident", "apartment"]
+    }
+  },
+  {
+    "id": 304770,
+    "name": "Мобильное приложение и ЛК / Подключение ЛС клиента",
+    "type": "Персональная",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" },
+        "apartment": { "type": "integer", "description": "Номер квартиры" }
+      },
+      "required": ["street", "house", "resident", "apartment"]
+    }
+  },
+  {
+    "id": 309343,
+    "name": "Предложить идею / Предложить идею для реализации в доме",
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": 323315,
     "name": "Офисные помещения (НЕ для МП) / Изменение в вывеске офисного помещения (смена, установка, демонтаж вывески)",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": null,
     "name": "Офисные помещения (НЕ для МП) / Списание показаний по офисам (НЕ ДЛЯ МП)",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   },
   {
     "id": null,
-    "name": "Иное / Иное",
-    "parameters": { "type": "object", "properties": {}, "required": [] }
+    "name": "Канализация / Протечка канализации (ДЛЯ КНОПКИ)",
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
+  },
+  {
+    "id": null,
+    "name": "Кровля / Протечки кровли (ДЛЯ КНОПКИ)",
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
+  },
+  {
+    "id": null,
+    "name": "Водоснабжение / Протечка (ДЛЯ КНОПКИ)",
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
+  },
+  {
+    "id": null,
+    "name": "Отопление / Протечка отопления (ДЛЯ КНОПКИ)",
+    "type": "Общедомовая",
+    "action": "ticket",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "street": { "type": "string", "description": "Название улицы" },
+        "house": { "type": "string", "description": "Номер дома" },
+        "resident": { "type": "string", "description": "ФИО звонящего" }
+      },
+      "required": ["street", "house", "resident"]
+    }
   }
 ]

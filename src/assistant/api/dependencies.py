@@ -153,7 +153,11 @@ class Container:
 
     @property
     def demo_phones(self) -> list[str]:
-        """Список демо-телефонов из InMemoryCrm — пуст, если подключена реальная CRM."""
+        """Список демо-телефонов из активной CRM-заглушки."""
+        if self.settings.dialog_adapter == "cloudru":
+            from assistant.services.cloudru.bridge import load_cloudru_demo_phones
+
+            return load_cloudru_demo_phones()
         crm = getattr(self.crm, "inner", self.crm)  # TelegramCrm оборачивает InMemoryCrm
         return [o.phone for o in DEMO_OWNERS] if isinstance(crm, InMemoryCrm) else []
 

@@ -2,7 +2,8 @@ from src.assistant import Assistant
 
 
 def main() -> None:
-    assistant = Assistant()
+    phone = "+79990000001"
+    assistant = Assistant(phone=phone)
 
     while True:
         user_text = input("> ").strip()
