@@ -25,6 +25,7 @@ class TurnResponse(BaseModel):
     state: CallState
     events: list[Event] = Field(default_factory=list)
     timings: dict[str, int] | None = None   # мс по этапам: asr / dialog / tts
+    init: dict | None = None                # диагностика инициализации звонка (/call/start)
 
 class AsrResponse(BaseModel):
     """Проба ASR: сырой/обработанный текст без диалога"""

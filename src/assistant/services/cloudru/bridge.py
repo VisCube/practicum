@@ -301,10 +301,10 @@ def _install_tool_guards() -> None:
     current_create = handlers.get("create_ticket")
     if current_create is not None and not getattr(current_create, "_cloudru_guarded", False):
         def guarded_create_ticket(
-                category: str,
-                phone: str,
-                description: str,
-                **fields: Any,
+            category: str,
+            phone: str,
+            description: str,
+            **fields: Any,
         ) -> Any:
             if not _is_filled(description):
                 return {"missing_fields": ["description"]}

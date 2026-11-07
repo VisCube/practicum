@@ -369,6 +369,12 @@
         .tool-call.ok .tool-fn i { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
         .tool-call.warn .tool-fn i { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
         .tool-call.bad .tool-fn i { background: color-mix(in srgb, var(--bad) 15%, transparent); color: var(--bad); }
+        .tool-call.pending { border-left-color: var(--warn); }
+        .tool-call.pending .tool-fn i {
+          background: color-mix(in srgb, var(--warn) 18%, transparent);
+          color: var(--warn);
+          animation: pulse 1.3s ease-in-out infinite;
+        }
         .tool-brief {
           color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
           min-width: 0; flex: 1;
@@ -1420,8 +1426,127 @@
       record('[tool] ' + name + '(' + JSON.stringify(args) + ') → ' + JSON.stringify(res));
     }
 
+    function formatPipelineLine(pipe) {
+      const p = pipe || app.cfg || {};
+      return [
+        p.dialog ? 'dialog: ' + p.dialog : null,
+        p.llm_model ? 'model: ' + p.llm_model : null,
+        p.asr ? 'asr: ' + p.asr : null,
+        p.tts ? 'tts: ' + p.tts + (app.ttsSpeaker ? ' (' + app.ttsSpeaker + ')' : '') : null,
+        p.crm ? 'crm: ' + p.crm : null,
+      ].filter(Boolean).join(' · ');
+    }
+
+    function addCallStartPending(phone) {
+      const node = document.createElement('details');
+      node.className = 'tool-call init pending';
+      const hint = app.cfg.dialog === 'cloudru'
+        ? 'передача номера в Assistant, идентификация и приветствие…'
+        : 'создание сессии, проверка CRM и приветствие…';
+      node.innerHTML =
+        '<summary>' +
+          '<span class="tool-fn"><i>init</i>call.start</span>' +
+          '<span class="tool-brief">' + escapeHtml(phone + ' · ' + hint) + '</span>' +
+          '<span class="tool-chev">▸</span>' +
+        '</summary>' +
+        '<div class="tool-body">' +
+          '<div><div class="tool-sec-lbl">ход инициализации</div>' +
+            '<pre class="tool-pre">1. POST /call/start (phone=' + escapeHtml(JSON.stringify(phone)) + ')\n' +
+            '2. Ожидание инициализации сессии и ответа сервера…</pre>' +
+          '</div>' +
+          '<div><div class="tool-sec-lbl">активный контур</div>' +
+            '<pre class="tool-pre">' + escapeHtml(formatPipelineLine(app.cfg) || 'загрузка…') + '</pre>' +
+          '</div>' +
+        '</div>';
+      ui.thread.appendChild(node);
+      ui.transcript.scrollTop = ui.transcript.scrollHeight;
+      return node;
+    }
+
+    function resolveCallStartCard(node, reply, elapsedMs) {
+      if (!node) return;
+      const wasOpen = node.open;
+      const info = reply.init || {};
+      const timings = info.timings_ms || reply.timings || {};
+      const totalMs = Object.values(timings).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0) || elapsedMs || 0;
+      const caller = info.caller;
+      const callerShort = caller && caller.full_name
+        ? caller.full_name
+        : 'нет в CRM';
+      const tone = reply.transfer ? 'bad' : (info.identified ? 'ok' : '');
+      const callIdShort = (reply.call_id || info.call_id || '').slice(0, 8);
+      const brief = [
+        info.phone || app.phone,
+        callIdShort ? '#' + callIdShort : null,
+        callerShort,
+        totalMs ? totalMs + ' мс' : null,
+      ].filter(Boolean).join(' · ');
+
+      const steps = Array.isArray(info.steps) && info.steps.length
+        ? info.steps.map((s, idx) => (idx + 1) + '. ' + s).join('\n')
+        : '1. Сессия открыта (call_id=' + (reply.call_id || '—') + ')';
+
+      const callerFull = caller && caller.full_name
+        ? [
+            caller.full_name,
+            caller.address || null,
+            caller.apartment ? 'кв. ' + caller.apartment : null,
+          ].filter(Boolean).join(', ')
+        : 'не найден в CRM (новый абонент)';
+
+      const timingParts = Object.entries(timings).map(([k, v]) => k + ': ' + v + ' мс');
+      if (elapsedMs) timingParts.push('rtt: ' + elapsedMs + ' мс');
+
+      const summaryLines = [
+        'call_id:  ' + (reply.call_id || info.call_id || '—'),
+        'телефон:  ' + (info.phone || app.phone || '—'),
+        'абонент:  ' + callerFull,
+        'контур:   ' + (formatPipelineLine(info.pipeline) || '—'),
+        timingParts.length ? 'тайминги: ' + timingParts.join(' · ') : null,
+      ].filter(Boolean).join('\n');
+
+      node.className = 'tool-call init' + (tone ? ' ' + tone : '');
+      node.innerHTML =
+        '<summary>' +
+          '<span class="tool-fn"><i>init</i>call.start</span>' +
+          '<span class="tool-brief">' + escapeHtml(brief) + '</span>' +
+          '<span class="tool-chev">▸</span>' +
+        '</summary>' +
+        '<div class="tool-body">' +
+          '<div><div class="tool-sec-lbl">ход инициализации</div><pre class="tool-pre">' + escapeHtml(steps) + '</pre></div>' +
+          '<div><div class="tool-sec-lbl">сессия и тайминги</div><pre class="tool-pre">' + escapeHtml(summaryLines) + '</pre></div>' +
+          (info.context
+            ? '<div><div class="tool-sec-lbl">контекст старта</div><pre class="tool-pre">' + escapeHtml(formatToolValue(info.context)) + '</pre></div>'
+            : '') +
+        '</div>';
+      node.open = wasOpen;
+      record('[init] call.start · ' + brief);
+    }
+
+    function addOutageNotice(p) {
+      if (!p) return;
+      const addr = p.address || '';
+      const desc = p.description || '';
+      const brief = [addr, desc].filter(Boolean).join(' · ');
+      const node = document.createElement('details');
+      node.className = 'tool-call warn';
+      node.innerHTML =
+        '<summary>' +
+          '<span class="tool-fn"><i>crm</i>outage_notice</span>' +
+          '<span class="tool-brief">' + escapeHtml(brief) + '</span>' +
+          '<span class="tool-chev">▸</span>' +
+        '</summary>' +
+        '<div class="tool-body">' +
+          '<div><div class="tool-sec-lbl">активное отключение по адресу</div><pre class="tool-pre">' + escapeHtml(formatToolValue(p)) + '</pre></div>' +
+        '</div>';
+      ui.thread.appendChild(node);
+      ui.transcript.scrollTop = ui.transcript.scrollHeight;
+      record('[crm] outage_notice · ' + brief);
+    }
+
     function addEvent(event) {
       if (event.type === 'tool_call') return addToolCall(event.payload);
+      if (event.type === 'outage_notice') return addOutageNotice(event.payload);
       if (event.type === 'appeal_created') return addAppealCard(event.payload);
     }
 
@@ -2145,8 +2270,10 @@
       startCallTimer();
       refreshLiveView();
       record('— Звонок с номера ' + app.phone);
+      const initCard = addCallStartPending(app.phone);
+      const startedAt = performance.now();
       setBusy(true);
-      showStatus('Начинаем звонок…');
+      showStatus('Инициализация звонка…');
       // пока идёт /call/start и играет приветствие — греем TTS/LLM на сервере
       warmServer();
       // устройство микрофона открываем сразу: пока идёт /call/start и синтез
@@ -2155,7 +2282,10 @@
 
       try {
         const reply = await api('/call/start', postJson({ phone: app.phone }, audioHeader()));
+        const elapsedMs = Math.round(performance.now() - startedAt);
         app.callId = reply.call_id;
+        logTimings(reply.timings);
+        resolveCallStartCard(initCard, reply, elapsedMs);
         refreshLiveView();
         await handleReply(reply);
       } catch (err) {
@@ -2290,7 +2420,10 @@
       stopListening(false);
       showStatus('');
 
-      events.forEach((ev) => { if (ev.type === 'tool_call') addToolCall(ev.payload); });
+      events.forEach((ev) => {
+        if (ev.type === 'tool_call') addToolCall(ev.payload);
+        else if (ev.type === 'outage_notice') addOutageNotice(ev.payload);
+      });
       if (reply.text) addBubble('bot', reply.text, describeVoicing(reply));
       events.forEach((ev) => { if (ev.type === 'appeal_created') addAppealCard(ev.payload); });
 

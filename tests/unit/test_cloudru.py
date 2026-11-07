@@ -110,9 +110,9 @@ def test_bridge_isolates_upstream_src_and_loads_category_metadata(cloudru_env: N
 
 
 def test_bridge_survives_stale_crm_py_file_on_disk(
-        cloudru_env: None,
-        monkeypatch: pytest.MonkeyPatch,
-        tmp_path: Path,
+    cloudru_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     """Если в рабочей копии остался старый `tools/crm.py` рядом с папкой `tools/crm/`
     (без `__init__.py`), мост всё равно должен загрузить пакет `src.tools.crm`."""
@@ -278,7 +278,7 @@ class _FakeUpstreamAssistant:
 
 
 def _build_dialog(
-        script: list[tuple[str, list[_FakeToolCall]]],
+    script: list[tuple[str, list[_FakeToolCall]]],
 ) -> tuple[CloudRuDialogAdapter, Outbox, FakeTelephony, list[_FakeUpstreamAssistant]]:
     created: list[_FakeUpstreamAssistant] = []
 
@@ -610,7 +610,7 @@ async def test_dialog_adapter_handles_transfer_autostart_and_start_fallback() ->
 
 
 def test_fastapi_container_wires_cloudru_demo_phones_ui_input_and_asr(
-        monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     data_dir = Path(__file__).resolve().parents[2] / "data"
     monkeypatch.delenv("RAG_KEY_ID", raising=False)
@@ -711,12 +711,21 @@ def test_fastapi_container_wires_cloudru_demo_phones_ui_input_and_asr(
         assert started["text"].startswith("Здравствуйте, Иван Иванович")
         assert [e["type"] for e in started["events"]] == ["tool_call"]
         assert started["events"][0]["payload"]["name"] == "get_resident_by_phone"
+        assert started["init"] is not None
+        assert started["init"]["call_id"] == call_id
+        assert started["init"]["phone"] == "+79990000001"
+        assert started["init"]["identified"] is True
+        assert started["init"]["caller"]["full_name"] == "Иванов Иван Иванович"
+        assert started["init"]["pipeline"]["dialog"] == "cloudru"
+        assert started["init"]["context"]["tools_called"] == ["get_resident_by_phone"]
+        assert any("Assistant(phone='+79990000001')" in s for s in started["init"]["steps"])
 
         audio_turn = client.post(
             f"/debug/call/{call_id}/say-audio",
             content=b"\x01\x00" * 1600,
             headers={"Content-Type": "audio/pcm", "X-Phone": "+79990000001"},
         ).json()
+        assert audio_turn["init"] is None
         assert audio_turn["heard"] == "сломался лифт во втором подъезде"
         assert audio_turn["state"] == "done"
         assert [e["type"] for e in audio_turn["events"]] == ["tool_call", "appeal_created"]

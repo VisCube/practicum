@@ -56,6 +56,7 @@ class CloudRuDialogAdapter:
     """Адаптер под контракт `Orchestrator` (`start` / `handle_turn`) для `Assistant`."""
 
     llm = None  # совместимость с проверками атрибута у Orchestrator
+    START_CUE = _START_CUE
 
     def __init__(
         self,

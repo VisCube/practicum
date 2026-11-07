@@ -51,7 +51,17 @@ async def start(payload: StartRequest, request: Request,
                 container: Container = Depends(get_container)) -> TurnResponse:
     """Начало звонка: заводим сессию, робот приветствует пользователя"""
     call_id = payload.call_id or uuid4().hex[:12]
-    return await execute_turn(container, call_id, container.orchestrator.start(call_id, payload.phone), request)
+    response = await execute_turn(
+        container, call_id, container.orchestrator.start(call_id, payload.phone), request,
+    )
+    response.init = container.build_start_init(
+        call_id=call_id,
+        phone=payload.phone,
+        state=response.state,
+        events=response.events,
+        timings=response.timings,
+    )
+    return response
 
 
 @router.post("/turn", response_model=TurnResponse)

@@ -11,7 +11,7 @@ from typing import Protocol
 from fastapi import Request
 
 from assistant.core.config import Settings
-from assistant.core.models import Reply, TopicKind
+from assistant.core.models import CallState, Event, Reply, TopicKind
 from assistant.core.orchestrator import Orchestrator
 from assistant.core.session_store import InMemorySessionStore, SessionStore
 from assistant.handlers.consultation import ConsultationHandler
@@ -115,6 +115,94 @@ class Container:
             events=reply.events,
             timings=stages or None,
         )
+
+    def build_start_init(
+        self,
+        *,
+        call_id: str,
+        phone: str,
+        state: CallState,
+        events: list[Event],
+        timings: dict[str, int] | None,
+    ) -> dict[str, object]:
+        """Собирает прозрачную сводку инициализации звонка для отображения в UI на `/call/start`."""
+        from assistant.services.tts.fake import FakeTts
+
+        settings = self.settings
+        clean_phone = phone.strip()
+        session = self.orchestrator.store.get(call_id)
+        owner = session.owner if session else None
+
+        pipeline: dict[str, str] = {
+            "dialog": settings.dialog_adapter,
+            "asr": "fake" if isinstance(self.asr, FakeAsr) else settings.asr_adapter,
+            "tts": "fake" if isinstance(self.tts, FakeTts) else settings.tts_adapter,
+            "crm": settings.crm_adapter,
+        }
+        if settings.dialog_adapter == "cloudru" and settings.llm_model:
+            pipeline["llm_model"] = settings.llm_model
+        elif getattr(self.orchestrator, "llm", None) and settings.llm_model:
+            pipeline["llm_model"] = settings.llm_model
+
+        steps: list[str] = []
+        context: dict[str, object]
+        if settings.dialog_adapter == "cloudru":
+            start_cue = str(getattr(self.orchestrator, "START_CUE", "Алло"))
+            tool_names = [
+                str(ev.payload.get("name"))
+                for ev in events
+                if ev.type == "tool_call" and ev.payload.get("name")
+            ]
+            steps.append(f"Создан агент Assistant(phone={clean_phone!r})")
+            steps.append(f"Передан системный промпт + «Звонок с номера {clean_phone}»")
+            steps.append(f"Выполнен стартовый ход приветствия (сигнал: {start_cue!r})")
+            if tool_names:
+                steps.append(f"Вызваны инструменты на старте: {', '.join(tool_names)}")
+            elif owner:
+                steps.append("Идентификация выполнена через локальный фолбэк CRM-заглушки")
+            context = {
+                "runner": "CloudRuDialogAdapter → Assistant",
+                "system_messages": ["prompts/Assistant.md", f"Звонок с номера {clean_phone}"],
+                "start_cue": start_cue,
+                "tools_called": tool_names,
+            }
+        else:
+            steps.append(f"Создана сессия звонка (phone={clean_phone!r})")
+            steps.append("Поиск карточки собственника: crm.find_owner_by_phone")
+            outage_count = sum(1 for ev in events if ev.type == "outage_notice")
+            if owner:
+                steps.append(
+                    f"Проверка аварий по адресу ({owner.address}): найдено {outage_count}",
+                )
+            context = {
+                "runner": "Orchestrator (rules)",
+                "crm_lookup": "find_owner_by_phone" + (" + active_outages" if owner else ""),
+                "outages_found": outage_count,
+            }
+
+        stages = dict(timings or {})
+        if "tts" in stages:
+            steps.append(f"Синтезировано приветствие ({pipeline['tts']}, {stages['tts']} мс)")
+
+        caller: dict[str, str] | None = None
+        if owner:
+            caller = {
+                "full_name": owner.full_name,
+                "address": owner.address,
+                "apartment": owner.apartment,
+            }
+
+        return {
+            "call_id": call_id,
+            "phone": clean_phone,
+            "state": str(state),
+            "identified": owner is not None,
+            "caller": caller,
+            "pipeline": pipeline,
+            "steps": steps,
+            "context": context,
+            "timings_ms": stages,
+        }
 
     async def warm(self) -> dict[str, int]:
         """Прогревает адаптеры, чтобы первый ход не платил за холодный старт.

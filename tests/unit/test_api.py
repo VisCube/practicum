@@ -49,6 +49,9 @@ def test_telephony_contract_full_call():
         assert response["text"].startswith("Здравствуйте, Иван Иванович")
         assert response["events"][0]["type"] == "outage_notice"
         assert response["audio_b64"] is None  # FakeTts → браузер озвучит сам
+        assert response["init"]["identified"] is True
+        assert response["init"]["caller"]["full_name"] == "Иванов Иван Иванович"
+        assert response["init"]["context"]["outages_found"] == 1
 
         response = _turn(client, call_id, "течёт из батареи")
         assert response["state"] == "confirm"
