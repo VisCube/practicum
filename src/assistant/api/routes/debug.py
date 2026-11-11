@@ -5,6 +5,7 @@
 
 import base64
 import hashlib
+import logging
 import time
 from pathlib import Path
 
@@ -23,8 +24,25 @@ from ..schemas.dto import DebugConfig, SessionView, TtsRequest, TtsResponse, Tur
 from .telephony import execute_turn
 
 router = APIRouter(prefix="/debug", tags=["debug"])
+log = logging.getLogger(__name__)
 
-_HTML = Path(__file__).resolve().parent.parent / "static" / "index.html"
+
+def _static_index() -> Path:
+    """Какой файл стенда раздавать.
+
+    В контейнере пакет ставится НЕ editable (`pip install .`), поэтому при
+    сборке образа index.html копируется в site-packages, и сервер читает
+    копию, запечённую в образ. Раздаём исходник из проекта (в образе он лежит
+    в /app/src), а копию из пакета берём только если исходников рядом нет.
+    """
+    source = Path.cwd() / "src" / "assistant" / "api" / "static" / "index.html"
+    if source.is_file():
+        return source
+    return Path(__file__).resolve().parent.parent / "static" / "index.html"
+
+
+_HTML = _static_index()
+_PACKAGED_HTML = Path(__file__).resolve().parent.parent / "static" / "index.html"
 
 
 def ui_build() -> str:
@@ -39,15 +57,54 @@ def ui_build() -> str:
         return "?"
 
 
+def client_mark(html: str) -> str:
+    """Метка версии клиентской логики из самого файла (UI_BUILD = '...')."""
+    marker = "const UI_BUILD = '"
+    start = html.find(marker)
+    if start < 0:
+        return "?"
+    start += len(marker)
+    end = html.find("'", start)
+    return html[start:end] if end > start else "?"
+
+
+def log_ui_build() -> None:
+    """Пишет в лог сервера, какую именно статику он раздаёт."""
+    try:
+        mtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(_HTML.stat().st_mtime))
+        html = _HTML.read_text(encoding="utf-8")
+        mark = client_mark(html)
+        log.info("стенд: %s | сборка %s | клиент %s | изменён %s",
+                 _HTML, ui_build(), mark, mtime)
+        if mark == "?":
+            log.warning("стенд: в раздаваемом файле нет метки версии клиента — "
+                        "это старая ревизия, пересоберите образ или обновите файл")
+    except OSError:
+        log.warning("стенд: файл статики не найден — %s", _HTML)
+        return
+    if _PACKAGED_HTML != _HTML and _PACKAGED_HTML.is_file():
+        try:
+            packaged = hashlib.sha1(_PACKAGED_HTML.read_bytes()).hexdigest()[:8]
+            if packaged != ui_build():
+                log.warning("стенд: копия в пакете (%s) отличается от раздаваемой — "
+                            "образ собран из другой ревизии", _PACKAGED_HTML)
+        except OSError:
+            pass
+
+
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def index() -> HTMLResponse:
     # no-store: иначе браузер (и прокси) показывают вчерашний стенд после деплоя
+    html = _HTML.read_text(encoding="utf-8")
+    build = ui_build()
     return HTMLResponse(
-        _HTML.read_text(encoding="utf-8"),
+        html,
         headers={
             "Cache-Control": "no-store, max-age=0, must-revalidate",
             "Pragma": "no-cache",
             "Expires": "0",
+            "X-Ui-Build": build,
+            "X-Ui-Client": client_mark(html),
         },
     )
 
@@ -124,7 +181,7 @@ async def session(call_id: str, container: Container = Depends(get_container)) -
 @router.delete("/call/{call_id}", status_code=204)
 async def hangup(call_id: str, container: Container = Depends(get_container)) -> None:
     """Завершает звонок - удаляет сессию из хранилища"""
-    container.orchestrator.store.delete(call_id)
+    container.delete_call(call_id)
 
 
 @router.get("/outbox", response_model=list[OutboxRecord])

@@ -239,6 +239,13 @@ class Container:
             with contextlib.suppress(Exception):
                 await closeable.aclose()
 
+    def delete_call(self, call_id: str) -> None:
+        """Удаляет сессию звонка и связанного с ней диалогового агента."""
+        self.orchestrator.store.delete(call_id)
+        agents = getattr(self.orchestrator, "_agents", None)
+        if isinstance(agents, dict):
+            agents.pop(call_id, None)
+
     @property
     def demo_phones(self) -> list[str]:
         """Список демо-телефонов из активной CRM-заглушки."""

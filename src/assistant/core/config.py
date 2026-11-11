@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # Общее
     app_env: str = "dev"
     debug_ui: bool = False          # монтировать /debug и HTML-стенд (только dev)
+    voice_ws: bool = True           # голосовой канал стенда: WS /ws/call (нужен debug_ui)
     log_level: str = "INFO"
 
     # Данные

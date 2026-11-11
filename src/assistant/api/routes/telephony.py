@@ -37,7 +37,7 @@ async def execute_turn(container: Container, call_id: str, turn: Awaitable[Reply
             store.save(session)
     stages["dialog"] = int((time.perf_counter() - dialog_started) * 1000)
     if reply.end_call:
-        store.delete(call_id)
+        container.delete_call(call_id)
     return await container.to_response(
         call_id, reply, heard=heard,
         with_audio=want_audio(request),

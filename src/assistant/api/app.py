@@ -51,7 +51,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "ok", "env": settings.app_env}
 
     if settings.debug_ui:
-        from .routes import debug
+        from .routes import debug, voice_ws
         app.include_router(debug.router)
+        debug.log_ui_build()
+        if settings.voice_ws:
+            app.include_router(voice_ws.router)
 
     return app
