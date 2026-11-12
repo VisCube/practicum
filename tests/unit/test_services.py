@@ -223,3 +223,46 @@ def test_render_appeal_fits_telegram_limit():
     appeal = _appeal()
     appeal.transcript = [Turn(role="bot", text="x" * 500)] * 20
     assert len(render_appeal(appeal, {})) <= 4096
+
+
+def test_silero_tts_sets_num_threads_after_accentor_reset(monkeypatch, tmp_path):
+    """silero_stress при импорте вызывает torch.set_num_threads(1) —
+    проверяем, что SileroTts выставляет num_threads строго ПОСЛЕ загрузки акцентора."""
+    import importlib
+    import sys
+    import types
+
+    model_file = tmp_path / "v5_cis_base.pt"
+    model_file.write_bytes(b"stub")
+
+    threads_log: list[int] = []
+
+    fake_model = types.SimpleNamespace(
+        speakers=["ru_eduard", "ru_xenia"],
+        apply_tts=lambda **kw: None,
+    )
+    fake_torch = types.ModuleType("torch")
+    fake_torch.device = lambda d: d  # type: ignore[attr-defined]
+    fake_torch.set_num_threads = lambda n: threads_log.append(n)  # type: ignore[attr-defined]
+    fake_torch.package = types.SimpleNamespace(  # type: ignore[attr-defined]
+        PackageImporter=lambda _p: types.SimpleNamespace(
+            load_pickle=lambda *_a: fake_model,
+        )
+    )
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(sys.modules, "numpy", types.ModuleType("numpy"))
+    monkeypatch.delitem(sys.modules, "assistant.services.tts.silero", raising=False)
+
+    silero_mod = importlib.import_module("assistant.services.tts.silero")
+    monkeypatch.setattr(silero_mod, "_load_normalizer", lambda: None)
+
+    def fake_load_accentor(_device: str):
+        # Имитируем top-level torch.set_num_threads(1) внутри silero_stress/accentor.py
+        fake_torch.set_num_threads(1)
+        return lambda s: s
+
+    monkeypatch.setattr(silero_mod, "_load_accentor", fake_load_accentor)
+
+    tts = silero_mod.SileroTts(model_file, num_threads=2, normalize=False, stress=True)
+    assert tts.speaker == "ru_eduard"
+    assert threads_log == [1, 2]

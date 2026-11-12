@@ -411,6 +411,7 @@ def _build_tts(settings: Settings) -> SpeechSynthesizer:
             use_ssml=settings.silero_ssml,
             rate=settings.silero_rate,
             pitch=settings.silero_pitch,
+            num_threads=settings.silero_num_threads,
         )
     return FakeTts()
 

@@ -89,6 +89,7 @@ class Settings(BaseSettings):
     silero_ssml: bool = True
     silero_rate: str = "medium"     # x-slow|slow|medium|fast|x-fast
     silero_pitch: str = "medium"    # x-low|low|medium|high|x-high
+    silero_num_threads: int = 2
 
     classifier_model_path: str = "models/model.pkl"
     classifier_min_confidence: float = 0.35

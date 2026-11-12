@@ -983,7 +983,7 @@
       asrHistory: $('#asrHistory'),
     };
 
-    const UI_BUILD = 'barge-6';
+    const UI_BUILD = 'barge-7';
     console.info('[ui] страница загружена, клиент ' + UI_BUILD);
 
     window.addEventListener('unhandledrejection', (e) => showStatus('JS: ' + (e.reason?.message || e.reason), true));
@@ -1126,7 +1126,8 @@
        ========================================================= */
     const mic = {
       deviceId: localStorage.getItem('micDeviceId') || '',
-      label: 'По умолчанию (системный)',
+      savedLabel: localStorage.getItem('micDeviceLabel') || '',
+      label: localStorage.getItem('micDeviceLabel') || 'По умолчанию (системный)',
       devices: [],
       granted: false,
       denied: false,
@@ -1184,10 +1185,33 @@
               ui.micSelect.add(new Option(d.label || ('Микрофон ' + (idx + 1)), d.deviceId));
             }
           });
+          const options = Array.from(ui.micSelect.options);
+          let matched = mic.deviceId
+            ? options.find((o) => o.value === mic.deviceId)
+            : null;
+          // Браузер мог перегенерировать deviceId между сессиями при том же имени устройства
+          if (!matched && mic.savedLabel) {
+            matched = options.find((o) => o.value && o.textContent === mic.savedLabel) || null;
+          }
+          if (matched && matched.value) {
+            mic.deviceId = matched.value;
+            mic.savedLabel = matched.textContent;
+            localStorage.setItem('micDeviceId', mic.deviceId);
+            localStorage.setItem('micDeviceLabel', mic.savedLabel);
+            ui.micSelect.value = mic.deviceId;
+          } else {
+            ui.micSelect.value = '';
+            // Сбрасываем в памяти только если список реальных устройств уже раскрыт,
+            // а сохранённого микрофона среди подключённых нет.
+            mic.deviceId = '';
+          }
+        } else if (mic.deviceId) {
+          // До первого getUserMedia браузер скрывает список — НЕ затираем mic.deviceId!
+          ui.micSelect.add(new Option(mic.savedLabel || 'Сохранённый микрофон', mic.deviceId));
+          ui.micSelect.value = mic.deviceId;
+        } else {
+          ui.micSelect.value = '';
         }
-        const validSaved = mic.deviceId && Array.from(ui.micSelect.options).some((o) => o.value === mic.deviceId);
-        ui.micSelect.value = validSaved ? mic.deviceId : '';
-        if (!validSaved) mic.deviceId = '';
 
         const selOpt = ui.micSelect.selectedOptions[0];
         mic.label = selOpt ? selOpt.textContent : 'По умолчанию (системный)';
@@ -1226,10 +1250,17 @@
 
     ui.micSelect.addEventListener('change', () => {
       mic.deviceId = ui.micSelect.value || '';
-      if (mic.deviceId) localStorage.setItem('micDeviceId', mic.deviceId);
-      else localStorage.removeItem('micDeviceId');
       const opt = ui.micSelect.selectedOptions[0];
       mic.label = opt ? opt.textContent : 'По умолчанию (системный)';
+      if (mic.deviceId) {
+        mic.savedLabel = mic.label;
+        localStorage.setItem('micDeviceId', mic.deviceId);
+        localStorage.setItem('micDeviceLabel', mic.savedLabel);
+      } else {
+        mic.savedLabel = '';
+        localStorage.removeItem('micDeviceId');
+        localStorage.removeItem('micDeviceLabel');
+      }
 
       abortUtterance(true);
       closeCallMic();
@@ -1243,29 +1274,55 @@
 
     async function micGetUserMedia() {
       const base = { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+      if (!mic.deviceId && mic.savedLabel && mic.granted) {
+        await refreshMicDevices();
+      }
       if (mic.deviceId) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
             audio: Object.assign({}, base, { deviceId: { exact: mic.deviceId } }),
           });
           mic.denied = false;
-          if (!mic.granted) refreshMicDevices();
+          await refreshMicDevices();
           return stream;
         } catch (err) {
           if (err.name === 'OverconstrainedError' || err.name === 'NotFoundError') {
             mic.deviceId = '';
-            localStorage.removeItem('micDeviceId');
+            // Открываем дефолтный поток, чтобы раскрыть метки устройств, и пробуем найти сохранённый по имени
+            const fallbackStream = await navigator.mediaDevices.getUserMedia({ audio: base });
+            mic.denied = false;
             await refreshMicDevices();
-          } else {
-            if (err.name === 'NotAllowedError') mic.denied = true;
-            throw err;
+            if (mic.deviceId) {
+              const openedTrack = fallbackStream.getAudioTracks()[0];
+              const openedId = openedTrack && openedTrack.getSettings && openedTrack.getSettings().deviceId;
+              if (openedId !== mic.deviceId) {
+                try { fallbackStream.getTracks().forEach((t) => t.stop()); } catch { /* уже */ }
+                return navigator.mediaDevices.getUserMedia({
+                  audio: Object.assign({}, base, { deviceId: { exact: mic.deviceId } }),
+                });
+              }
+            }
+            return fallbackStream;
           }
+          if (err.name === 'NotAllowedError') mic.denied = true;
+          throw err;
         }
       }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: base });
         mic.denied = false;
-        if (!mic.granted) refreshMicDevices();
+        if (!mic.granted) await refreshMicDevices();
+        // Если до первого getUserMedia у нас было сохранено имя микрофона, а браузер сменил ID
+        if (mic.deviceId) {
+          const openedTrack = stream.getAudioTracks()[0];
+          const openedId = openedTrack && openedTrack.getSettings && openedTrack.getSettings().deviceId;
+          if (openedId !== mic.deviceId) {
+            try { stream.getTracks().forEach((t) => t.stop()); } catch { /* уже */ }
+            return navigator.mediaDevices.getUserMedia({
+              audio: Object.assign({}, base, { deviceId: { exact: mic.deviceId } }),
+            });
+          }
+        }
         return stream;
       } catch (err) {
         if (err.name === 'NotAllowedError') mic.denied = true;
@@ -2555,6 +2612,8 @@
         case 'asr':
           if (message.text) {
             addBubble('user', message.text, 'распознано: ' + (app.cfg.asr || 'asr'));
+          } else if (app.cfg.asr === 'fake') {
+            showStatus('ASR выключен (ASR_ADAPTER=fake) — укажите cloudru / t-one / vosk или пишите текстом', true);
           } else {
             showStatus('Речь не распознана — попробуйте сказать громче', true);
           }
@@ -2835,8 +2894,9 @@
        либо полностью выключен кнопкой.
        ========================================================= */
     const SAMPLE_RATE = 16000;
-    const THRESHOLD_SPEECH = 0.010;
-    const MIN_SPEECH_MS = 200;
+    const THRESHOLD_SPEECH = 0.008;
+    const FLOOR_MAX = 0.012;
+    const MIN_SPEECH_MS = 150;
     const PREROLL_MS = 300;
     const PREROLL_DUCK_MS = 1500;
     const MIN_AUDIO_SEC = 0.3;
@@ -3073,6 +3133,9 @@
         let ctx = await ensureAudioContext();
         if (typeof ctx.createMediaStreamSource !== 'function') ctx = await rebuildAudioContext();
         const stream = await acquireMic();
+        if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+          try { await ctx.resume(); } catch { /* уже */ }
+        }
         if (token !== micStream.token || !micCanOpen()) {
           if (token === micStream.token) micStream.pending = false;
           if (!micCanOpen()) releaseMic();
@@ -3083,7 +3146,7 @@
         micStream.processor = ctx.createScriptProcessor(2048, 1, 1);
         micStream.processor.onaudioprocess = (event) => {
           const raw = event.inputBuffer.getChannelData(0);
-          onMicLevel(rmsOf(raw));
+          onMicLevel(rmsOf(raw), raw.length / ctx.sampleRate * 1000);
           const frame = ctx.sampleRate !== SAMPLE_RATE ? resample(raw, ctx.sampleRate, SAMPLE_RATE) : raw;
           onAudioFrame(frame);
         };
@@ -3092,6 +3155,7 @@
         micStream.processor.connect(captureSink(ctx));
         micStream.readyMs = Date.now() - requestedAt;
         micStream.pending = false;
+        micStream.floor = 0;
         micStream.preroll = [];
         micStream.prerollBytes = 0;
         micStream.lastLevelAt = 0;
@@ -3114,6 +3178,7 @@
       micStream.sentBytes = 0;
       micStream.voicedMs = 0;
       micStream.lastVoiceAt = 0;
+      micStream.floor = 0;
       micStream.preroll = [];
       micStream.prerollBytes = 0;
       stopLevelMeter();
@@ -3157,11 +3222,12 @@
     }
 
     /* --- VAD: нарезка реплик по паузе и мягкое перебивание --- */
-    function onMicLevel(rms) {
+    function onMicLevel(rms, bufMs) {
       if (!micListening()) return;
       micStream.voice = rms;
       const now = Date.now();
-      const frameMs = Math.min(200, Math.max(0, now - (micStream.lastLevelAt || now)));
+      const elapsed = micStream.lastLevelAt ? (now - micStream.lastLevelAt) : 0;
+      const frameMs = bufMs > 0 ? bufMs : Math.min(200, Math.max(0, elapsed));
       micStream.lastLevelAt = now;
 
       if (app.speaking) {
@@ -3231,8 +3297,15 @@
       micStream.bargeMs = 0;
       micStream.bargeStrongMs = 0;
 
-      const voiced = rms > Math.max(THRESHOLD_SPEECH, micStream.floor * 2.5);
-      if (!voiced) micStream.floor = micStream.floor * 0.95 + rms * 0.05;
+      // Ограничиваем адаптацию фона сверху и снижаем быстро, а поднимаем медленно
+      // только на тихом фоне — иначе множитель *2.2 разгоняет порог сам от себя.
+      const speechThr = Math.max(THRESHOLD_SPEECH, Math.min(FLOOR_MAX, micStream.floor) * 2.2);
+      const voiced = rms > speechThr;
+      if (rms < micStream.floor) {
+        micStream.floor = micStream.floor * 0.85 + rms * 0.15;
+      } else if (!voiced && !micStream.streaming && rms < THRESHOLD_SPEECH * 1.2) {
+        micStream.floor = Math.min(FLOOR_MAX, micStream.floor * 0.98 + rms * 0.02);
+      }
       if (voiced) {
         micStream.lastVoiceAt = now;
         micStream.voicedMs = (micStream.voicedMs || 0) + frameMs;
@@ -3588,6 +3661,9 @@
           throw new Error('браузер не даёт захват через ScriptProcessor');
         }
         stream = await acquireMic();
+        if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+          try { await ctx.resume(); } catch { /* уже */ }
+        }
       } catch (err) {
         asr.pending = false;
         updateAsrUi();

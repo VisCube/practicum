@@ -19,8 +19,6 @@ ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=0 PIP_DISABLE_PIP_VERSION_CHECK=1
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
-COPY data ./data
-COPY src ./src
 
 RUN --mount=type=bind,source=.,target=/ctx \
     set -eu; \
@@ -34,11 +32,23 @@ RUN --mount=type=bind,source=.,target=/ctx \
     if has silero; then need models/v5_cis_base.pt && cp /ctx/models/v5_cis_base.pt ./models/v5_cis_base.pt; fi; \
     if has tone;   then need models/t-one && cp -r /ctx/models/t-one ./models/t-one; fi
 
+# Сначала ставим зависимости (с CPU-индексом PyTorch, без ~2.8 ГБ CUDA-колёс):
+# правки в src/ и data/ не сбрасывают тяжёлый слой пакетов.
 RUN --mount=type=cache,target=/root/.cache/pip \
     set -eu; \
     EXTRAS_CLEAN="$(printf '%s' "${EXTRAS}" | tr -d ' ')"; \
-    pip install -U pip && \
-    if [ -n "${EXTRAS_CLEAN}" ]; then pip install ".[${EXTRAS_CLEAN}]"; else pip install .; fi
+    mkdir -p src/assistant && touch src/assistant/__init__.py && \
+    pip install -U pip hatchling && \
+    if [ -n "${EXTRAS_CLEAN}" ]; then \
+        pip install --extra-index-url https://download.pytorch.org/whl/cpu ".[${EXTRAS_CLEAN}]"; \
+    else \
+        pip install .; \
+    fi && \
+    rm -rf src
+
+COPY data ./data
+COPY src ./src
+RUN pip install --no-deps --no-build-isolation .
 
 RUN useradd -m app && chown -R app:app /app
 USER app

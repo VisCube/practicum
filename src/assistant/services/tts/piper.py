@@ -20,7 +20,7 @@ class PiperTts(SpeechSynthesizer):
         self._cache: OrderedDict[str, Audio] = OrderedDict()
         self._cache_size = cache_size
 
-    async def synthesize(self, text: str) -> Audio:
+    async def synthesize(self, text: str, *, speaker: str | None = None) -> Audio:
         cache_key = text.strip()
         if not cache_key:
             return Audio()

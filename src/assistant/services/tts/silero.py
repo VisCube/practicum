@@ -15,7 +15,7 @@ from pathlib import Path
 import torch
 
 from assistant.core.models import Audio
-from assistant.services.tts.base import TtsError, SpeechSynthesizer
+from assistant.services.tts.base import SpeechSynthesizer, TtsError
 
 logger = logging.getLogger(__name__)
 
@@ -107,9 +107,6 @@ class SileroTts(SpeechSynthesizer):
         self.pitch = pitch
         self.device = torch.device(device)
 
-        if device == "cpu" and num_threads is not None:
-            torch.set_num_threads(num_threads)
-
         logger.info(
             "Loading Silero TTS from %s (sr=%d, device=%s, rate=%s, pitch=%s)",
             model_path, self.sample_rate, device, rate, pitch,
@@ -145,6 +142,11 @@ class SileroTts(SpeechSynthesizer):
         self._supports_accent = self._probe_apply_tts_kwargs()
         self._normalize_fn = _load_normalizer() if normalize else None
         self._accentor = _load_accentor(device) if stress else None
+
+        # Важно: silero_stress при импорте вызывает torch.set_num_threads(1),
+        # поэтому выставляем потоки строго ПОСЛЕ _load_accentor().
+        if device == "cpu" and num_threads is not None:
+            torch.set_num_threads(num_threads)
 
         if self._normalize_fn:
             logger.info("TTS preprocess: rutextnorm ON")
