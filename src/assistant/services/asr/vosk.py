@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from concurrent.futures import Executor
 
 from assistant.core.models import Audio
 from assistant.services.asr.base import AsrError
@@ -9,11 +10,18 @@ from assistant.services.asr.base import AsrError
 
 class VoskAsr:
     """Оффлайн ASR на CPU через Vosk - принимает только lpcm 16 kHz mono"""
-    def __init__(self, model_path: str, *, sample_rate: int = 16000) -> None:
+    def __init__(
+        self,
+        model_path: str,
+        *,
+        sample_rate: int = 16000,
+        executor: Executor | None = None,
+    ) -> None:
         from vosk import Model, SetLogLevel
         SetLogLevel(-1)
         self.model = Model(model_path)
         self.sample_rate = sample_rate
+        self._executor = executor
 
     async def transcribe(self, audio: Audio) -> str:
         if audio.empty:
@@ -21,7 +29,8 @@ class VoskAsr:
         mime_lower = audio.mime.lower()
         if not any(pcm_marker in mime_lower for pcm_marker in ("pcm", "l16", "raw")):
             raise AsrError(f"Vosk принимает только lpcm, получен {audio.mime}")
-        return await asyncio.to_thread(self._recognize, audio.data)
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._executor, self._recognize, audio.data)
 
     def _recognize(self, data: bytes) -> str:
         """Синхронное распознавание - вызывается через asyncio.to_thread"""

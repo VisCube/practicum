@@ -4,6 +4,7 @@ import base64
 import contextlib
 import logging
 import time
+from concurrent.futures import Executor, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
@@ -257,9 +258,29 @@ class Container:
         return [o.phone for o in DEMO_OWNERS] if isinstance(crm, InMemoryCrm) else []
 
 
+class _ExecutorCloseable:
+    """Адаптер пула потоков под закрытие в Container.aclose()."""
+
+    def __init__(self, executor: ThreadPoolExecutor) -> None:
+        self._executor = executor
+
+    async def aclose(self) -> None:
+        self._executor.shutdown(wait=False, cancel_futures=True)
+
+
 def build_container(settings: Settings) -> Container:
     """Собирает контейнер зависимостей по настройкам."""
     closeables: list = []
+
+    needs_cpu_pool = (
+        settings.asr_adapter in ("vosk", "t-one")
+        or settings.tts_adapter in ("piper", "silero")
+    )
+    cpu_executor: Executor | None = None
+    if needs_cpu_pool:
+        pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="speech-cpu")
+        closeables.append(_ExecutorCloseable(pool))
+        cpu_executor = pool
 
     use_cloudru_dialog = settings.dialog_adapter == "cloudru"
     classifier = TopicClassifier.from_yaml(
@@ -295,8 +316,8 @@ def build_container(settings: Settings) -> Container:
     else:
         raise NotImplementedError("crm_adapter=bitrix: клиент Битрикс24 ещё не реализован")
 
-    asr = _build_asr(settings)
-    tts = _build_tts(settings)
+    asr = _build_asr(settings, executor=cpu_executor)
+    tts = _build_tts(settings, executor=cpu_executor)
 
     outbox = Outbox(
         crm,
@@ -365,11 +386,19 @@ def _build_llm_tasks(settings: Settings, closeables: list) -> LlmTasks | None:
     return None
 
 
-def _build_asr(settings: Settings) -> SpeechRecognizer:
+def _build_asr(
+    settings: Settings,
+    *,
+    executor: Executor | None = None,
+) -> SpeechRecognizer:
     if settings.asr_adapter == "vosk":
         from assistant.services.asr.vosk import VoskAsr
 
-        return VoskAsr(settings.vosk_model_path, sample_rate=settings.asr_sample_rate)
+        return VoskAsr(
+            settings.vosk_model_path,
+            sample_rate=settings.asr_sample_rate,
+            executor=executor,
+        )
     if settings.asr_adapter == "t-one":
         from assistant.services.asr.tone import ToneAsr
 
@@ -377,6 +406,7 @@ def _build_asr(settings: Settings) -> SpeechRecognizer:
             settings.tone_model_dir,
             input_sample_rate=settings.asr_sample_rate,
             num_threads=settings.tone_num_threads,
+            executor=executor,
         )
     if settings.asr_adapter == "cloudru":
         from assistant.services.asr.cloudru import CloudRuAsr
@@ -391,11 +421,15 @@ def _build_asr(settings: Settings) -> SpeechRecognizer:
     return FakeAsr()
 
 
-def _build_tts(settings: Settings) -> SpeechSynthesizer:
+def _build_tts(
+    settings: Settings,
+    *,
+    executor: Executor | None = None,
+) -> SpeechSynthesizer:
     if settings.tts_adapter == "piper":
         from assistant.services.tts.piper import PiperTts
 
-        return PiperTts(settings.piper_model_path, None)
+        return PiperTts(settings.piper_model_path, None, executor=executor)
     if settings.tts_adapter == "silero":
         from assistant.services.tts.silero import SileroTts
 
@@ -412,6 +446,7 @@ def _build_tts(settings: Settings) -> SpeechSynthesizer:
             rate=settings.silero_rate,
             pitch=settings.silero_pitch,
             num_threads=settings.silero_num_threads,
+            executor=executor,
         )
     return FakeTts()
 

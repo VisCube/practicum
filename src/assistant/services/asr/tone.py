@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from concurrent.futures import Executor
 from pathlib import Path
 
 import numpy as np
@@ -25,7 +26,8 @@ class ToneAsr:
             model_dir: str | Path = "models/t-one",
             *,
             input_sample_rate: int = 16000,
-            num_threads: int = 2,
+            num_threads: int = 1,
+            executor: Executor | None = None,
     ) -> None:
         model_dir = Path(model_dir)
         model_path = model_dir / "model.onnx"
@@ -43,6 +45,7 @@ class ToneAsr:
             ) from e
 
         self.input_sample_rate = int(input_sample_rate)
+        self._executor = executor
         self._recognizer = sherpa_onnx.OnlineRecognizer.from_t_one_ctc(
             tokens=str(tokens_path),
             model=str(model_path),
@@ -63,7 +66,9 @@ class ToneAsr:
         if not any(m in mime_lower for m in ("pcm", "l16", "raw")):
             raise AsrError(f"T-one accepts lpcm only, got {audio.mime}")
         try:
-            return numbers_to_digits(await asyncio.to_thread(self._recognize, audio.data))
+            loop = asyncio.get_running_loop()
+            text = await loop.run_in_executor(self._executor, self._recognize, audio.data)
+            return numbers_to_digits(text)
         except AsrError:
             raise
         except Exception as e:

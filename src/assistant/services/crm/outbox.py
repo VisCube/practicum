@@ -51,11 +51,20 @@ class OutboxStore(Protocol):
 
 class InMemoryOutboxStore:
     """Словарь в памяти - для тестов и однопроцессного режима"""
-    def __init__(self) -> None:
+    def __init__(self, *, max_sent: int = 200) -> None:
         self._recs: dict[str, OutboxRecord] = {}
+        self._max_sent = max_sent
 
     def put(self, rec: OutboxRecord) -> None:
         self._recs[rec.appeal.id] = rec
+        if rec.status == OutboxStatus.SENT and self._max_sent > 0:
+            sent_ids = [
+                appeal_id
+                for appeal_id, item in self._recs.items()
+                if item.status == OutboxStatus.SENT
+            ]
+            for stale_id in sent_ids[: max(0, len(sent_ids) - self._max_sent)]:
+                self._recs.pop(stale_id, None)
 
     def get(self, appeal_id: str) -> OutboxRecord | None:
         return self._recs.get(appeal_id)

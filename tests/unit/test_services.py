@@ -266,3 +266,26 @@ def test_silero_tts_sets_num_threads_after_accentor_reset(monkeypatch, tmp_path)
     tts = silero_mod.SileroTts(model_file, num_threads=2, normalize=False, stress=True)
     assert tts.speaker == "ru_eduard"
     assert threads_log == [1, 2]
+
+
+async def test_outbox_store_evicts_oldest_sent_only():
+    store = InMemoryOutboxStore(max_sent=3)
+    outbox = Outbox(InMemoryCrm(), store, max_attempts=2)
+
+    appeals = [_appeal(f"c-{i}") for i in range(5)]
+    for item in appeals[:4]:
+        outbox.enqueue(item)
+
+    assert len(store._recs) == 4
+    assert await outbox.process_once() == 4
+
+    # Добавляем новую PENDING-заявку: вытесниться должен только самый старый SENT
+    outbox.enqueue(appeals[4])
+
+    assert store.get(appeals[0].id) is None
+    assert store.get(appeals[1].id) is not None
+    assert store.get(appeals[2].id) is not None
+    assert store.get(appeals[3].id) is not None
+    pending_rec = store.get(appeals[4].id)
+    assert pending_rec is not None and pending_rec.status == OutboxStatus.PENDING
+

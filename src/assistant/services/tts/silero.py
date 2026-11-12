@@ -10,6 +10,7 @@ import logging
 import re
 import wave
 from collections import OrderedDict
+from concurrent.futures import Executor
 from pathlib import Path
 
 import torch
@@ -88,7 +89,8 @@ class SileroTts(SpeechSynthesizer):
             rate: str = "fast",
             pitch: str = "medium",
             cache_size: int = 64,
-            num_threads: int | None = 4,
+            num_threads: int | None = 1,
+            executor: Executor | None = None,
     ) -> None:
         model_path = Path(model_path)
         if not model_path.is_file():
@@ -157,6 +159,7 @@ class SileroTts(SpeechSynthesizer):
 
         self._cache: OrderedDict[str, Audio] = OrderedDict()
         self._cache_size = cache_size
+        self._executor = executor
         logger.info("Silero TTS ready (speaker=%s)", self.speaker)
 
     def _probe_apply_tts_kwargs(self) -> bool:
@@ -236,7 +239,8 @@ class SileroTts(SpeechSynthesizer):
             return cached
 
         try:
-            audio = await asyncio.to_thread(self._synth, prepared, use_speaker)
+            loop = asyncio.get_running_loop()
+            audio = await loop.run_in_executor(self._executor, self._synth, prepared, use_speaker)
         except Exception as e:
             raise TtsError(f"silero synthesize failed: {e}") from e
 
@@ -252,7 +256,8 @@ class SileroTts(SpeechSynthesizer):
         wav = audio_tensor.detach().cpu().float().squeeze()
         if wav.ndim != 1:
             wav = wav.reshape(-1)
-        pcm = (wav.clamp(-1.0, 1.0) * 32767.0).to(torch.int16).numpy().tobytes()
+        tail_silence = b"\x00\x00" * int(self.sample_rate * 0.16)
+        pcm = (wav.clamp(-1.0, 1.0) * 32767.0).to(torch.int16).numpy().tobytes() + tail_silence
 
         buf = io.BytesIO()
         with wave.open(buf, "wb") as wf:

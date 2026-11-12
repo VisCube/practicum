@@ -983,7 +983,7 @@
       asrHistory: $('#asrHistory'),
     };
 
-    const UI_BUILD = 'barge-7';
+    const UI_BUILD = 'barge-8';
     console.info('[ui] страница загружена, клиент ' + UI_BUILD);
 
     window.addEventListener('unhandledrejection', (e) => showStatus('JS: ' + (e.reason?.message || e.reason), true));
@@ -1003,7 +1003,7 @@
       busy: false,
       speaking: false,
       statusError: false,
-      micEnabled: true,
+      micEnabled: false,
       ttsSpeaker: null,
       voiceOut: localStorage.getItem('voiceOut') !== 'false',
       sessionActive: false,
@@ -1283,7 +1283,7 @@
             audio: Object.assign({}, base, { deviceId: { exact: mic.deviceId } }),
           });
           mic.denied = false;
-          await refreshMicDevices();
+          if (!mic.granted) refreshMicDevices();
           return stream;
         } catch (err) {
           if (err.name === 'OverconstrainedError' || err.name === 'NotFoundError') {
@@ -1311,16 +1311,21 @@
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: base });
         mic.denied = false;
-        if (!mic.granted) await refreshMicDevices();
-        // Если до первого getUserMedia у нас было сохранено имя микрофона, а браузер сменил ID
-        if (mic.deviceId) {
-          const openedTrack = stream.getAudioTracks()[0];
-          const openedId = openedTrack && openedTrack.getSettings && openedTrack.getSettings().deviceId;
-          if (openedId !== mic.deviceId) {
-            try { stream.getTracks().forEach((t) => t.stop()); } catch { /* уже */ }
-            return navigator.mediaDevices.getUserMedia({
-              audio: Object.assign({}, base, { deviceId: { exact: mic.deviceId } }),
-            });
+        if (!mic.granted) {
+          if (mic.savedLabel) {
+            await refreshMicDevices();
+            if (mic.deviceId) {
+              const openedTrack = stream.getAudioTracks()[0];
+              const openedId = openedTrack && openedTrack.getSettings && openedTrack.getSettings().deviceId;
+              if (openedId !== mic.deviceId) {
+                try { stream.getTracks().forEach((t) => t.stop()); } catch { /* уже */ }
+                return navigator.mediaDevices.getUserMedia({
+                  audio: Object.assign({}, base, { deviceId: { exact: mic.deviceId } }),
+                });
+              }
+            }
+          } else {
+            refreshMicDevices();
           }
         }
         return stream;
@@ -2269,6 +2274,7 @@
     function beginSpeaking(label) {
       if (micStream.streaming) abortUtterance(true);
       app.speaking = true;
+      micStream.speechStartedAt = Date.now();
       micStream.floorAt = 0;
       micStream.echoFloor = 0;
       micStream.cal = [];
@@ -2324,6 +2330,10 @@
        ========================================================= */
     function setMode(mode) {
       if (!['call', 'tts', 'asr'].includes(mode)) mode = 'call';
+      if (app.mode === 'asr' && mode !== 'asr') {
+        stopAsrCapture();
+        if (!inCall()) releaseMic();
+      }
       app.mode = mode;
       localStorage.setItem('mode', mode);
       ui.modeTabs.forEach((tab) => tab.classList.toggle('on', tab.dataset.mode === mode));
@@ -2346,7 +2356,6 @@
     ui.modeTabs.forEach((tab) => tab.addEventListener('click', () => {
       if (tab.disabled) return;
       setMode(tab.dataset.mode);
-      if (tab.dataset.mode === 'asr') prewarmAsr();
     }));
 
     /* =========================================================
@@ -2510,6 +2519,7 @@
       voiceSend({ t: 'barge', turn: voice.turn });
       record('— Перебивание: бот уступил');
       setVoiceState('listening');
+      micStream.lastVoiceAt = Date.now();
       if (!micStream.streaming) startUtterance();
     }
 
@@ -2770,7 +2780,7 @@
       app.sessionActive = true;
       app.callStarted = true;
       app.statusError = false;
-      app.micEnabled = true;
+      app.micEnabled = false;
       app.callId = null;
       voice.turn = 0;
       voice.generation = 0;
@@ -2788,9 +2798,7 @@
       warmServer();
 
       try {
-        const micWarm = openCallMic({ allowPrompt: true }).catch(() => {});
         await openWsChannel(app.phone);
-        await micWarm;
       } catch (err) {
         stopCallTimer();
         closeCallMic();
@@ -2810,6 +2818,7 @@
     function hangup(note, reason) {
       note = note || 'Трубка положена';
       if (!app.callId && !app.sessionActive) return;
+      app.micEnabled = false;
       abortUtterance(false);
       closeCallMic();
       stopCallTimer();
@@ -2823,12 +2832,13 @@
       setBusy(false);
       showStatus('');
       record('— ' + note);
-      scheduleMicRelease(4000);
+      releaseMic();
       refreshLiveView();
     }
 
     // Явный выход из завершённого звонка — только по действию пользователя
     function leaveCall() {
+      app.micEnabled = false;
       abortUtterance(false);
       closeVoiceChannel();
       stopSpeech();
@@ -2902,7 +2912,9 @@
     const MIN_AUDIO_SEC = 0.3;
     const MAX_UTTERANCE_MS = 20000;
 
-    const SOFT_BARGE_CALIB_MS = 500;
+    const SOFT_BARGE_CALIB_MS = 600;
+    const MIC_SETTLE_MS = 450;
+    const MIC_OPEN_TIMEOUT_MS = 8000;
     const SOFT_BARGE_HOLD_MS = 200;
     const SOFT_BARGE_HOLD_WEAK_MS = 350;
     const BARGE_MIN_THRESHOLD = 0.014;
@@ -2923,7 +2935,7 @@
     const micStream = {
       stream: null, streamPromise: null,
       source: null, processor: null, meter: null,
-      pending: false, readyMs: 0,
+      pending: false, readyMs: 0, openedAt: 0, speechStartedAt: 0,
       voice: 0,
       floor: 0,
       echoFloor: 0,
@@ -3058,7 +3070,20 @@
       if (micTracksLive(micStream.stream)) return micStream.stream;
       if (!micStream.streamPromise) {
         const epoch = captureEpoch;
-        const opening = micGetUserMediaWithRetry().then((stream) => {
+        let timedOut = false;
+        let timerId = null;
+        const timeoutPromise = new Promise((_, reject) => {
+          timerId = setTimeout(() => {
+            timedOut = true;
+            reject(new Error('не дождался ответа от микрофона — проверьте разрешение в браузере'));
+          }, MIC_OPEN_TIMEOUT_MS);
+        });
+        const rawOpening = micGetUserMediaWithRetry().then((stream) => {
+          clearTimeout(timerId);
+          if (timedOut || epoch !== captureEpoch) {
+            try { stream.getTracks().forEach((t) => t.stop()); } catch { /* уже */ }
+            throw new Error('захват отменён');
+          }
           mic.permission = 'granted';
           const track = stream.getAudioTracks()[0];
           mic.activeLabel = (track && track.label) || 'без имени';
@@ -3074,19 +3099,18 @@
             + ', шумоподавление ' + (settings.noiseSuppression ? 'вкл' : 'выкл')
             + ', автоусиление ' + (settings.autoGainControl ? 'вкл' : 'выкл'));
           if (!mic.denied) renderMicHint('Сейчас используется: ' + mic.activeLabel, false);
-          if (epoch !== captureEpoch) {
-            try { stream.getTracks().forEach((t) => t.stop()); } catch { /* уже */ }
-            throw new Error('захват отменён: звонок завершён');
-          }
           micStream.stream = stream;
           stream.getAudioTracks().forEach((t) => {
             t.addEventListener('ended', () => {
               closeCallMic();
+              stopAsrCapture();
               releaseMic();
             });
           });
           return stream;
         });
+        rawOpening.catch(() => clearTimeout(timerId));
+        const opening = Promise.race([rawOpening, timeoutPromise]);
         micStream.streamPromise = opening;
         opening.finally(() => {
           if (micStream.streamPromise === opening) micStream.streamPromise = null;
@@ -3154,6 +3178,7 @@
         micStream.source.connect(micStream.processor);
         micStream.processor.connect(captureSink(ctx));
         micStream.readyMs = Date.now() - requestedAt;
+        micStream.openedAt = Date.now();
         micStream.pending = false;
         micStream.floor = 0;
         micStream.preroll = [];
@@ -3230,7 +3255,17 @@
       const frameMs = bufMs > 0 ? bufMs : Math.min(200, Math.max(0, elapsed));
       micStream.lastLevelAt = now;
 
+      // Первые сотни мс после открытия микрофона драйвер и AGC дают щелчок/всплеск —
+      // пропускаем переходный процесс, чтобы не срывать первую реплику бота.
+      if (micStream.openedAt && now - micStream.openedAt < MIC_SETTLE_MS) return;
+
       if (app.speaking) {
+        // Не начинаем калибровку эхо-фона на тишине, пока <audio> ещё декодирует буфер
+        const audioLive = !speaker.el
+          || (!speaker.el.paused && speaker.el.currentTime > 0.02)
+          || (micStream.speechStartedAt && now - micStream.speechStartedAt > 500);
+        if (!audioLive) return;
+
         if (!micStream.floorAt) { micStream.floorAt = now; micStream.echoFloor = rms; }
         const calibrating = now - micStream.floorAt < SOFT_BARGE_CALIB_MS;
         if (calibrating) {
@@ -3330,11 +3365,13 @@
     }
 
     function startUtterance() {
+      const now = Date.now();
       micStream.streaming = true;
       micStream.sentBytes = 0;
       micStream.voicedMs = 0;
-      micStream.startedAt = Date.now();
-      voiceSend({ t: 'speech_start', at: Date.now() });
+      micStream.startedAt = now;
+      micStream.lastVoiceAt = now;
+      voiceSend({ t: 'speech_start', at: now });
       micStream.preroll.forEach((chunk) => {
         if (voiceSendBytes(chunk)) micStream.sentBytes += chunk.byteLength;
       });
@@ -3552,12 +3589,14 @@
        ========================================================= */
     const asr = {
       source: null, processor: null, meter: null,
-      chunks: [], recording: false, pending: false, warm: false,
-      speechSeen: false, lastVoiceAt: 0, autoTimer: null, maxTimer: null,
+      chunks: [], recording: false, pending: false,
+      speechSeen: false, voicedMs: 0, openedAt: 0, lastVoiceAt: 0,
+      autoTimer: null, maxTimer: null,
     };
     // Проба останавливается сама: пауза после речи или общий лимит записи
     const ASR_SILENCE_MS = 1200;
-    const ASR_MIN_SPEECH_MS = 500;
+    const ASR_MIN_VOICED_MS = 200;
+    const ASR_SETTLE_MS = 250;
     const ASR_MAX_MS = 20000;
 
     function asrDiag() {
@@ -3577,7 +3616,7 @@
         ? 'Открываю микрофон…'
         : asr.recording
           ? 'Слушаю… говорите (остановлю сам после паузы) · ' + asrDiag()
-          : (asr.warm ? 'Микрофон готов — нажмите и говорите' : 'Нажмите и говорите — запись остановится сама');
+          : 'Нажмите и говорите — запись остановится сама';
       if (!asr.recording) ui.asrMicBtn.style.removeProperty('--level');
     }
 
@@ -3593,19 +3632,21 @@
       asr.maxTimer = null;
     }
 
-    // Уровень приходит с индикатора ~60 раз в секунду: этого хватает, чтобы
-    // поймать конец реплики и не заставлять человека жать «стоп» второй раз
-    function onAsrLevel(rms) {
+    function onAsrLevel(rms, bufMs) {
       if (!asr.recording) return;
       const now = Date.now();
+      if (asr.openedAt && now - asr.openedAt < ASR_SETTLE_MS) return;
+      const frameMs = bufMs > 0 ? bufMs : 42;
       if (rms > THRESHOLD_SPEECH) {
-        asr.speechSeen = true;
         asr.lastVoiceAt = now;
+        asr.voicedMs = (asr.voicedMs || 0) + frameMs;
+        if (asr.voicedMs >= ASR_MIN_VOICED_MS) asr.speechSeen = true;
         return;
       }
-      if (!asr.speechSeen) return;
-      const spoken = asr.chunks.reduce((n, chunk) => n + chunk.length, 0) / SAMPLE_RATE * 1000;
-      if (spoken < ASR_MIN_SPEECH_MS) return;
+      if (!asr.speechSeen) {
+        if (now - (asr.lastVoiceAt || 0) > 400) asr.voicedMs = 0;
+        return;
+      }
       if (now - asr.lastVoiceAt > ASR_SILENCE_MS) {
         clearAsrTimers();
         stopAsrAndSend();
@@ -3619,22 +3660,8 @@
       ui.asrResult.textContent = text;
     }
 
-    async function prewarmAsr() {
-      if (!micSupported || app.cfg.asr === 'fake') return;
-      if (asr.recording || asr.pending || (inCall() && micStream.processor)) return;
-      if (!micReadyToOpen()) return;   // не дёргаем браузер запросом доступа заранее
-      try {
-        await ensureAudioContext();
-        await acquireMic();
-        asr.warm = true;
-        updateAsrUi();
-        scheduleMicRelease(30000);
-      } catch { /* реальную ошибку покажем при старте записи */ }
-    }
-
     async function startAsr() {
       if (asr.recording || asr.pending) return;
-      const requestedAt = Date.now();
       unlockAudio();
 
       if (app.cfg.asr === 'fake') return startBrowserAsr();
@@ -3648,9 +3675,10 @@
         return;
       }
 
+      const needOpen = !micTracksLive(micStream.stream);
       asr.pending = true;
       updateAsrUi();
-      setAsrResult('Открываю микрофон…', 'empty');
+      if (needOpen) setAsrResult('Открываю микрофон…', 'empty');
 
       let ctx;
       let stream;
@@ -3685,23 +3713,13 @@
 
       asr.chunks = [];
       asr.speechSeen = false;
+      asr.voicedMs = 0;
+      asr.openedAt = Date.now();
       asr.lastVoiceAt = 0;
       clearAsrTimers();
       asr.pending = false;
       asr.recording = true;
-      asr.readyMs = Date.now() - requestedAt;
       updateAsrUi();
-      setTimeout(() => {
-        if (asr.recording && audioCtx && audioCtx.state !== 'running') {
-          setAsrResult('Браузер приостановил звук (' + audioCtx.state + ') — нажмите кнопку ещё раз', 'error');
-        }
-      }, 900);
-
-      setAsrResult(
-        'Говорите — запись остановится сама после паузы'
-        + (asr.readyMs > 400 ? ' (микрофон открывался ' + (asr.readyMs / 1000).toFixed(1) + ' с)' : ''),
-        'empty'
-      );
 
       asr.meter = createMeter(ctx, asr.source, ui.asrMicBtn);
 
@@ -3712,19 +3730,30 @@
 
       asr.processor.onaudioprocess = (event) => {
         const raw = event.inputBuffer.getChannelData(0);
-        onAsrLevel(rmsOf(raw));
         const frame = ctx.sampleRate !== SAMPLE_RATE ? resample(raw, ctx.sampleRate, SAMPLE_RATE) : raw;
         asr.chunks.push(floatToInt16(frame));
+        onAsrLevel(rmsOf(raw), raw.length / ctx.sampleRate * 1000);
       };
 
       asr.source.connect(asr.processor);
       asr.processor.connect(captureSink(ctx));
+      if (ctx.state !== 'running') {
+        try { await ctx.resume(); } catch { /* уже */ }
+      }
+      if (!asr.recording) return;
+      if (ctx.state !== 'running') {
+        stopAsrCapture();
+        setAsrResult('Браузер приостановил звук (' + ctx.state + ') — нажмите кнопку ещё раз', 'error');
+        return;
+      }
+      setAsrResult('Говорите — запись остановится сама после паузы', 'empty');
     }
 
     function stopAsrCapture() {
       clearAsrTimers();
       asr.pending = false;
       asr.recording = false;
+      asr.voicedMs = 0;
       stopAsrMeter();
       try {
         if (asr.processor) {
@@ -3736,11 +3765,17 @@
       asr.processor = null;
       asr.source = null;
       updateAsrUi();
-      if (!(inCall() && micStream.processor)) scheduleMicRelease(15000);
+      if (!(inCall() && micStream.processor)) scheduleMicRelease(120000);
     }
 
     async function stopAsrAndSend() {
-      if (asr.pending && !asr.recording) { stopAsrCapture(); setAsrResult(''); return; }
+      if (asr.pending && !asr.recording) {
+        captureEpoch++;
+        stopAsrCapture();
+        releaseMic();
+        setAsrResult('Запись отменена', 'empty');
+        return;
+      }
       if (!asr.recording) return;
 
       stopAsrCapture();
@@ -3820,9 +3855,6 @@
       ui.asrHistory.prepend(item);
       while (ui.asrHistory.children.length > 40) ui.asrHistory.lastElementChild.remove();
     }
-
-    // наведение на кнопку — тоже повод открыть устройство заранее
-    ui.asrMicBtn.addEventListener('pointerenter', () => { prewarmAsr(); });
 
     ui.asrMicBtn.addEventListener('click', () => {
       if (asr.recording || asr.pending) stopAsrAndSend();

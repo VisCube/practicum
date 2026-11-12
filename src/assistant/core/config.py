@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     asr_sample_rate: int = 16000    # lpcm на входе
     vosk_model_path: str = "models/vosk-model-small-ru-0.22"
     tone_model_dir: str = "models/t-one"
-    tone_num_threads: int = 2
+    tone_num_threads: int = 1
     asr_itn: bool = True
 
     # LLM — любой OpenAI-совместимый endpoint
@@ -89,7 +89,7 @@ class Settings(BaseSettings):
     silero_ssml: bool = True
     silero_rate: str = "medium"     # x-slow|slow|medium|fast|x-fast
     silero_pitch: str = "medium"    # x-low|low|medium|high|x-high
-    silero_num_threads: int = 2
+    silero_num_threads: int = 1
 
     classifier_model_path: str = "models/model.pkl"
     classifier_min_confidence: float = 0.35
