@@ -983,7 +983,7 @@
       asrHistory: $('#asrHistory'),
     };
 
-    const UI_BUILD = 'barge-8';
+    const UI_BUILD = 'barge-11';
     console.info('[ui] страница загружена, клиент ' + UI_BUILD);
 
     window.addEventListener('unhandledrejection', (e) => showStatus('JS: ' + (e.reason?.message || e.reason), true));
@@ -1017,7 +1017,7 @@
 
     const inCall = () => Boolean(app.callId) && !app.ended;
     const micCanOpen = () => app.sessionActive && !app.ended && !app.ending && app.micEnabled;
-    const micListening = () => micCanOpen() && Boolean(app.callId) && !app.busy;
+    const micListening = () => app.mode === 'call' && micCanOpen() && Boolean(app.callId) && !app.busy;
     function isBotSpeaking() {
       if (app.speaking) return true;
       if (speaker.el && !speaker.el.paused && !speaker.el.ended) return true;
@@ -1262,10 +1262,14 @@
         localStorage.removeItem('micDeviceLabel');
       }
 
+      const reopenCallMic = inCall() && !app.ending && app.micEnabled;
+      const reopenAsr = app.mode === 'asr' && Boolean(asr.recording || asr.pending);
       abortUtterance(true);
-      closeCallMic();
-      releaseMic();
-      if (micCanOpen()) openCallMic({ allowPrompt: true });
+      if (asr.recording || asr.pending) stopAsrCapture();
+      teardownCapture();
+      if (reopenCallMic || reopenAsr) prepareAudioContextSync(true);
+      if (reopenCallMic && micCanOpen()) openCallMic({ allowPrompt: true });
+      if (reopenAsr) startAsr().catch((err) => setAsrResult('Микрофон: ' + err.message, 'error'));
     });
 
     if (micSupported && navigator.mediaDevices.addEventListener) {
@@ -1826,42 +1830,73 @@
        AudioContext & воспроизведение TTS
        ========================================================= */
     let audioCtx = null;
+    let audioCtxPromise = null;
+    let audioCtxStale = false;           // после track.stop() пересоздаём ctx синхронно внутри следующего клика
+    let audioCtxFreshForCapture = false; // ctx уже пересоздан под захват микрофона
+    let unlockedPrimed = false;
 
-    // Контекст живёт весь звонок: закрывать и создавать его заново на каждой
-    // реплике — это и пауза в несколько секунд на раскрутку устройства, и
-    // «createMediaStreamSource is not a function» у наполовину закрытого ctx.
+    const capture = {
+      ctx: null,
+      sink: null,
+      source: null,
+      processor: null,
+      meter: null,
+      openingPromise: null,
+      openedAt: 0,
+      framesSeen: 0,
+    };
+
     function audioContextUsable(ctx) {
       return Boolean(ctx)
         && ctx.state !== 'closed'
         && typeof ctx.createMediaStreamSource === 'function'
+        && typeof ctx.createScriptProcessor === 'function'
         && typeof ctx.createGain === 'function';
     }
 
-    async function newAudioContext() {
+    // Всегда вызывается СИНХРОННО внутри обработчика пользовательского жеста (до любых await!),
+    // иначе браузер создаст AudioContext в состоянии suspended, а ctx.resume() зависнет навсегда.
+    function prepareAudioContextSync(forCapture) {
       const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) throw new Error('WebAudio не поддерживается браузером');
-      const fresh = new AC();
-      micSink = null;               // sink привязан к прежнему контексту
-      return fresh;
+      if (!AC) return null;
+      audioCtxPromise = null;
+      const busyWithWebAudio = Boolean(speaker.source || capture.processor || capture.openingPromise);
+      if (forCapture && (audioCtxStale || !audioCtxFreshForCapture) && !busyWithWebAudio) {
+        if (audioCtx) { try { audioCtx.close(); } catch { /* уже */ } }
+        audioCtx = new AC();
+        audioCtxStale = false;
+        audioCtxFreshForCapture = true;
+      } else if (!audioContextUsable(audioCtx)) {
+        if (audioCtx) { try { audioCtx.close(); } catch { /* уже */ } }
+        audioCtx = new AC();
+        audioCtxStale = false;
+        audioCtxFreshForCapture = Boolean(forCapture);
+      }
+      if (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted') {
+        try { audioCtx.resume().catch(() => {}); } catch { /* браузер разблокирует на жесте */ }
+      }
+      return audioCtx;
     }
 
-    let audioCtxPromise = null;
+    async function tryResumeAudioContext(ctx, timeoutMs) {
+      if (!ctx || ctx.state === 'running') return;
+      try {
+        await Promise.race([
+          ctx.resume(),
+          new Promise((resolve) => setTimeout(resolve, timeoutMs || 250)),
+        ]);
+      } catch { /* игнорируем */ }
+    }
 
-    async function ensureAudioContext() {
-      if (audioContextUsable(audioCtx) && audioCtx.state === 'running') return audioCtx;
-      // параллельные вызовы (прогрев + старт записи) не должны плодить контексты
+    async function ensureAudioContext(forCapture) {
+      const syncCtx = prepareAudioContextSync(Boolean(forCapture));
+      if (!syncCtx) throw new Error('WebAudio не поддерживается браузером');
+      if (syncCtx.state === 'running') return syncCtx;
       if (audioCtxPromise) return audioCtxPromise;
 
       const opening = (async () => {
-        if (!audioContextUsable(audioCtx)) {
-          if (audioCtx) { try { audioCtx.close(); } catch { /* уже */ } }
-          audioCtx = await newAudioContext();
-        }
-        // 'interrupted' — iOS/Safari после звонка или переключения устройства
-        if (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted') {
-          try { await audioCtx.resume(); } catch { /* браузер не разблокировал аудио */ }
-        }
-        return audioCtx;
+        await tryResumeAudioContext(syncCtx, 250);
+        return syncCtx;
       })();
 
       audioCtxPromise = opening;
@@ -1872,44 +1907,23 @@
       }
     }
 
-    // Пересоздаёт контекст, если он оказался «живой», но непригодный для захвата
-    async function rebuildAudioContext() {
-      audioCtxPromise = null;
-      if (audioCtx) { try { audioCtx.close(); } catch { /* уже */ } }
-      audioCtx = null;
-      return ensureAudioContext();
-    }
-
-    // Полный сброс звукового состояния звонка. Сам AudioContext НЕ закрываем:
-    // новый контекст, созданный после «положить трубку», браузер держит
-    // suspended, пока не случится жест, — из-за этого пропадал звук и молчал
-    // микрофон на повторных звонках. Убиваем только графы и устройство.
     function resetAudioContext() {
       audioCtxPromise = null;
-      captureEpoch++;
-      stopLevelMeter();
-      stopAsrMeter();
-      releaseMic();
-      micSink = null;
+      closeCallMic();
+      stopAsrCapture();
+      teardownCapture();
       resumeAudioOnGesture();
     }
 
-    // Разблокировка звука: контекст поднимаем при каждом жесте, если он не running.
-    // Флаг audioUnlocked больше не «одноразовый» — иначе после перезагрузки
-    // страницы повторная разблокировка не наступала никогда.
-    let unlockedPrimed = false;
-
     async function unlockAudio() {
-      if (isBotSpeaking()) return;
       let ctx = null;
-      try { ctx = await ensureAudioContext(); } catch { /* нет WebAudio */ }
-      if (!ctx || ctx.state !== 'running') return;
+      try { ctx = await ensureAudioContext(false); } catch { /* нет WebAudio */ }
+      if (!ctx || ctx.state !== 'running' || isBotSpeaking()) return;
       if (!unlockedPrimed && !isBotSpeaking()) {
         unlockedPrimed = true;
         if ('speechSynthesis' in window) {
           try { speechSynthesis.speak(new SpeechSynthesisUtterance(' ')); } catch { /* нет синтеза */ }
         }
-        // «протолкнуть» аудиовыход внутри жеста: короткий буфер нулевой громкости
         try {
           const buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
           const source = ctx.createBufferSource();
@@ -1926,14 +1940,14 @@
     function resumeAudioOnGesture() {
       if (gestureWired) return;
       gestureWired = true;
-      // Только разблокировка звука. Прогрев микрофона здесь раньше висел на
-      // каждом нажатии клавиши — во время озвучки это дёргало аудиограф и рвало звук.
-      const handler = () => { unlockAudio().catch(() => {}); };
+      const handler = () => {
+        unlockAudio().catch(() => {});
+      };
       ['pointerdown', 'touchstart', 'keydown'].forEach((event) =>
         document.addEventListener(event, handler, { passive: true }));
       document.addEventListener('visibilitychange', () => {
         if (!document.hidden && audioCtx && audioCtx.state !== 'running') {
-          ensureAudioContext().catch(() => {});
+          ensureAudioContext(false).catch(() => {});
         }
       });
     }
@@ -2330,9 +2344,13 @@
        ========================================================= */
     function setMode(mode) {
       if (!['call', 'tts', 'asr'].includes(mode)) mode = 'call';
-      if (app.mode === 'asr' && mode !== 'asr') {
+      const prev = app.mode;
+      if (prev === 'call' && mode !== 'call') {
+        abortUtterance(true);
+        ui.micBtn.style.removeProperty('--level');
+      }
+      if (prev === 'asr' && mode !== 'asr' && (asr.recording || asr.pending)) {
         stopAsrCapture();
-        if (!inCall()) releaseMic();
       }
       app.mode = mode;
       localStorage.setItem('mode', mode);
@@ -2341,14 +2359,31 @@
         view.hidden = view.dataset.view !== mode;
       });
       refreshModeNav();
+      if (mode === 'call' && prev !== 'call' && inCall() && !app.ending && app.micEnabled) {
+        micStream.voicedMs = 0;
+        micStream.lastVoiceAt = 0;
+        micStream.floor = 0;
+        micStream.preroll = [];
+        micStream.prerollBytes = 0;
+        micStream.lastLevelAt = 0;
+        if (capture.processor && micTracksLive(capture.stream) && audioContextUsable(capture.ctx)) {
+          tryResumeAudioContext(capture.ctx, 200);
+          updateMicButton();
+          if (!app.busy && !app.speaking && voice.state !== 'thinking') {
+            setVoiceState('listening');
+          }
+        } else if (!micStream.pending && !capture.openingPromise) {
+          prepareAudioContextSync(true);
+          openCallMic({ allowPrompt: true });
+        }
+      }
     }
 
     function refreshModeNav() {
       const callActive = Boolean(app.callId);
       ui.modeTabs.forEach((tab) => {
-        const isCall = tab.dataset.mode === 'call';
-        tab.disabled = !isCall && callActive;
-        tab.title = (!isCall && callActive) ? 'Завершите активный звонок для перехода' : '';
+        tab.disabled = false;
+        tab.title = '';
       });
       ui.callTabLive.hidden = !callActive;
     }
@@ -2462,7 +2497,7 @@
 
     function setVoiceState(state) {
       voice.state = state;
-      const micOn = Boolean(micStream.processor);
+      const micOn = isCallMicLive();
       const labels = {
         listening: micOn ? 'Слушаю… говорите' : '',
         thinking: 'Распознаю…',
@@ -2766,6 +2801,7 @@
       unlockAudio();
       closePopover();
 
+      app.micEnabled = false;
       abortUtterance(false);
       closeCallMic();
       stopSpeech();
@@ -2780,7 +2816,6 @@
       app.sessionActive = true;
       app.callStarted = true;
       app.statusError = false;
-      app.micEnabled = false;
       app.callId = null;
       voice.turn = 0;
       voice.generation = 0;
@@ -2832,7 +2867,7 @@
       setBusy(false);
       showStatus('');
       record('— ' + note);
-      releaseMic();
+      stopCaptureIfIdle();
       refreshLiveView();
     }
 
@@ -2844,7 +2879,7 @@
       stopSpeech();
       stopCallTimer();
       closeCallMic();
-      releaseMic();
+      stopCaptureIfIdle();
       app.sessionActive = false;
       app.callStarted = false;
       app.ending = false;
@@ -2934,7 +2969,6 @@
 
     const micStream = {
       stream: null, streamPromise: null,
-      source: null, processor: null, meter: null,
       pending: false, readyMs: 0, openedAt: 0, speechStartedAt: 0,
       voice: 0,
       floor: 0,
@@ -2963,17 +2997,7 @@
       endpointMs: Number(localStorage.getItem('vadEndpointMs') || 700),
     };
 
-    let micSink = null;
     let captureEpoch = 0;
-
-    function captureSink(ctx) {
-      if (micSink && micSink.context === ctx) return micSink;
-      const sink = ctx.createGain();
-      sink.gain.value = 0;
-      sink.connect(ctx.destination);
-      micSink = sink;
-      return sink;
-    }
 
     function floatToInt16(samples) {
       const out = new Int16Array(samples.length);
@@ -3009,24 +3033,37 @@
       return Math.sqrt(sum / samples.length);
     }
 
+    const isCallMicLive = () => Boolean(capture.processor && micCanOpen() && inCall());
+    const isCallMicPending = () => Boolean(micCanOpen() && inCall() && (micStream.pending || capture.openingPromise) && !capture.processor);
+    const captureWanted = () => micCanOpen() || (app.mode === 'asr' && (asr.recording || asr.pending));
+
     /* --- визуальный индикатор уровня на кнопке (rAF) --- */
-    function createMeter(ctx, node, el) {
+    function createSharedMeter(ctx, node, sink) {
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 1024;
       analyser.smoothingTimeConstant = 0.3;
       node.connect(analyser);
-      analyser.connect(captureSink(ctx));
+      analyser.connect(sink);
 
       const frame = new Float32Array(analyser.fftSize);
       const meter = { analyser, raf: 0, level: 0 };
-      const paint = (value) => el.style.setProperty('--level', Math.min(1, value * 10).toFixed(2));
 
       const tick = () => {
         if (!meter.analyser) return;
         analyser.getFloatTimeDomainData(frame);
         const rms = rmsOf(frame);
         meter.level = rms > meter.level ? rms : Math.max(rms, meter.level * 0.8);
-        paint(meter.level);
+        const val = Math.min(1, meter.level * 10).toFixed(2);
+        if (isCallMicLive() && app.mode === 'call') {
+          ui.micBtn.style.setProperty('--level', val);
+        } else {
+          ui.micBtn.style.removeProperty('--level');
+        }
+        if (asr.recording && app.mode === 'asr') {
+          ui.asrMicBtn.style.setProperty('--level', val);
+        } else {
+          ui.asrMicBtn.style.removeProperty('--level');
+        }
         meter.raf = requestAnimationFrame(tick);
       };
       meter.raf = requestAnimationFrame(tick);
@@ -3036,14 +3073,10 @@
         meter.raf = 0;
         meter.analyser = null;
         try { analyser.disconnect(); } catch { /* уже */ }
-        el.style.removeProperty('--level');
+        ui.micBtn.style.removeProperty('--level');
+        ui.asrMicBtn.style.removeProperty('--level');
       };
       return meter;
-    }
-
-    function stopLevelMeter() {
-      if (micStream.meter) { micStream.meter.stop(); micStream.meter = null; }
-      ui.micBtn.style.removeProperty('--level');
     }
 
     function micTracksLive(stream) {
@@ -3102,9 +3135,11 @@
           micStream.stream = stream;
           stream.getAudioTracks().forEach((t) => {
             t.addEventListener('ended', () => {
+              if (micStream.stream !== stream) return;
+              app.micEnabled = false;
               closeCallMic();
               stopAsrCapture();
-              releaseMic();
+              teardownCapture();
             });
           });
           return stream;
@@ -3119,23 +3154,125 @@
       return micStream.streamPromise;
     }
 
-    let micReleaseTimer = null;
-
     function releaseMic() {
-      clearTimeout(micReleaseTimer);
       const stream = micStream.stream;
       micStream.stream = null;
       if (!stream) return;
+      audioCtxStale = true;
+      audioCtxFreshForCapture = false;
       try { stream.getTracks().forEach((track) => track.stop()); } catch { /* уже */ }
     }
 
-    function scheduleMicRelease(ms) {
-      clearTimeout(micReleaseTimer);
-      micReleaseTimer = setTimeout(() => {
-        if ((inCall() && micStream.processor) || micStream.pending) return;
-        if (asr.recording || asr.pending) return;
-        releaseMic();
-      }, ms || 15000);
+    function disconnectCaptureNodes() {
+      if (capture.meter) { capture.meter.stop(); capture.meter = null; }
+      try {
+        if (capture.processor) {
+          capture.processor.onaudioprocess = null;
+          capture.processor.disconnect();
+        }
+        if (capture.source) capture.source.disconnect();
+        if (capture.sink) capture.sink.disconnect();
+      } catch { /* уже */ }
+      capture.processor = null;
+      capture.source = null;
+      capture.sink = null;
+      capture.ctx = null;
+      ui.micBtn.style.removeProperty('--level');
+      ui.asrMicBtn.style.removeProperty('--level');
+    }
+
+    function teardownCapture() {
+      captureEpoch++;
+      capture.openingPromise = null;
+      disconnectCaptureNodes();
+      releaseMic();
+      updateMicButton();
+      updateAsrUi();
+    }
+
+    function stopCaptureIfIdle() {
+      if (captureWanted()) return;
+      teardownCapture();
+    }
+
+    async function ensureCaptureOpen() {
+      if (capture.processor && micTracksLive(micStream.stream) && audioContextUsable(capture.ctx)) {
+        await tryResumeAudioContext(capture.ctx, 200);
+        return { ctx: capture.ctx, coldOpen: false };
+      }
+      if (capture.openingPromise) return capture.openingPromise;
+
+      const epoch = captureEpoch;
+      const opening = (async () => {
+        disconnectCaptureNodes();
+        const ctx = await ensureAudioContext(true);
+        const stream = await acquireMic();
+        await tryResumeAudioContext(ctx, 250);
+        if (epoch !== captureEpoch || !captureWanted()) {
+          stopCaptureIfIdle();
+          throw new Error('захват отменён');
+        }
+
+        const sink = ctx.createGain();
+        sink.gain.value = 0;
+        sink.connect(ctx.destination);
+        const source = ctx.createMediaStreamSource(stream);
+        const processor = ctx.createScriptProcessor(2048, 1, 1);
+        const meter = createSharedMeter(ctx, source, sink);
+
+        processor.onaudioprocess = (event) => {
+          capture.framesSeen++;
+          const callOn = isCallMicLive() && app.mode === 'call';
+          const asrOn = asr.recording && app.mode === 'asr';
+          if (!callOn && !asrOn) return;
+          const raw = event.inputBuffer.getChannelData(0);
+          const rms = rmsOf(raw);
+          const bufMs = raw.length / ctx.sampleRate * 1000;
+          const frame = ctx.sampleRate !== SAMPLE_RATE ? resample(raw, ctx.sampleRate, SAMPLE_RATE) : raw;
+          if (callOn) {
+            onMicLevel(rms, bufMs);
+            onAudioFrame(frame);
+          }
+          if (asrOn) {
+            asr.chunks.push(floatToInt16(frame));
+            onAsrLevel(rms, bufMs);
+          }
+        };
+        source.connect(processor);
+        processor.connect(sink);
+
+        capture.ctx = ctx;
+        capture.sink = sink;
+        capture.source = source;
+        capture.processor = processor;
+        capture.meter = meter;
+        capture.openedAt = Date.now();
+        capture.framesSeen = 0;
+
+        ctx.onstatechange = () => {
+          if (capture.ctx === ctx && capture.processor && ctx.state !== 'running') {
+            tryResumeAudioContext(ctx, 250).then(() => updateAsrUi());
+          } else {
+            updateAsrUi();
+          }
+        };
+        [350, 800].forEach((delay) => {
+          setTimeout(() => {
+            if (capture.ctx === ctx && capture.processor && ctx.state !== 'running') {
+              tryResumeAudioContext(ctx, 250).then(() => updateAsrUi());
+            }
+          }, delay);
+        });
+
+        return { ctx, coldOpen: true };
+      })();
+
+      capture.openingPromise = opening;
+      try {
+        return await opening;
+      } finally {
+        if (capture.openingPromise === opening) capture.openingPromise = null;
+      }
     }
 
     async function openCallMic(opts) {
@@ -3146,7 +3283,7 @@
           : 'Микрофон доступен только по HTTPS или с localhost.', true);
         return;
       }
-      if (micStream.processor || micStream.pending) return;
+      if (isCallMicLive() || micStream.pending) return;
       if (!allowPrompt && !micReadyToOpen()) return;
 
       const token = ++micStream.token;
@@ -3154,31 +3291,15 @@
       updateMicButton();
       const requestedAt = Date.now();
       try {
-        let ctx = await ensureAudioContext();
-        if (typeof ctx.createMediaStreamSource !== 'function') ctx = await rebuildAudioContext();
-        const stream = await acquireMic();
-        if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
-          try { await ctx.resume(); } catch { /* уже */ }
-        }
+        const { coldOpen } = await ensureCaptureOpen();
         if (token !== micStream.token || !micCanOpen()) {
           if (token === micStream.token) micStream.pending = false;
-          if (!micCanOpen()) releaseMic();
+          stopCaptureIfIdle();
           updateMicButton();
           return;
         }
-        micStream.source = ctx.createMediaStreamSource(stream);
-        micStream.processor = ctx.createScriptProcessor(2048, 1, 1);
-        micStream.processor.onaudioprocess = (event) => {
-          const raw = event.inputBuffer.getChannelData(0);
-          onMicLevel(rmsOf(raw), raw.length / ctx.sampleRate * 1000);
-          const frame = ctx.sampleRate !== SAMPLE_RATE ? resample(raw, ctx.sampleRate, SAMPLE_RATE) : raw;
-          onAudioFrame(frame);
-        };
-        micStream.meter = createMeter(ctx, micStream.source, ui.micBtn);
-        micStream.source.connect(micStream.processor);
-        micStream.processor.connect(captureSink(ctx));
         micStream.readyMs = Date.now() - requestedAt;
-        micStream.openedAt = Date.now();
+        micStream.openedAt = coldOpen ? Date.now() : (Date.now() - MIC_SETTLE_MS);
         micStream.pending = false;
         micStream.floor = 0;
         micStream.preroll = [];
@@ -3191,6 +3312,7 @@
       } catch (err) {
         if (token === micStream.token) micStream.pending = false;
         app.micEnabled = false;
+        stopCaptureIfIdle();
         updateMicButton();
         showStatus('Микрофон не запустился: ' + (err.message || err.name), true);
       }
@@ -3206,43 +3328,35 @@
       micStream.floor = 0;
       micStream.preroll = [];
       micStream.prerollBytes = 0;
-      stopLevelMeter();
-      try {
-        if (micStream.processor) {
-          micStream.processor.onaudioprocess = null;
-          micStream.processor.disconnect();
-        }
-        if (micStream.source) micStream.source.disconnect();
-      } catch { /* уже */ }
-      micStream.processor = null;
-      micStream.source = null;
+      ui.micBtn.style.removeProperty('--level');
+      stopCaptureIfIdle();
       updateMicButton();
     }
 
     function toggleCallMic() {
       if (!inCall() || app.ending) return;
-      if (micStream.processor || micStream.pending) {
+      if (app.micEnabled || isCallMicLive() || micStream.pending) {
         app.micEnabled = false;
-        captureEpoch++;
         abortUtterance(true);
         closeCallMic();
-        releaseMic();
         if (!app.statusError) showStatus('');
         return;
       }
       app.micEnabled = true;
       app.statusError = false;
+      prepareAudioContextSync(true);
       openCallMic({ allowPrompt: true });
     }
 
     function updateMicButton() {
       const active = inCall();
-      const live = Boolean(micStream.processor);
-      const off = active && !live && !micStream.pending;
+      const live = isCallMicLive();
+      const pending = isCallMicPending();
+      const off = active && !live && !pending;
       ui.micBtn.classList.toggle('rec', live);
-      ui.micBtn.classList.toggle('pending', micStream.pending);
+      ui.micBtn.classList.toggle('pending', pending);
       ui.micBtn.classList.toggle('off', off);
-      if (!live && !micStream.pending) ui.micBtn.style.removeProperty('--level');
+      if (!live && !pending) ui.micBtn.style.removeProperty('--level');
       refreshComposer();
     }
 
@@ -3410,6 +3524,7 @@
     }
 
     function onAudioFrame(frame) {
+      if (app.mode !== 'call') return;
       const chunk = floatToInt16(frame);
       if (micStream.streaming) {
         if (voiceSendBytes(chunk)) micStream.sentBytes += chunk.byteLength;
@@ -3425,7 +3540,8 @@
     function refreshComposer() {
       const active = inCall();
       const locked = composerLocked();
-      const micLive = Boolean(micStream.processor);
+      const micLive = isCallMicLive();
+      const micPending = isCallMicPending();
       const hasText = Boolean(ui.input.value.trim());
 
       ui.composerRow.classList.toggle('locked', !active || locked);
@@ -3437,7 +3553,7 @@
           ? 'Инициализация звонка…'
           : app.ending
             ? 'Завершение звонка…'
-            : micStream.pending
+            : micPending
               ? 'Открываю микрофон…'
               : voice.state === 'thinking'
                 ? 'Распознаю реплику…'
@@ -3449,7 +3565,7 @@
       ui.sendBtn.title = 'Отправить';
 
       ui.micBtn.disabled = !active || app.ending;
-      ui.micBtn.title = micStream.pending
+      ui.micBtn.title = micPending
         ? 'Открываю микрофон — нажмите, чтобы выключить'
         : micLive
           ? 'Микрофон включён — нажмите, чтобы выключить'
@@ -3488,7 +3604,6 @@
       });
     });
     ui.micBtn.addEventListener('click', () => {
-      unlockAudio();
       toggleCallMic();
     });
     ui.stopSpeakBtn.addEventListener('click', () => {
@@ -3588,9 +3703,10 @@
        Проба ASR (/debug/asr)
        ========================================================= */
     const asr = {
-      source: null, processor: null, meter: null,
-      chunks: [], recording: false, pending: false,
-      speechSeen: false, voicedMs: 0, openedAt: 0, lastVoiceAt: 0,
+      recognition: null,
+      chunks: [], recording: false, pending: false, token: 0,
+      speechSeen: false, voicedMs: 0, openedAt: 0, settleMs: 250, lastVoiceAt: 0,
+      floor: 0, diagAt: 0,
       autoTimer: null, maxTimer: null,
     };
     // Проба останавливается сама: пауза после речи или общий лимит записи
@@ -3599,8 +3715,8 @@
     const ASR_SETTLE_MS = 250;
     const ASR_MAX_MS = 20000;
 
-    function asrDiag() {
-      const ctx = audioCtx;
+    function asrDiag(ctxOverride) {
+      const ctx = ctxOverride || capture.ctx || audioCtx;
       return [
         ctx ? 'ctx ' + ctx.state : 'ctx нет',
         ctx && ctx.sampleRate ? Math.round(ctx.sampleRate / 100) / 10 + ' kHz' : null,
@@ -3620,11 +3736,6 @@
       if (!asr.recording) ui.asrMicBtn.style.removeProperty('--level');
     }
 
-    function stopAsrMeter() {
-      if (asr.meter) { asr.meter.stop(); asr.meter = null; }
-      ui.asrMicBtn.style.removeProperty('--level');
-    }
-
     function clearAsrTimers() {
       clearTimeout(asr.autoTimer);
       clearTimeout(asr.maxTimer);
@@ -3635,9 +3746,22 @@
     function onAsrLevel(rms, bufMs) {
       if (!asr.recording) return;
       const now = Date.now();
-      if (asr.openedAt && now - asr.openedAt < ASR_SETTLE_MS) return;
+      if (asr.openedAt && now - asr.openedAt < (asr.settleMs || ASR_SETTLE_MS)) return;
       const frameMs = bufMs > 0 ? bufMs : 42;
-      if (rms > THRESHOLD_SPEECH) {
+      const speechThr = Math.max(THRESHOLD_SPEECH, Math.min(FLOOR_MAX, asr.floor || 0) * 2.2);
+      const voiced = rms > speechThr;
+      if (rms < (asr.floor || 0)) {
+        asr.floor = asr.floor * 0.85 + rms * 0.15;
+      } else if (!voiced && !asr.speechSeen && rms < THRESHOLD_SPEECH * 1.2) {
+        asr.floor = Math.min(FLOOR_MAX, (asr.floor || 0) * 0.98 + rms * 0.02);
+      }
+      if (now - (asr.diagAt || 0) > 1000) {
+        asr.diagAt = now;
+        console.info('[asr ' + UI_BUILD + '] микрофон ' + rms.toFixed(3)
+          + ' | порог ' + speechThr.toFixed(3)
+          + ' | ' + asrDiag());
+      }
+      if (voiced) {
         asr.lastVoiceAt = now;
         asr.voicedMs = (asr.voicedMs || 0) + frameMs;
         if (asr.voicedMs >= ASR_MIN_VOICED_MS) asr.speechSeen = true;
@@ -3662,9 +3786,11 @@
 
     async function startAsr() {
       if (asr.recording || asr.pending) return;
-      unlockAudio();
 
-      if (app.cfg.asr === 'fake') return startBrowserAsr();
+      if (app.cfg.asr === 'fake') {
+        unlockAudio();
+        return startBrowserAsr();
+      }
       if (!micSupported) {
         setAsrResult(
           window.isSecureContext
@@ -3675,104 +3801,83 @@
         return;
       }
 
-      const needOpen = !micTracksLive(micStream.stream);
+      const token = ++asr.token;
+      const needOpen = !capture.processor || !micTracksLive(micStream.stream);
       asr.pending = true;
       updateAsrUi();
       if (needOpen) setAsrResult('Открываю микрофон…', 'empty');
 
-      let ctx;
-      let stream;
+      let ctx = null;
+      let coldOpen = true;
       try {
-        ctx = await ensureAudioContext();
-        if (typeof ctx.createMediaStreamSource !== 'function') ctx = await rebuildAudioContext();
-        if (typeof ctx.createScriptProcessor !== 'function') {
-          throw new Error('браузер не даёт захват через ScriptProcessor');
-        }
-        stream = await acquireMic();
-        if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
-          try { await ctx.resume(); } catch { /* уже */ }
+        const opened = await ensureCaptureOpen();
+        ctx = opened.ctx;
+        coldOpen = opened.coldOpen;
+        if (token !== asr.token || !asr.pending || app.mode !== 'asr') {
+          if (token === asr.token) asr.pending = false;
+          stopCaptureIfIdle();
+          updateAsrUi();
+          return;
         }
       } catch (err) {
-        asr.pending = false;
+        if (token === asr.token) asr.pending = false;
+        stopCaptureIfIdle();
         updateAsrUi();
-        setAsrResult('Микрофон не запустился: ' + (err.message || err.name) + ' [' + asrDiag() + ']', 'error');
-        return;
-      }
-
-      if (!asr.pending) return;
-
-      try {
-        asr.source = ctx.createMediaStreamSource(stream);
-        asr.processor = ctx.createScriptProcessor(2048, 1, 1);
-      } catch (err) {
-        asr.pending = false;
-        updateAsrUi();
-        setAsrResult('Микрофон не запустился: ' + (err.message || err.name) + ' [' + asrDiag() + ']', 'error');
+        setAsrResult('Микрофон не запустился: ' + (err.message || err.name) + ' [' + asrDiag(ctx) + ']', 'error');
         return;
       }
 
       asr.chunks = [];
       asr.speechSeen = false;
       asr.voicedMs = 0;
+      asr.floor = 0;
+      asr.diagAt = 0;
       asr.openedAt = Date.now();
+      asr.settleMs = coldOpen ? MIC_SETTLE_MS : 120;
       asr.lastVoiceAt = 0;
       clearAsrTimers();
       asr.pending = false;
       asr.recording = true;
       updateAsrUi();
 
-      asr.meter = createMeter(ctx, asr.source, ui.asrMicBtn);
-
       asr.maxTimer = setTimeout(() => {
         if (!asr.recording) return;
         stopAsrAndSend();
       }, ASR_MAX_MS);
 
-      asr.processor.onaudioprocess = (event) => {
-        const raw = event.inputBuffer.getChannelData(0);
-        const frame = ctx.sampleRate !== SAMPLE_RATE ? resample(raw, ctx.sampleRate, SAMPLE_RATE) : raw;
-        asr.chunks.push(floatToInt16(frame));
-        onAsrLevel(rmsOf(raw), raw.length / ctx.sampleRate * 1000);
-      };
+      setTimeout(() => {
+        if (token === asr.token && asr.recording && ctx && ctx.state !== 'running') {
+          tryResumeAudioContext(ctx, 250).then(() => {
+            updateAsrUi();
+            if (token === asr.token && asr.recording && ctx.state !== 'running') {
+              setAsrResult('Браузер приостановил звук (' + ctx.state + ') — нажмите кнопку ещё раз', 'error');
+            }
+          });
+        }
+      }, 950);
 
-      asr.source.connect(asr.processor);
-      asr.processor.connect(captureSink(ctx));
-      if (ctx.state !== 'running') {
-        try { await ctx.resume(); } catch { /* уже */ }
-      }
-      if (!asr.recording) return;
-      if (ctx.state !== 'running') {
-        stopAsrCapture();
-        setAsrResult('Браузер приостановил звук (' + ctx.state + ') — нажмите кнопку ещё раз', 'error');
-        return;
-      }
       setAsrResult('Говорите — запись остановится сама после паузы', 'empty');
     }
 
     function stopAsrCapture() {
+      asr.token++;
       clearAsrTimers();
       asr.pending = false;
       asr.recording = false;
       asr.voicedMs = 0;
-      stopAsrMeter();
-      try {
-        if (asr.processor) {
-          asr.processor.onaudioprocess = null;
-          asr.processor.disconnect();
-        }
-        if (asr.source) asr.source.disconnect();
-      } catch { /* уже */ }
-      asr.processor = null;
-      asr.source = null;
+      if (asr.recognition) {
+        const rec = asr.recognition;
+        asr.recognition = null;
+        try { rec.abort(); } catch { /* уже */ }
+      }
+      ui.asrMicBtn.style.removeProperty('--level');
+      stopCaptureIfIdle();
       updateAsrUi();
-      if (!(inCall() && micStream.processor)) scheduleMicRelease(120000);
     }
 
     async function stopAsrAndSend() {
       if (asr.pending && !asr.recording) {
-        captureEpoch++;
         stopAsrCapture();
-        releaseMic();
         setAsrResult('Запись отменена', 'empty');
         return;
       }
@@ -3823,6 +3928,7 @@
       const r = new Recognition();
       r.lang = 'ru-RU';
       r.interimResults = false;
+      asr.recognition = r;
       asr.recording = true;
       updateAsrUi();
       setAsrResult('Слушаю (браузер)…', 'empty');
@@ -3832,7 +3938,11 @@
         addAsrHistory(text, 'браузер', '');
       };
       r.onerror = (e) => setAsrResult('Ошибка: ' + e.error, 'error');
-      r.onend = () => { asr.recording = false; updateAsrUi(); };
+      r.onend = () => {
+        if (asr.recognition === r) asr.recognition = null;
+        asr.recording = false;
+        updateAsrUi();
+      };
       r.start();
     }
 
@@ -3857,8 +3967,12 @@
     }
 
     ui.asrMicBtn.addEventListener('click', () => {
-      if (asr.recording || asr.pending) stopAsrAndSend();
-      else startAsr().catch((err) => setAsrResult('Микрофон: ' + err.message, 'error'));
+      if (asr.recording || asr.pending) {
+        stopAsrAndSend();
+        return;
+      }
+      prepareAudioContextSync(true);
+      startAsr().catch((err) => setAsrResult('Микрофон: ' + err.message, 'error'));
     });
 
     /* =========================================================
