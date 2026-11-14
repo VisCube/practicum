@@ -1,5 +1,5 @@
-"""Поиск по data/knowledge/*.md: документ режется на секции по «## », скоринг по совпадению основ слов
-Для прототипа достаточно; на проде сюда встанет эмбеддинг-поиск с тем же интерфейсом"""
+"""Поиск по data/knowledge/*.md: документ режется на секции по «## », скоринг по основам слов.
+Для прототипа достаточно; на проде сюда встанет эмбеддинг-поиск с тем же интерфейсом."""
 
 from pathlib import Path
 
@@ -42,11 +42,13 @@ class MarkdownRetriever:
     def _parse(md: Path) -> list[Passage]:
         """Нарезает Markdown на секции по заголовкам ## , каждая секция - один Passage"""
         result: list[Passage] = []
-        current_heading, line_buffer = None, []
+        current_heading: str | None = None
+        line_buffer: list[str] = []
         for line in md.read_text(encoding="utf-8").splitlines():
             if line.startswith("## "):
                 if current_heading and "".join(line_buffer).strip():
-                    result.append(Passage(source=md.stem, heading=current_heading, text=" ".join(line_buffer).strip()))
+                    body = " ".join(line_buffer).strip()
+                    result.append(Passage(source=md.stem, heading=current_heading, text=body))
                 current_heading, line_buffer = line[3:].strip(), []
             elif line.startswith("# "):
                 continue
@@ -54,11 +56,18 @@ class MarkdownRetriever:
                 if line.strip():
                     line_buffer.append(line.strip())
         if current_heading and "".join(line_buffer).strip():
-            result.append(Passage(source=md.stem, heading=current_heading, text=" ".join(line_buffer).strip()))
+            body = " ".join(line_buffer).strip()
+            result.append(Passage(source=md.stem, heading=current_heading, text=body))
         return result
 
-    async def search(self, query: str, *, sources: list[str] | None = None, limit: int = 3) -> list[Passage]:
-        """Возвращает фрагменты, отсортированные по релевантности - совпадение в заголовке весит вдвое больше"""
+    async def search(
+        self,
+        query: str,
+        *,
+        sources: list[str] | None = None,
+        limit: int = 3,
+    ) -> list[Passage]:
+        """Возвращает фрагменты по релевантности — совпадение в заголовке весит вдвое больше."""
         query_tokens = tokens(query)
         if not query_tokens:
             return []

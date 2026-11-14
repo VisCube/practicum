@@ -18,17 +18,18 @@ MAX_SLOT_CHARS = 120
 
 _SYS_CLASSIFY = (
     "Ты классификатор обращений жителей в управляющую компанию ЖКХ. "
-    "Верни JSON {\"topic\": \"<id>\"} с id одной из тем или {\"topic\": null}, если не подходит ни одна."
+    'Верни JSON {"topic": "<id>"} с id одной из тем или {"topic": null}, '
+    "если не подходит ни одна."
 )
 _SYS_SLOTS = (
     "Извлеки из реплики жителя значения полей. Верни JSON-объект: ключ — id поля, "
     "значение — строка. Поля, которых в реплике нет, не включай. Не выдумывай."
 )
 _SYS_ANSWER = (
-    "Ты оператор контакт-центра управляющей компании. Ответь жителю на вопрос строго по приведённым "
-    "фрагментам базы знаний, 2–3 предложения, разговорным языком, без markdown, без списков. "
-    "Текст будет озвучен: не используй сокращения и цифры, где можно словами. "
-    "Если фрагменты не отвечают на вопрос — напиши ровно: НЕТ ОТВЕТА."
+    "Ты оператор контакт-центра управляющей компании. Ответь жителю на вопрос строго "
+    "по приведённым фрагментам базы знаний, 2–3 предложения, разговорным языком, без "
+    "markdown, без списков. Текст будет озвучен: не используй сокращения и цифры, где "
+    "можно словами. Если фрагменты не отвечают на вопрос — напиши ровно: НЕТ ОТВЕТА."
 )
 
 
@@ -90,10 +91,11 @@ class LlmTasks:
         result: dict[str, str] = {}
         specs_by_id = {spec.id: spec for spec in specs}
         for slot_id, slot_value in llm_response.items():
-            spec = specs_by_id.get(slot_id)
-            if spec is None or not isinstance(slot_value, str | int) or not str(slot_value).strip():
+            found_spec = specs_by_id.get(slot_id)
+            is_scalar = isinstance(slot_value, str | int) and not isinstance(slot_value, bool)
+            if found_spec is None or not is_scalar or not str(slot_value).strip():
                 continue
-            value = self._validate(spec, str(slot_value).strip())
+            value = self._validate(found_spec, str(slot_value).strip())
             if value is not None:
                 result[slot_id] = value
         return result

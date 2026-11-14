@@ -4,6 +4,7 @@
 Время — UTC; naive datetime на входе считаем UTC"""
 
 import asyncio
+import contextlib
 import logging
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -51,9 +52,10 @@ class OutboxStore(Protocol):
 
 class InMemoryOutboxStore:
     """Словарь в памяти - для тестов и однопроцессного режима"""
-    def __init__(self, *, max_sent: int = 200) -> None:
+    def __init__(self, *, max_sent: int = 200, max_failed: int = 500) -> None:
         self._recs: dict[str, OutboxRecord] = {}
         self._max_sent = max_sent
+        self._max_failed = max_failed
 
     def put(self, rec: OutboxRecord) -> None:
         self._recs[rec.appeal.id] = rec
@@ -64,6 +66,14 @@ class InMemoryOutboxStore:
                 if item.status == OutboxStatus.SENT
             ]
             for stale_id in sent_ids[: max(0, len(sent_ids) - self._max_sent)]:
+                self._recs.pop(stale_id, None)
+        elif rec.status == OutboxStatus.FAILED and self._max_failed > 0:
+            failed_ids = [
+                appeal_id
+                for appeal_id, item in self._recs.items()
+                if item.status == OutboxStatus.FAILED
+            ]
+            for stale_id in failed_ids[: max(0, len(failed_ids) - self._max_failed)]:
                 self._recs.pop(stale_id, None)
 
     def get(self, appeal_id: str) -> OutboxRecord | None:
@@ -107,12 +117,19 @@ class Outbox:
         for record in self.store.due(now):
             record.attempts += 1
             try:
-                deal_id = await asyncio.wait_for(self.crm.create_deal(record.appeal), self.crm_timeout)
+                deal_id = await asyncio.wait_for(
+                    self.crm.create_deal(record.appeal),
+                    self.crm_timeout,
+                )
             except (CrmError, TimeoutError) as crm_error:
-                record.last_error = str(crm_error) or "timeout"   # у TimeoutError пустое сообщение
+                record.last_error = str(crm_error) or "timeout"
                 if record.attempts >= self.max_attempts:
                     record.status = OutboxStatus.FAILED
-                    log.error("outbox: заявка %s не доставлена: %s", record.appeal.id, record.last_error)
+                    log.error(
+                        "outbox: заявка %s не доставлена: %s",
+                        record.appeal.id,
+                        record.last_error,
+                    )
                 else:
                     retry_delay = self.backoff_sec * 2 ** (record.attempts - 1)
                     record.next_try_at = now + timedelta(seconds=retry_delay)
@@ -131,9 +148,7 @@ class Outbox:
         while not stop_event.is_set():
             try:
                 await self.process_once()
-            except Exception:  # noqa: BLE001 — воркер не должен умирать
+            except Exception:
                 log.exception("outbox: ошибка итерации")
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(stop_event.wait(), timeout=interval)
-            except TimeoutError:
-                pass

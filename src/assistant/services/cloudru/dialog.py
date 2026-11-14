@@ -1,19 +1,28 @@
 """Тонкий адаптер звонка вокруг `Assistant` из Cloud.ru (`_upstream/src/assistant.py`).
 
-Ведение диалога, выбор инструментов, поиск в Managed RAG, идентификация в CRM-заглушке
-и категоризация полностью остаются на стороне промпта и `Assistant.handle_message`.
-Адаптер отвечает только за:
+Ведение диалога, приветствие через LLM, выбор инструментов, поиск в Managed RAG,
+идентификация в CRM-заглушке и категоризация остаются на стороне промпта и
+`Assistant.handle_message`.
+
+Адаптер отвечает за:
   - передачу номера звонящего в `Assistant(phone=...)` и привязку агента к `call_id`;
-  - синхронизацию `SessionStore` и карточки `session.owner` по результатам тулов;
-  - эмиссию событий `tool_call` и перекладывание заявок в `Outbox` / переводов в телефонию.
+  - переиспользование единого пула HTTP-соединений между всеми параллельными звонками;
+  - выделенный пул рабочих потоков и семафор параллельности (чтобы синхронный агент не
+    забивал дефолтный `asyncio.to_thread` при множестве одновременных звонков);
+  - целостность истории `agent.messages` (откат при ошибке в середине tool-call цикла и
+    пересборка агента после `TimeoutError`, где фоновый поток ещё может работать);
+  - синхронизацию `SessionStore`, маркеров эскалации (`EscalationDetector`) и `Outbox`.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import copy
 import logging
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from assistant.core.models import (
@@ -28,6 +37,7 @@ from assistant.core.models import (
     TopicKind,
 )
 from assistant.core.session_store import SessionStore
+from assistant.nlu.escalation import Detection, EscalationDetector
 from assistant.services.cloudru.bridge import (
     UpstreamAssistant,
     UpstreamToolCall,
@@ -50,6 +60,11 @@ _IDENTITY_SLOTS = ("resident", "street", "house", "apartment", "full_name", "add
 _RESERVED_TICKET_KEYS = {"id", "category", "phone", "missing_fields"}
 _TAIL_TICKET_KEYS = ("details", "description", "status", "deadline")
 _FAREWELL_MARKERS = ("до свидания", "всего доброго", "всего хорошего", "хорошего дня")
+_MAX_CONSECUTIVE_AGENT_FAILURES = 2
+_MAX_CACHED_AGENTS = 2000
+_COMPACT_AFTER_MESSAGES = 14
+_COMPACT_KEEP_TAIL = 8
+_COMPACT_TOOL_MAX_CHARS = 1200
 
 
 class CloudRuDialogAdapter:
@@ -65,15 +80,18 @@ class CloudRuDialogAdapter:
         outbox: Outbox,
         telephony: TelephonyClient,
         *,
+        escalation: EscalationDetector | None = None,
         crm_timeout: float = 2.0,
         agent_timeout: float = 45.0,
         session_ttl_sec: float = 1800.0,
+        max_concurrency: int = 32,
         assistant_factory: Callable[[str], UpstreamAssistant] | None = None,
     ) -> None:
         self.store = store
         self.crm = crm
         self.outbox = outbox
         self.telephony = telephony
+        self.escalation = escalation
         self.crm_timeout = crm_timeout
         self.agent_timeout = agent_timeout
         self._ttl_sec = session_ttl_sec
@@ -82,8 +100,45 @@ class CloudRuDialogAdapter:
         )
         self._agents: dict[str, tuple[UpstreamAssistant, float]] = {}
 
+        workers = max(4, int(max_concurrency))
+        self._executor = ThreadPoolExecutor(
+            max_workers=workers,
+            thread_name_prefix="cloudru-agent",
+        )
+        self._semaphore = asyncio.Semaphore(workers)
+        self._shared_openai_client: Any = None
+
+    async def aclose(self) -> None:
+        """Закрывает пул потоков и общий HTTP-клиент OpenAI."""
+        self._agents.clear()
+        self._executor.shutdown(wait=False, cancel_futures=True)
+        if self._shared_openai_client is not None:
+            client, self._shared_openai_client = self._shared_openai_client, None
+            with contextlib.suppress(Exception):
+                client.close()
+
+    def drop_call(self, call_id: str) -> None:
+        """Удаляет агента завершённого звонка."""
+        self._agents.pop(call_id, None)
+
+    def sweep(self) -> None:
+        """Фоновая очистка просроченных агентов (вызывается по таймеру приложения)."""
+        self._sweep_agents()
+
+    async def _run_agent_call(
+        self,
+        agent: UpstreamAssistant,
+        user_input: str,
+    ) -> tuple[str, list[UpstreamToolCall]]:
+        loop = asyncio.get_running_loop()
+        async with self._semaphore:
+            return await asyncio.wait_for(
+                loop.run_in_executor(self._executor, agent.handle_message, user_input),
+                timeout=self.agent_timeout,
+            )
+
     async def start(self, call_id: str, phone: str) -> Reply:
-        """Начало звонка: передаём `phone` в `Assistant(phone)` и получаем приветствие."""
+        """Начало звонка: передаём `phone` в `Assistant(phone)` и получаем приветствие от LLM."""
         self._sweep_agents()
         clean_phone = phone.strip()
         session = CallSession(call_id=call_id, phone=clean_phone, owner_lookup_done=True)
@@ -93,17 +148,20 @@ class CloudRuDialogAdapter:
         transferred = False
         spoken = ""
         ran_ok = False
+        timed_out = False
+        snapshot = copy.deepcopy(agent.messages)
 
         try:
-            response_text, tool_calls = await asyncio.wait_for(
-                asyncio.to_thread(agent.handle_message, _START_CUE),
-                timeout=self.agent_timeout,
-            )
+            response_text, tool_calls = await self._run_agent_call(agent, _START_CUE)
             ran_ok = True
             events, transferred = await self._apply_tool_calls(session, tool_calls)
             spoken = response_text.strip()
+        except TimeoutError:
+            timed_out = True
+            log.warning("cloudru agent timed out on start for call %s", call_id)
         except Exception:
             log.exception("cloudru agent failed on start for call %s", call_id)
+            agent.messages[:] = snapshot
 
         if not spoken:
             if session.owner is None and not transferred:
@@ -116,11 +174,13 @@ class CloudRuDialogAdapter:
                 spoken = say("greeting_known", name=_first_name(session.owner.full_name))
             else:
                 spoken = say("greeting")
-            if not ran_ok:
+            if not ran_ok and not timed_out:
                 agent.messages.append({"role": "assistant", "content": spoken})
 
         session.state = CallState.TRANSFERRED if transferred else CallState.TOPIC
-        if transferred:
+        if transferred or timed_out:
+            # При таймауте рабочий поток ещё может мутировать agent.messages в фоне —
+            # не сохраняем отравленный инстанс; следующий ход соберёт чистый из transcript.
             self._agents.pop(call_id, None)
         else:
             self._save_agent(call_id, agent)
@@ -167,30 +227,36 @@ class CloudRuDialogAdapter:
             self.store.save(session)
             return reply
 
+        signal = self.escalation.detect(text) if self.escalation is not None else None
+        pre_events = self._note_complaint(session, signal)
+
         agent = self._get_or_restore_agent(session)
+        _compact_old_tool_messages(agent.messages)
+        snapshot = copy.deepcopy(agent.messages)
         session.hear(text)
 
         try:
-            response_text, tool_calls = await asyncio.wait_for(
-                asyncio.to_thread(agent.handle_message, text),
-                timeout=self.agent_timeout,
-            )
+            response_text, tool_calls = await self._run_agent_call(agent, text)
+        except TimeoutError:
+            log.warning("cloudru agent timed out for call %s", session.call_id)
+            # Не сохраняем инстанс, в котором фоновый поток ещё крутит handle_message
+            self._agents.pop(session.call_id, None)
+            return await self._handle_agent_failure(session, signal, pre_events)
         except Exception:
             log.exception("cloudru agent failed for call %s", session.call_id)
-            self._save_agent(session.call_id, agent)
-            spoken = say("tech_unavailable")
-            session.say(spoken)
-            self.store.save(session)
-            return Reply(
-                text=spoken,
-                transfer=False,
-                end_call=False,
-                events=[],
-                state=session.state,
+            agent.messages[:] = snapshot
+            return await self._handle_agent_failure(
+                session,
+                signal,
+                pre_events,
+                agent=agent,
+                user_text=text,
             )
 
+        session.attempts = 0
         self._save_agent(session.call_id, agent)
-        events, transferred = await self._apply_tool_calls(session, tool_calls)
+        tool_events, transferred = await self._apply_tool_calls(session, tool_calls)
+        events = [*pre_events, *tool_events]
 
         spoken = response_text.strip()
         if not spoken:
@@ -212,6 +278,81 @@ class CloudRuDialogAdapter:
             transfer=transferred,
             end_call=end_call,
             events=events,
+            state=session.state,
+        )
+
+    @staticmethod
+    def _note_complaint(session: CallSession, signal: Detection | None) -> list[Event]:
+        """Отмечает угрозы жалобы (ГЖИ, прокуратура, суд), не прерывая диалог агента."""
+        if signal is None or not signal.complaint:
+            return []
+        new_markers = [m for m in signal.complaint if m not in session.escalation_markers]
+        if not new_markers:
+            return []
+        session.escalated = True
+        session.escalation_markers.extend(new_markers)
+        return [Event(type="escalated", payload={"markers": new_markers})]
+
+    async def _handle_agent_failure(
+        self,
+        session: CallSession,
+        signal: Detection | None,
+        pre_events: list[Event],
+        *,
+        agent: UpstreamAssistant | None = None,
+        user_text: str = "",
+    ) -> Reply:
+        """Деградация при сбое LLM/RAG: авария или повторный сбой → сразу на оператора."""
+        session.attempts += 1
+        is_emergency = bool(signal and signal.wants_emergency)
+        if is_emergency or session.attempts >= _MAX_CONSECUTIVE_AGENT_FAILURES:
+            self._agents.pop(session.call_id, None)
+            session.state = CallState.TRANSFERRED
+            if is_emergency and signal is not None:
+                reason = signal.reason or "авария"
+                spoken = signal.say or say("tech_failure")
+                markers = list(signal.emergency)
+            else:
+                reason = "техническая ошибка облачного агента"
+                spoken = say("tech_failure")
+                markers = []
+            try:
+                await self.telephony.transfer_to_operator(session.call_id, reason)
+            except Exception as error:
+                log.error("transfer failed for %s: %s", session.call_id, error)
+            context: dict[str, Any] = {
+                "reason": reason,
+                "markers": markers,
+                "topic": session.topic.name if session.topic else None,
+                "slots": session.slots,
+                "owner": session.owner.full_name if session.owner else None,
+                "escalated": session.escalated,
+                "complaint_markers": session.escalation_markers,
+            }
+            if is_emergency:
+                context["emergency"] = True
+            session.say(spoken)
+            self.store.save(session)
+            return Reply(
+                text=spoken,
+                transfer=True,
+                end_call=False,
+                events=[*pre_events, Event(type="transfer", payload=context)],
+                state=CallState.TRANSFERRED,
+            )
+
+        spoken = say("tech_unavailable")
+        if agent is not None and user_text:
+            agent.messages.append({"role": "user", "content": user_text})
+            agent.messages.append({"role": "assistant", "content": spoken})
+            self._save_agent(session.call_id, agent)
+        session.say(spoken)
+        self.store.save(session)
+        return Reply(
+            text=spoken,
+            transfer=False,
+            end_call=False,
+            events=pre_events,
             state=session.state,
         )
 
@@ -386,8 +527,28 @@ class CloudRuDialogAdapter:
         }
         return Event(type="transfer", payload=context)
 
+    def _attach_shared_client(self, agent: UpstreamAssistant) -> None:
+        """Переводит `agent.client` на единый потокобезопасный пул соединений с таймаутом."""
+        raw_client = getattr(agent, "client", None)
+        if raw_client is None or not hasattr(raw_client, "with_options"):
+            return
+        if self._shared_openai_client is None:
+            self._shared_openai_client = raw_client.with_options(
+                timeout=self.agent_timeout,
+                max_retries=1,
+            )
+            agent.client = self._shared_openai_client  # type: ignore[attr-defined]
+            return
+        # Закрываем одноразовый пул сокетов, созданный внутри Assistant.__init__
+        if raw_client is not self._shared_openai_client:
+            with contextlib.suppress(Exception):
+                raw_client.close()
+        agent.client = self._shared_openai_client  # type: ignore[attr-defined]
+
     def _new_agent(self, *, phone: str) -> UpstreamAssistant:
-        return self._factory(phone)
+        agent = self._factory(phone)
+        self._attach_shared_client(agent)
+        return agent
 
     def _get_or_restore_agent(self, session: CallSession) -> UpstreamAssistant:
         entry = self._agents.get(session.call_id)
@@ -411,13 +572,31 @@ class CloudRuDialogAdapter:
         return agent
 
     def _save_agent(self, call_id: str, agent: UpstreamAssistant) -> None:
+        self._agents.pop(call_id, None)
         self._agents[call_id] = (agent, time.monotonic())
+        while len(self._agents) > _MAX_CACHED_AGENTS:
+            oldest_id = next(iter(self._agents))
+            self._agents.pop(oldest_id, None)
 
     def _sweep_agents(self) -> None:
         now = time.monotonic()
         expired = [cid for cid, (_, ts) in self._agents.items() if now - ts > self._ttl_sec]
         for cid in expired:
             self._agents.pop(cid, None)
+
+
+def _compact_old_tool_messages(messages: list[Any]) -> None:
+    """Поджимает старые громоздкие JSON-ответы тулов в длинном звонке, сохраняя схему OpenAI."""
+    if len(messages) <= _COMPACT_AFTER_MESSAGES:
+        return
+    cutoff = len(messages) - _COMPACT_KEEP_TAIL
+    for idx in range(cutoff):
+        msg = messages[idx]
+        if not isinstance(msg, dict) or msg.get("role") != "tool":
+            continue
+        content = msg.get("content")
+        if isinstance(content, str) and len(content) > _COMPACT_TOOL_MAX_CHARS:
+            msg["content"] = content[: _COMPACT_TOOL_MAX_CHARS - 1] + "…"
 
 
 def _slot_str(value: Any) -> str:
@@ -499,7 +678,11 @@ def _extract_ticket_slots(
 
 def _first_name(full_name: str) -> str:
     parts = full_name.split()
-    return " ".join(parts[1:3]) if len(parts) >= 3 else full_name
+    if len(parts) >= 3:
+        return " ".join(parts[1:3])
+    if len(parts) == 2:
+        return parts[1]
+    return full_name
 
 
 def _looks_like_farewell(text: str) -> bool:

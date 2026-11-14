@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     rag_key_secret: str = ""
     rag_base_url: str = ""
     iam_token_url: str = "https://iam.api.cloud.ru/api/v1/auth/token"
+    cloudru_max_concurrency: int = 32  # пул потоков и лимит параллельных ходов агента Cloud.ru
 
     # Outbox: фоновая отправка заявок в CRM
     outbox_max_attempts: int = 5
@@ -90,6 +91,7 @@ class Settings(BaseSettings):
     silero_rate: str = "medium"     # x-slow|slow|medium|fast|x-fast
     silero_pitch: str = "medium"    # x-low|low|medium|high|x-high
     silero_num_threads: int = 1
+    silero_workers: int = 1         # параллельных инстансов Silero TTS под несколько звонков
 
     classifier_model_path: str = "models/model.pkl"
     classifier_min_confidence: float = 0.35

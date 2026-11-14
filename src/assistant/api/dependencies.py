@@ -1,5 +1,7 @@
 """Сборка приложения из адаптеров по Settings — единственное место с импортами адаптеров."""
 
+from __future__ import annotations
+
 import base64
 import contextlib
 import logging
@@ -7,7 +9,7 @@ import time
 from concurrent.futures import Executor, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from fastapi import Request
 
@@ -81,7 +83,7 @@ class Container:
     crm: CrmClient
     asr: SpeechRecognizer
     tts: SpeechSynthesizer
-    closeables: list = field(default_factory=list)
+    closeables: list[Any] = field(default_factory=list)
 
     async def to_response(
         self,
@@ -103,6 +105,8 @@ class Container:
                     audio_b64, mime = base64.b64encode(audio.data).decode(), audio.mime
             except TtsError as error:
                 log.warning("tts failed, fallback to text: %s", error)
+            except Exception as error:
+                log.exception("unexpected tts error, fallback to text: %s", error)
             stages["tts"] = _ms(started)
         return TurnResponse(
             call_id=call_id,
@@ -127,8 +131,6 @@ class Container:
         timings: dict[str, int] | None,
     ) -> dict[str, object]:
         """Собирает прозрачную сводку инициализации звонка для отображения в UI на `/call/start`."""
-        from assistant.services.tts.fake import FakeTts
-
         settings = self.settings
         clean_phone = phone.strip()
         session = self.orchestrator.store.get(call_id)
@@ -140,9 +142,10 @@ class Container:
             "tts": "fake" if isinstance(self.tts, FakeTts) else settings.tts_adapter,
             "crm": settings.crm_adapter,
         }
-        if settings.dialog_adapter == "cloudru" and settings.llm_model:
-            pipeline["llm_model"] = settings.llm_model
-        elif getattr(self.orchestrator, "llm", None) and settings.llm_model:
+        has_llm = settings.dialog_adapter == "cloudru" or bool(
+            getattr(self.orchestrator, "llm", None)
+        )
+        if has_llm and settings.llm_model:
             pipeline["llm_model"] = settings.llm_model
 
         steps: list[str] = []
@@ -206,19 +209,13 @@ class Container:
         }
 
     async def warm(self) -> dict[str, int]:
-        """Прогревает адаптеры, чтобы первый ход не платил за холодный старт.
-
-        TTS: короткая фраза — первый синтез дороже последующих (ленивая сборка
-        графа, кеш нормализатора). LLM: один дешёвый запрос — установка
-        соединения и JIT у провайдера. Ошибки не пробрасываем: прогрев
-        необязателен, а его сбой не должен ломать звонок.
-        """
+        """Прогревает адаптеры, чтобы первый ход не платил за холодный старт."""
         stages: dict[str, int] = {}
 
         started = time.perf_counter()
         try:
             await self.tts.synthesize("Проверка связи")
-        except Exception as error:  # noqa: BLE001 — прогрев не должен падать громко
+        except Exception as error:
             log.info("warmup tts skipped: %s", error)
         stages["tts"] = _ms(started)
 
@@ -227,12 +224,21 @@ class Container:
             started = time.perf_counter()
             try:
                 await llm.complete("Отвечай одним словом.", "скажи: ок")
-            except Exception as error:  # noqa: BLE001
+            except Exception as error:
                 log.info("warmup llm skipped: %s", error)
             stages["llm"] = _ms(started)
 
         log.info("warmup: %s", stages)
         return stages
+
+    def sweep(self) -> None:
+        """Периодическая очистка просроченных сессий, блокировок и диалоговых агентов."""
+        store_sweep = getattr(self.orchestrator.store, "sweep", None)
+        if callable(store_sweep):
+            store_sweep()
+        orch_sweep = getattr(self.orchestrator, "sweep", None)
+        if callable(orch_sweep):
+            orch_sweep()
 
     async def aclose(self) -> None:
         """Закрывает адаптеры из closeables — ошибки при завершении не мешают штатному выходу."""
@@ -243,6 +249,10 @@ class Container:
     def delete_call(self, call_id: str) -> None:
         """Удаляет сессию звонка и связанного с ней диалогового агента."""
         self.orchestrator.store.delete(call_id)
+        drop_call = getattr(self.orchestrator, "drop_call", None)
+        if callable(drop_call):
+            drop_call(call_id)
+            return
         agents = getattr(self.orchestrator, "_agents", None)
         if isinstance(agents, dict):
             agents.pop(call_id, None)
@@ -270,17 +280,22 @@ class _ExecutorCloseable:
 
 def build_container(settings: Settings) -> Container:
     """Собирает контейнер зависимостей по настройкам."""
-    closeables: list = []
+    closeables: list[Any] = []
 
-    needs_cpu_pool = (
-        settings.asr_adapter in ("vosk", "t-one")
-        or settings.tts_adapter in ("piper", "silero")
-    )
-    cpu_executor: Executor | None = None
-    if needs_cpu_pool:
-        pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="speech-cpu")
-        closeables.append(_ExecutorCloseable(pool))
-        cpu_executor = pool
+    # Разделяем пулы потоков локального ASR и TTS, чтобы длинный синтез на CPU
+    # никогда не задерживал распознавание параллельной реплики звонящего.
+    asr_executor: Executor | None = None
+    if settings.asr_adapter in ("vosk", "t-one"):
+        asr_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="speech-asr")
+        closeables.append(_ExecutorCloseable(asr_pool))
+        asr_executor = asr_pool
+
+    tts_executor: Executor | None = None
+    if settings.tts_adapter in ("piper", "silero"):
+        tts_workers = max(1, settings.silero_workers) if settings.tts_adapter == "silero" else 1
+        tts_pool = ThreadPoolExecutor(max_workers=tts_workers, thread_name_prefix="speech-tts")
+        closeables.append(_ExecutorCloseable(tts_pool))
+        tts_executor = tts_pool
 
     use_cloudru_dialog = settings.dialog_adapter == "cloudru"
     classifier = TopicClassifier.from_yaml(
@@ -316,8 +331,13 @@ def build_container(settings: Settings) -> Container:
     else:
         raise NotImplementedError("crm_adapter=bitrix: клиент Битрикс24 ещё не реализован")
 
-    asr = _build_asr(settings, executor=cpu_executor)
-    tts = _build_tts(settings, executor=cpu_executor)
+    asr = _build_asr(settings, executor=asr_executor)
+    if hasattr(asr, "aclose"):
+        closeables.append(asr)
+
+    tts = _build_tts(settings, executor=tts_executor)
+    if hasattr(tts, "aclose"):
+        closeables.append(tts)
 
     outbox = Outbox(
         crm,
@@ -328,6 +348,7 @@ def build_container(settings: Settings) -> Container:
     )
     store = InMemorySessionStore(ttl_sec=settings.session_ttl_sec)
     telephony = FakeTelephony()
+    escalation = EscalationDetector.from_yaml(settings.escalation_path)
 
     orchestrator: DialogRunner
     if use_cloudru_dialog:
@@ -335,18 +356,21 @@ def build_container(settings: Settings) -> Container:
         from assistant.services.cloudru.dialog import CloudRuDialogAdapter
 
         export_cloudru_env(settings, require_rag=True)
-        orchestrator = CloudRuDialogAdapter(
+        cloudru_runner = CloudRuDialogAdapter(
             store=store,
             crm=crm,
             outbox=outbox,
             telephony=telephony,
+            escalation=escalation,
             crm_timeout=settings.crm_timeout,
             agent_timeout=settings.agent_timeout,
             session_ttl_sec=settings.session_ttl_sec,
+            max_concurrency=settings.cloudru_max_concurrency,
         )
+        closeables.append(cloudru_runner)
+        orchestrator = cloudru_runner
     else:
         llm_tasks = _build_llm_tasks(settings, closeables)
-        escalation = EscalationDetector.from_yaml(settings.escalation_path)
         knowledge_base = MarkdownRetriever.from_dir(settings.knowledge_dir)
         orchestrator = Orchestrator(
             store=store,
@@ -365,7 +389,7 @@ def build_container(settings: Settings) -> Container:
     return Container(settings, orchestrator, outbox, crm, asr, tts, closeables)
 
 
-def _build_llm_tasks(settings: Settings, closeables: list) -> LlmTasks | None:
+def _build_llm_tasks(settings: Settings, closeables: list[Any]) -> LlmTasks | None:
     if settings.llm_adapter in ("openai", "cloudru"):
         base_url = settings.llm_base_url or (
             settings.fm_base_url if settings.llm_adapter == "cloudru" else ""
@@ -375,7 +399,10 @@ def _build_llm_tasks(settings: Settings, closeables: list) -> LlmTasks | None:
         )
         if api_key and settings.llm_model:
             client = OpenAICompatLlm(
-                base_url, api_key, settings.llm_model, timeout=settings.llm_timeout,
+                base_url,
+                api_key,
+                settings.llm_model,
+                timeout=settings.llm_timeout,
             )
             closeables.append(client)
             return LlmTasks(client)
@@ -397,6 +424,8 @@ def _build_asr(
         return VoskAsr(
             settings.vosk_model_path,
             sample_rate=settings.asr_sample_rate,
+            use_itn=settings.asr_itn,
+            timeout=settings.speech_timeout,
             executor=executor,
         )
     if settings.asr_adapter == "t-one":
@@ -406,6 +435,8 @@ def _build_asr(
             settings.tone_model_dir,
             input_sample_rate=settings.asr_sample_rate,
             num_threads=settings.tone_num_threads,
+            use_itn=settings.asr_itn,
+            timeout=settings.speech_timeout,
             executor=executor,
         )
     if settings.asr_adapter == "cloudru":
@@ -417,6 +448,9 @@ def _build_asr(
             sample_rate=settings.asr_sample_rate,
             timeout=settings.speech_timeout,
             use_itn=settings.asr_itn,
+            api_key=settings.fm_api_key,
+            base_url=settings.fm_base_url,
+            model=settings.stt_model,
         )
     return FakeAsr()
 
@@ -429,7 +463,13 @@ def _build_tts(
     if settings.tts_adapter == "piper":
         from assistant.services.tts.piper import PiperTts
 
-        return PiperTts(settings.piper_model_path, None, executor=executor)
+        return PiperTts(
+            settings.piper_model_path,
+            None,
+            normalize=settings.tts_normalize,
+            timeout=settings.speech_timeout,
+            executor=executor,
+        )
     if settings.tts_adapter == "silero":
         from assistant.services.tts.silero import SileroTts
 
@@ -446,10 +486,13 @@ def _build_tts(
             rate=settings.silero_rate,
             pitch=settings.silero_pitch,
             num_threads=settings.silero_num_threads,
+            workers=settings.silero_workers,
+            timeout=settings.speech_timeout,
             executor=executor,
         )
     return FakeTts()
 
 
 def get_container(request: Request) -> Container:
-    return request.app.state.container
+    container: Container = request.app.state.container
+    return container

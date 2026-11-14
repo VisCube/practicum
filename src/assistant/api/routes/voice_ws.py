@@ -35,6 +35,9 @@ router = APIRouter(tags=["voice"])
 START_TIMEOUT_SEC = 10.0
 MIN_UTTERANCE_BYTES = 1600        # 50 мс — короче считаем случайным щелчком
 
+# Активные WS-соединения по call_id: при resume_call_id закрываем полуоткрытый старый сокет
+_ACTIVE_CONNECTIONS: dict[str, VoiceConnection] = {}
+
 
 def _json(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False)
@@ -74,6 +77,7 @@ class VoiceConnection:
         self._tasks: set[asyncio.Task[Any]] = set()
         self._dialog_tasks: set[asyncio.Task[Any]] = set()
         self._turn_task: asyncio.Task[Any] | None = None
+        self._pre_asr_task: asyncio.Task[Any] | None = None
         self.closed = False
         # сессию удаляем только когда звонок завершён по существу, а не когда
         # просто оборвался транспорт: иначе переподключение теряет диалог
@@ -102,7 +106,7 @@ class VoiceConnection:
 
         `asyncio.shield` позволяет мгновенно отменить внешний ход при перебивании
         (не ждать LLM и не запускать TTS), но сам лок держится до завершения
-        синхронного `to_thread(agent.handle_message)`, чтобы два потока никогда
+        синхронного `agent.handle_message`, чтобы два потока никогда
         не мутировали `Assistant.messages` параллельно.
         """
         store = self.container.orchestrator.store
@@ -125,6 +129,7 @@ class VoiceConnection:
         generation: int,
         *,
         is_start: bool = False,
+        terminal: bool = False,
     ) -> dict[str, Any] | None:
         """Собирает ответ бота с озвучкой, событиями и карточкой старта."""
         started = time.perf_counter()
@@ -136,7 +141,9 @@ class VoiceConnection:
             tts_speaker=self.tts_speaker,
             timings=timings,
         )
-        if self.session.is_stale(generation):
+        # Если звонок уже завершился или переведён на оператора в CRM/сессии,
+        # случайный barge во время синтеза прощания не должен терять финальный кадр.
+        if not terminal and self.session.is_stale(generation):
             return None
         payload: dict[str, Any] = {
             "t": "reply",
@@ -166,6 +173,13 @@ class VoiceConnection:
         )
         return payload
 
+    async def _finalize_terminal_reply(self, reply: Reply) -> None:
+        """Фиксирует завершение/перевод звонка и гарантированно уведомляет клиент."""
+        self.call_ended = True
+        if reply.end_call:
+            self.container.delete_call(self.session.call_id)
+        await self.send({"t": "ended", "reason": "transfer" if reply.transfer else "end_call"})
+
     async def handle_start(self, phone: str) -> None:
         await self.send({"t": "ready", "call_id": self.session.call_id})
         generation = self.session.generation
@@ -187,34 +201,38 @@ class VoiceConnection:
                 events=[Event(type="transfer", payload={"reason": "техническая ошибка"})],
             )
         dialog_ms = int((time.perf_counter() - started) * 1000)
-        if self.session.is_stale(generation):
+        is_terminal = bool(reply.end_call or reply.transfer)
+        if not is_terminal and self.session.is_stale(generation):
             return
 
-        await self.send_state(VoiceState.speaking)
-        payload = await self._reply_payload(
-            self.session.call_id,
-            reply,
-            None,
-            {"dialog": dialog_ms},
-            generation,
-            is_start=True,
-        )
-        if payload is None:
-            return
+        try:
+            await self.send_state(VoiceState.speaking)
+            payload = await self._reply_payload(
+                self.session.call_id,
+                reply,
+                None,
+                {"dialog": dialog_ms},
+                generation,
+                is_start=True,
+                terminal=is_terminal,
+            )
+            if payload is None:
+                return
 
-        self._last_timings = payload.get("timings") or {}
-        await self.send(payload)
-        await self.send({
-            "t": "turn_done",
-            "turn": self.session.turn,
-            "timings": self._last_timings,
-        })
+            self._last_timings = payload.get("timings") or {}
+            await self.send(payload)
+            await self.send({
+                "t": "turn_done",
+                "turn": self.session.turn,
+                "timings": self._last_timings,
+            })
+        except asyncio.CancelledError:
+            if is_terminal:
+                await self._finalize_terminal_reply(reply)
+            raise
 
-        if reply.end_call or reply.transfer:
-            self.call_ended = True
-            if reply.end_call:
-                self.container.delete_call(self.session.call_id)
-            await self.send({"t": "ended", "reason": "transfer" if reply.transfer else "end_call"})
+        if is_terminal:
+            await self._finalize_terminal_reply(reply)
             return
         await self.send_state(VoiceState.listening)
 
@@ -224,9 +242,15 @@ class VoiceConnection:
         await self.send_state(VoiceState.listening)
         log.info("ws call %s resumed", self.session.call_id)
 
-    async def handle_utterance(self, text: str | None = None) -> None:
+    async def handle_utterance(
+        self,
+        text: str | None = None,
+        *,
+        asr_ms: int | None = None,
+        emit_asr: bool = False,
+    ) -> None:
         """Реплика клиента: аудио из буфера (или готовый текст) → ответ бота."""
-        pcm = self.session.take_audio()
+        pcm = b"" if text is not None else self.session.take_audio()
         if text is None and len(pcm) < MIN_UTTERANCE_BYTES:
             await self.send({
                 "t": "error",
@@ -242,6 +266,9 @@ class VoiceConnection:
 
         heard = text
         timings: dict[str, int] = {}
+        if asr_ms is not None:
+            timings["asr"] = asr_ms
+
         if heard is None:
             asr_started = time.perf_counter()
             try:
@@ -260,6 +287,8 @@ class VoiceConnection:
                 await self.send_state(VoiceState.listening)
                 return
             await self.send({"t": "asr", "text": heard, "ms": timings["asr"]})
+        elif emit_asr:
+            await self.send({"t": "asr", "text": heard, "ms": timings.get("asr", 0)})
 
         if self.session.is_stale(generation):
             return
@@ -277,36 +306,69 @@ class VoiceConnection:
             raise
         except Exception:
             log.exception("ws turn failed for call %s", self.session.call_id)
-            await self.send({"t": "error", "code": "dialog", "detail": "сбой обработки реплики"})
-            await self.send_state(VoiceState.listening)
-            return
+            cur = self.container.orchestrator.store.get(self.session.call_id)
+            reply = Reply(
+                text=say("tech_unavailable"),
+                state=cur.state if cur else CallState.TOPIC,
+            )
         timings["dialog"] = int((time.perf_counter() - dialog_started) * 1000)
 
-        if self.session.is_stale(generation):
+        is_terminal = bool(reply.end_call or reply.transfer)
+        if not is_terminal and self.session.is_stale(generation):
             return
 
-        await self.send_state(VoiceState.speaking)
-        payload = await self._reply_payload(
-            self.session.call_id,
-            reply,
-            heard,
-            timings,
-            generation,
-        )
-        if payload is None:
-            return
-        payload["turn"] = turn
-        self._last_timings = payload.get("timings") or {}
-        await self.send(payload)
-        await self.send({"t": "turn_done", "turn": turn, "timings": self._last_timings})
+        try:
+            await self.send_state(VoiceState.speaking)
+            payload = await self._reply_payload(
+                self.session.call_id,
+                reply,
+                heard,
+                timings,
+                generation,
+                terminal=is_terminal,
+            )
+            if payload is None:
+                return
+            payload["turn"] = turn
+            self._last_timings = payload.get("timings") or {}
+            await self.send(payload)
+            await self.send({"t": "turn_done", "turn": turn, "timings": self._last_timings})
+        except asyncio.CancelledError:
+            if is_terminal:
+                await self._finalize_terminal_reply(reply)
+            raise
 
-        if reply.end_call or reply.transfer:
-            self.call_ended = True
-            if reply.end_call:
-                self.container.delete_call(self.session.call_id)
-            await self.send({"t": "ended", "reason": "transfer" if reply.transfer else "end_call"})
+        if is_terminal:
+            await self._finalize_terminal_reply(reply)
             return
         await self.send_state(VoiceState.listening)
+
+    async def _precheck_concurrent_utterance(self, pcm: bytes) -> None:
+        """Распознаёт вдогонку пришедший звук ДО отмены текущего хода LLM.
+
+        Если это кашель, вздох или шум (ASR вернул пустую строку) — активный ход
+        агента НЕ прерывается и спокойно договаривает ответ. Если же клиент
+        действительно произнёс поправку — отменяем устаревший ход без повторного ASR.
+        """
+        if len(pcm) < MIN_UTTERANCE_BYTES:
+            return
+        asr_started = time.perf_counter()
+        try:
+            heard = await self.container.asr.transcribe(Audio(data=pcm, mime="audio/pcm"))
+        except asyncio.CancelledError:
+            raise
+        except AsrError as error:
+            log.warning("ws concurrent asr failed for %s: %s", self.session.call_id, error)
+            return
+        asr_ms = int((time.perf_counter() - asr_started) * 1000)
+        if not heard:
+            log.debug(
+                "ws call %s: ignored empty concurrent noise (%d ms) while turn active",
+                self.session.call_id,
+                asr_ms,
+            )
+            return
+        self.start_turn(self.handle_utterance(text=heard, asr_ms=asr_ms, emit_asr=True))
 
     # ---------- разбор входящих ----------
 
@@ -316,7 +378,13 @@ class VoiceConnection:
         task.add_done_callback(self._tasks.discard)
         return task
 
+    def _cancel_pre_asr(self) -> None:
+        if self._pre_asr_task and not self._pre_asr_task.done():
+            self._pre_asr_task.cancel()
+        self._pre_asr_task = None
+
     def _cancel_turn(self) -> None:
+        self._cancel_pre_asr()
         if self._turn_task and not self._turn_task.done():
             self._turn_task.cancel()
         self._turn_task = None
@@ -336,13 +404,18 @@ class VoiceConnection:
             generation = self.session.barge()
             self._cancel_turn()
             self.session.drop_audio()
-            await self.send({
+            ack: dict[str, Any] = {
                 "t": "barge_ack",
                 "turn": self.session.turn,
                 "generation": generation,
-            })
+            }
+            if isinstance(event.get("played_ms"), int | float):
+                ack["played_ms"] = int(event["played_ms"])
+            await self.send(ack)
             return True
         if kind in ("speech_start", "abort"):
+            if kind == "abort":
+                self._cancel_pre_asr()
             self.session.drop_audio()
             return True
         if kind == "config":
@@ -356,9 +429,15 @@ class VoiceConnection:
             await self.send({"t": "pong"})
             return True
         if kind == "utterance_end":
-            self.start_turn(self.handle_utterance())
+            if self._turn_task and not self._turn_task.done():
+                pcm = self.session.take_audio()
+                self._cancel_pre_asr()
+                self._pre_asr_task = self.spawn(self._precheck_concurrent_utterance(pcm))
+            else:
+                self.start_turn(self.handle_utterance())
             return True
         if kind == "text":
+            self._cancel_pre_asr()
             self.session.drop_audio()
             value = str(event.get("text", "")).strip()
             if value:
@@ -407,6 +486,12 @@ async def voice_call(ws: WebSocket) -> None:
     if resuming:
         call_id = resume_id
 
+    # Если старый WS того же звонка ещё висит полуоткрытым — гасим его без удаления сессии
+    previous = _ACTIVE_CONNECTIONS.pop(call_id, None)
+    if previous is not None and not previous.closed:
+        previous.call_ended = False
+        await previous.close()
+
     session = VoiceSession(
         call_id=call_id,
         phone=phone,
@@ -419,6 +504,7 @@ async def voice_call(ws: WebSocket) -> None:
         with_audio=_parse_audio_flag(start, ws),
         tts_speaker=_parse_speaker(start, ws),
     )
+    _ACTIVE_CONNECTIONS[call_id] = connection
     ui = str(start.get("ui") or "?")
     log.info("ws call %s started for %s | клиент стенда: %s", call_id, phone, ui)
 
@@ -451,5 +537,7 @@ async def voice_call(ws: WebSocket) -> None:
     except Exception:
         log.exception("ws call %s failed", call_id)
     finally:
+        if _ACTIVE_CONNECTIONS.get(call_id) is connection:
+            _ACTIVE_CONNECTIONS.pop(call_id, None)
         await connection.close()
         log.info("ws call %s closed", call_id)

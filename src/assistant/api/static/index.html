@@ -983,7 +983,7 @@
       asrHistory: $('#asrHistory'),
     };
 
-    const UI_BUILD = 'barge-11';
+    const UI_BUILD = 'barge-12';
     console.info('[ui] страница загружена, клиент ' + UI_BUILD);
 
     window.addEventListener('unhandledrejection', (e) => showStatus('JS: ' + (e.reason?.message || e.reason), true));
@@ -2066,6 +2066,17 @@
       return null;
     }
 
+    function speechPlayedMs() {
+      const el = speaker.el;
+      if (el && Number.isFinite(el.currentTime) && el.currentTime > 0) {
+        return Math.round(el.currentTime * 1000);
+      }
+      if (speaker.startedAt) {
+        return Math.max(0, Math.round(performance.now() - speaker.startedAt));
+      }
+      return Math.round(speaker.playedMs || 0);
+    }
+
     function fadeOutSpeech(ms) {
       const fadeMs = Math.max(60, ms || 150);
       const finish = speaker.finish;
@@ -2077,10 +2088,16 @@
       micStream.duckMs = 0;
       if (speaker.el) {
         const el = speaker.el;
+        const url = speaker.url;
         rampSpeaker(0, fadeMs);
         setTimeout(() => {
           try { el.pause(); } catch { /* уже */ }
-          releaseSpeaker();
+          if (speaker.el === el) {
+            releaseSpeaker();
+          } else {
+            try { el.removeAttribute('src'); el.load(); } catch { /* уже */ }
+            if (url) { try { URL.revokeObjectURL(url); } catch { /* уже */ } }
+          }
         }, fadeMs + 40);
       } else if (speaker.gain && speaker.ctx) {
         rampSpeaker(0, fadeMs);
@@ -2088,7 +2105,7 @@
         const ctx = speaker.ctx;
         setTimeout(() => {
           try { if (source) source.stop(); } catch { /* уже */ }
-          if (ctx === speaker.ctx) releaseSpeaker();
+          if (ctx === speaker.ctx && source === speaker.source) releaseSpeaker();
         }, fadeMs + 40);
       } else {
         releaseSpeaker();
@@ -2140,10 +2157,11 @@
           if (speaker.finish === finish) speaker.finish = null;
           if (speaker.el === el) speaker.el = null;
           if (speaker.url === url) speaker.url = null;
+          try { URL.revokeObjectURL(url); } catch { /* уже */ }
           resolve(result);
         };
         speaker.finish = finish;
-        el.onended = () => { try { URL.revokeObjectURL(url); } catch {} finish({ ok: true }); };
+        el.onended = () => finish({ ok: true });
         el.onerror = () => {
           const code = el.error ? el.error.code : '?';
           console.warn('[tts] <audio> не смог проиграть', mime, 'код', code, mediaErrorText(code));
@@ -2286,7 +2304,15 @@
     }
 
     function beginSpeaking(label) {
-      if (micStream.streaming) abortUtterance(true);
+      if (micStream.streaming) {
+        const spokenMs = Math.round(micStream.sentBytes / (SAMPLE_RATE * 2) * 1000);
+        // Если звонящий уже надиктовал полноценную фразу — не стираем её молча при приходе позднего ответа
+        if (spokenMs >= 500) {
+          endUtterance();
+        } else {
+          abortUtterance(true);
+        }
+      }
       app.speaking = true;
       micStream.speechStartedAt = Date.now();
       micStream.floorAt = 0;
@@ -2456,13 +2482,18 @@
       ws: null,
       callId: null,
       state: 'idle',        // idle | listening | thinking | speaking
+      dialogState: 'topic', // greeting | topic | identify | slots | confirm | done | transferred
       turn: 0,
       generation: 0,
       initCard: null,
       startAt: 0,
       reconnectTried: false,
+      reconnectAttempts: 0,
+      reconnectTimer: null,
       pingTimer: null,
     };
+
+    const WS_RECONNECT_DELAYS_MS = [1000, 2000, 3500, 5000, 7000];
 
     const WS_OPEN_TIMEOUT_MS = 5000;
     const WS_READY_TIMEOUT_MS = 10000;
@@ -2546,12 +2577,13 @@
 
     function softBarge() {
       if (!app.speaking) return;
+      const playedMs = speechPlayedMs();
       speechSeq++;
       stopSpeechWatchdog();
       fadeOutSpeech(150);
       endSpeaking();
       voice.generation++;
-      voiceSend({ t: 'barge', turn: voice.turn });
+      voiceSend({ t: 'barge', turn: voice.turn, played_ms: playedMs });
       record('— Перебивание: бот уступил');
       setVoiceState('listening');
       micStream.lastVoiceAt = Date.now();
@@ -2657,6 +2689,10 @@
         case 'asr':
           if (message.text) {
             addBubble('user', message.text, 'распознано: ' + (app.cfg.asr || 'asr'));
+            if (!app.ending && !app.speaking) {
+              app.statusError = false;
+              showStatus('Формирую ответ…');
+            }
           } else if (app.cfg.asr === 'fake') {
             showStatus('ASR выключен (ASR_ADAPTER=fake) — укажите cloudru / t-one / vosk или пишите текстом', true);
           } else {
@@ -2667,6 +2703,7 @@
           app.statusError = false;
           showStatus('');
           if (typeof message.turn === 'number') voice.turn = message.turn;
+          if (typeof message.state === 'string' && message.state) voice.dialogState = message.state;
           setBusy(false);
           logTimings(message.timings);
 
@@ -2760,19 +2797,36 @@
 
     function reconnectVoice() {
       if (!inCall() || app.ending || voice.reconnectTried) return;
+      if (voice.reconnectAttempts >= WS_RECONNECT_DELAYS_MS.length) {
+        showStatus('Голосовой канал не удалось восстановить после нескольких попыток', true);
+        return;
+      }
+      const delay = WS_RECONNECT_DELAYS_MS[voice.reconnectAttempts++];
       voice.reconnectTried = true;
-      setTimeout(() => {
+      clearTimeout(voice.reconnectTimer);
+      voice.reconnectTimer = setTimeout(() => {
+        voice.reconnectTimer = null;
         voice.reconnectTried = false;
         if (!inCall() || app.ending) return;
         const previous = app.callId;
         openWsChannel(app.phone, previous)
           .then(() => {
+            voice.reconnectAttempts = 0;
             record('— Канал восстановлен, разговор продолжается');
             showStatus('');
             setVoiceState('listening');
           })
-          .catch((err) => showStatus('Канал не восстановился: ' + err.message, true));
-      }, 1200);
+          .catch((err) => {
+            if (!inCall() || app.ending) return;
+            if (voice.reconnectAttempts < WS_RECONNECT_DELAYS_MS.length) {
+              showStatus('Канал недоступен, повторная попытка ('
+                + voice.reconnectAttempts + '/' + WS_RECONNECT_DELAYS_MS.length + ')…', true);
+              reconnectVoice();
+            } else {
+              showStatus('Канал не восстановился: ' + err.message, true);
+            }
+          });
+      }, delay);
     }
 
     function closeVoiceChannel() {
@@ -2780,6 +2834,10 @@
       voice.ws = null;
       voice.state = 'idle';
       voice.initCard = null;
+      voice.reconnectTried = false;
+      voice.reconnectAttempts = 0;
+      clearTimeout(voice.reconnectTimer);
+      voice.reconnectTimer = null;
       clearInterval(voice.pingTimer);
       voice.pingTimer = null;
       setChannelLabel(null);
@@ -2819,7 +2877,11 @@
       app.callId = null;
       voice.turn = 0;
       voice.generation = 0;
+      voice.dialogState = 'topic';
       voice.reconnectTried = false;
+      voice.reconnectAttempts = 0;
+      clearTimeout(voice.reconnectTimer);
+      voice.reconnectTimer = null;
       voice.state = 'idle';
       voice.startAt = performance.now();
 
@@ -2915,12 +2977,13 @@
       const trimmed = text.trim();
       if (!trimmed || !inCall() || composerLocked()) return;
       if (app.speaking) {
+        const playedMs = speechPlayedMs();
         speechSeq++;
         stopSpeechWatchdog();
         fadeOutSpeech(100);
         endSpeaking();
         voice.generation++;
-        voiceSend({ t: 'barge', turn: voice.turn });
+        voiceSend({ t: 'barge', turn: voice.turn, played_ms: playedMs });
       }
       abortUtterance(true);
       addBubble('user', trimmed);
@@ -2942,7 +3005,7 @@
     const THRESHOLD_SPEECH = 0.008;
     const FLOOR_MAX = 0.012;
     const MIN_SPEECH_MS = 150;
-    const PREROLL_MS = 300;
+    const PREROLL_MS = 650;
     const PREROLL_DUCK_MS = 1500;
     const MIN_AUDIO_SEC = 0.3;
     const MAX_UTTERANCE_MS = 20000;
@@ -3390,6 +3453,14 @@
           const steady = loud <= quiet * 2.5;
           micStream.echoFloor = Math.max(0.0015,
             steady ? percentileOf(micStream.cal, 0.5) : quiet);
+        } else if (!speaker.ducked && !micStream.bargeMs) {
+          // Плавно подстраиваем эхо-фон на длинных ответах: быстро вниз на паузах и
+          // очень медленно вверх на громких фразах бота, чтобы не срываться от самого себя.
+          if (rms < micStream.echoFloor) {
+            micStream.echoFloor = Math.max(0.0015, micStream.echoFloor * 0.92 + rms * 0.08);
+          } else {
+            micStream.echoFloor = Math.min(0.02, micStream.echoFloor * 0.995 + rms * 0.005);
+          }
         }
         const strong = Math.max(BARGE_MIN_THRESHOLD, micStream.echoFloor * BARGE_ECHO_FACTOR);
         const weak = Math.max(BARGE_WEAK_MIN_THRESHOLD, micStream.echoFloor * BARGE_WEAK_ECHO_FACTOR);
@@ -3452,8 +3523,13 @@
       const voiced = rms > speechThr;
       if (rms < micStream.floor) {
         micStream.floor = micStream.floor * 0.85 + rms * 0.15;
-      } else if (!voiced && !micStream.streaming && rms < THRESHOLD_SPEECH * 1.2) {
-        micStream.floor = Math.min(FLOOR_MAX, micStream.floor * 0.98 + rms * 0.02);
+      } else if (!voiced && !micStream.streaming) {
+        if (rms < THRESHOLD_SPEECH * 1.2) {
+          micStream.floor = Math.min(FLOOR_MAX, micStream.floor * 0.98 + rms * 0.02);
+        } else {
+          // Медленный распад залипшего верхнего фона, когда скачок шума прошёл
+          micStream.floor = Math.max(0, micStream.floor * 0.992);
+        }
       }
       if (voiced) {
         micStream.lastVoiceAt = now;
@@ -3462,7 +3538,11 @@
         return;
       }
       if (micStream.streaming) {
-        if (now - micStream.lastVoiceAt >= vad.endpointMs) endUtterance();
+        // При диктовке адреса, ФИО, номера дома/квартиры даём человеку микропаузу на вспоминание цифр
+        const effectiveEndpointMs = (voice.dialogState === 'slots' || voice.dialogState === 'identify')
+          ? Math.max(vad.endpointMs, 950)
+          : vad.endpointMs;
+        if (now - micStream.lastVoiceAt >= effectiveEndpointMs) endUtterance();
         return;
       }
       if (now - (micStream.lastVoiceAt || 0) > 400) micStream.voicedMs = 0;
