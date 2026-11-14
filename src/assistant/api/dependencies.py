@@ -10,17 +10,19 @@ from concurrent.futures import Executor, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
+from uuid import uuid4
 
 from fastapi import Request
 
 from assistant.core.config import Settings
-from assistant.core.models import CallState, Event, Reply, TopicKind
+from assistant.core.models import Audio, CallState, Event, Reply, TopicKind
 from assistant.core.orchestrator import Orchestrator
 from assistant.core.session_store import InMemorySessionStore, SessionStore
 from assistant.handlers.consultation import ConsultationHandler
 from assistant.handlers.intake import IntakeHandler
 from assistant.nlu.classifier import TopicClassifier
 from assistant.nlu.escalation import EscalationDetector
+from assistant.nlu.itn import warm_itn
 from assistant.nlu.llm_tasks import LlmTasks
 from assistant.services.asr.base import SpeechRecognizer
 from assistant.services.asr.fake import FakeAsr
@@ -36,6 +38,10 @@ from assistant.services.tts.fake import FakeTts
 from .schemas.dto import TurnResponse
 
 log = logging.getLogger(__name__)
+
+# 100 мс тишины lpcm16 16 кГц: проходит все проверки длины и греет модель,
+# но не тратит время на реальное распознавание.
+_WARMUP_AUDIO = b"\x00" * 3200
 
 
 def _ms(started: float) -> int:
@@ -209,8 +215,16 @@ class Container:
         }
 
     async def warm(self) -> dict[str, int]:
-        """Прогревает адаптеры, чтобы первый ход не платил за холодный старт."""
+        """Прогревает адаптеры, чтобы первый ход не платил за холодный старт.
+
+        Греем и ASR: первый `transcribe` всегда дороже последующих — ленивый импорт
+        `text_to_num`, первый `KaldiRecognizer`/`sherpa-onnx`, а у облачного адаптера
+        ещё и DNS + TCP + TLS до провайдера. Без этого первая реплика звонка
+        приходит заметно позже следующих.
+        """
         stages: dict[str, int] = {}
+
+        warm_itn()
 
         started = time.perf_counter()
         try:
@@ -218,6 +232,16 @@ class Container:
         except Exception as error:
             log.info("warmup tts skipped: %s", error)
         stages["tts"] = _ms(started)
+
+        started = time.perf_counter()
+        try:
+            asr_warm = getattr(self.asr, "warm", None)
+            if callable(asr_warm):
+                await asr_warm()
+            await self.asr.transcribe(Audio(data=_WARMUP_AUDIO, mime="audio/pcm"))
+        except Exception as error:
+            log.info("warmup asr skipped: %s", error)
+        stages["asr"] = _ms(started)
 
         llm = getattr(self.orchestrator, "llm", None)
         if llm is not None:
@@ -227,9 +251,29 @@ class Container:
             except Exception as error:
                 log.info("warmup llm skipped: %s", error)
             stages["llm"] = _ms(started)
+        elif self.settings.dialog_adapter == "cloudru":
+            # CloudRuDialogAdapter объявляет `llm = None`, но его первый ход — самый
+            # дорогой: клиент OpenAI создаётся лениво в `Assistant.__init__`, плюс
+            # не открыто ни одного TCP-соединения до провайдера. Греем настоящим
+            # стартовым ходом агента и сразу же отпускаем его.
+            started = time.perf_counter()
+            try:
+                await self._warm_cloudru_dialog()
+            except Exception as error:
+                log.info("warmup cloudru dialog skipped: %s", error)
+            stages["dialog"] = _ms(started)
 
         log.info("warmup: %s", stages)
         return stages
+
+    async def _warm_cloudru_dialog(self) -> None:
+        """Один стартовый ход диалогового агента Cloud.ru на служебной сессии."""
+        call_id = f"__warmup__{uuid4().hex[:8]}"
+        try:
+            await self.orchestrator.start(call_id, "")
+        finally:
+            # delete_call сам убирает и сессию, и диалогового агента звонка
+            self.delete_call(call_id)
 
     def sweep(self) -> None:
         """Периодическая очистка просроченных сессий, блокировок и диалоговых агентов."""

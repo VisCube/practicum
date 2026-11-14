@@ -42,6 +42,12 @@ def test_debug_ui_not_cached_and_versioned():
         assert len(build) == 8
 
 
+def test_comparison_pages_are_removed():
+    with _client() as client:
+        for path in ("/debug/baseline", "/debug/pre-ws", "/debug/ws-audio-trial"):
+            assert client.get(path).status_code == 404
+
+
 def test_telephony_contract_full_call():
     with _client() as client:
         response = client.post("/call/start", json={"phone": KNOWN}).json()
@@ -61,7 +67,8 @@ def test_telephony_contract_full_call():
 
         view = client.get(f"/debug/call/{call_id}").json()
         assert view["owner"] == "Иванов Иван Иванович" and len(view["appeals"]) == 1
-        assert client.get("/debug/outbox").json()[0]["appeal"]["slots"]["leak_source"] == "из батареи"
+        outbox = client.get("/debug/outbox").json()
+        assert outbox[0]["appeal"]["slots"]["leak_source"] == "из батареи"
 
 
 def test_complaint_flags_and_operator_request_transfers():

@@ -8,6 +8,35 @@ import re
 log = logging.getLogger(__name__)
 
 _warned_missing = False
+_alpha2digit: object | None = None
+_alpha2digit_checked = False
+
+
+def warm_itn() -> None:
+    """Импортирует text2num заранее.
+
+    Первый вызов `numbers_to_digits` иначе платит за импорт `text_to_num` (а он
+    тянет за собой словари) прямо в горячем пути первого распознавания.
+    """
+    _get_alpha2digit()
+
+
+def _get_alpha2digit() -> object | None:
+    """Ленивый кэш `alpha2digit`: импорт один раз за процесс, а не на реплику."""
+    global _warned_missing, _alpha2digit, _alpha2digit_checked
+    if not _alpha2digit_checked:
+        _alpha2digit_checked = True
+        try:
+            from text_to_num import alpha2digit
+
+            _alpha2digit = alpha2digit
+        except ImportError:
+            _alpha2digit = None
+            if not _warned_missing:
+                _warned_missing = True
+                log.warning("text2num is not installed — ASR ITN fallback only")
+    return _alpha2digit
+
 
 # Основы русских порядковых 1..9 для склейки полупреобразованных составных («20 седьмом» → «27-м»)
 _ORD_UNIT_STEMS: dict[str, int] = {
@@ -102,16 +131,12 @@ def numbers_to_digits(text: str) -> str:
         return text
 
     normalized = text
-    try:
-        from text_to_num import alpha2digit
-
-        normalized = alpha2digit(text.replace("ё", "е"), "ru")
-    except ImportError:
-        if not _warned_missing:
-            _warned_missing = True
-            log.warning("text2num is not installed — ASR ITN fallback only")
-    except Exception as exc:
-        log.debug("alpha2digit skipped for %r: %s", text, exc)
+    alpha2digit = _get_alpha2digit()
+    if alpha2digit is not None:
+        try:
+            normalized = alpha2digit(text.replace("ё", "е"), "ru")  # type: ignore[operator]
+        except Exception as exc:
+            log.debug("alpha2digit skipped for %r: %s", text, exc)
 
     normalized = _COMPOUND_ORD_RE.sub(_fix_compound_ordinal, normalized)
     normalized = _GLUED_ORD_RE.sub(_fix_glued_ordinal, normalized)

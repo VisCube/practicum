@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import io
 import os
 import re
@@ -110,6 +111,17 @@ class CloudRuAsr:
         if self._async_client is not None:
             client, self._async_client = self._async_client, None
             await client.close()
+
+    async def warm(self) -> None:
+        """Готовит клиент и канал до провайдера.
+
+        Клиент `AsyncOpenAI` создаётся лениво, а вместе с ним на первой реплике
+        случаются DNS + TCP + TLS до Cloud.ru. Здесь же открываем и само
+        соединение (без запроса распознавания — тратить квоту не нужно).
+        """
+        client, _ = self._get_async_client()
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(client.models.list(), timeout=self.timeout or 10.0)
 
     async def transcribe(self, audio: Audio) -> str:
         if audio.empty:

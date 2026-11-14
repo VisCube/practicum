@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <title>Демо-стенд · Ассистент УК</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMwYzVmNTIiLz48dGV4dCB4PSIzMiIgeT0iNDIiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXdlaWdodD0iYm9sZCIgZm9udC1zaXplPSIyNiIgZmlsbD0id2hpdGUiPtCj0Jo8L3RleHQ+PC9zdmc+">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <script>
         (function () {
@@ -502,7 +503,7 @@
         .composer-row .mic.pending { color: var(--warn); }
         .composer-row .mic.rec::after {
           content: ""; position: absolute; inset: -3px; border-radius: 50%;
-          border: 2px solid currentColor; opacity: .55;
+          border: 2px solid var(--bad); opacity: .55;
           transform: scale(calc(1 + var(--level, 0) * .28));
           transition: transform .06s linear;
         }
@@ -645,7 +646,9 @@
         @keyframes micWait { 0%, 100% { opacity: .55; transform: scale(1); } 50% { opacity: .12; transform: scale(1.22); } }
 
         @media (max-width: 720px) {
-          .topbar { grid-template-columns: auto 1fr auto; padding: 8px 12px; }
+          .topbar { grid-template-columns: auto 1fr; padding: 8px 12px; }
+          .topbar-right { grid-column: 2; grid-row: 1; }
+          .modes { grid-column: 1 / -1; grid-row: 2; }
           .brand-txt { display: none; }
           .modes { justify-self: center; }
           .modes button span:not(.live-dot) { display: none; }
@@ -669,7 +672,7 @@
         </div>
     </div>
 
-    <nav class="modes" id="modeNav">
+    <nav class="modes" id="modeNav" aria-label="Режим стенда">
         <button type="button" data-mode="call" class="on">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
@@ -725,14 +728,19 @@
             <div class="field" style="margin-bottom:4px">
                 <div class="field-head">
                     <span>Микрофон</span>
-                    <button type="button" id="micGrantBtn" hidden>Обновить список</button>
+                    <button type="button" id="micGrantBtn" hidden>Подключить / обновить</button>
                 </div>
                 <select id="micSelect">
                     <option value="">По умолчанию (системный)</option>
                 </select>
                 <div class="field-hint" id="micHint" hidden></div>
-                <div class="field-hint">Когда микрофон включён, реплики нарезаются по паузе автоматически. Говорите поверх бота — он уступит.</div>
             </div>
+
+            <label class="switch">
+                <span class="lbl">Подробные аудиологи<small>Ошибки выводятся всегда; для логов запуска обновите страницу.</small></span>
+                <input type="checkbox" id="audioDebugToggle">
+                <span class="track"></span>
+            </label>
 
             <div class="sys-pill" id="sysPill">
                 <span>диалог: <b id="cfg-dialog">—</b></span>
@@ -758,7 +766,7 @@
                     </svg>
                 </div>
                 <h1>Диспетчерская УК «Территория»</h1>
-                <p>Введите номер абонента и начните тестовый звонок голосовому ассистенту.</p>
+                <p>Введите номер абонента и начните тестовый звонок голосовому ассистенту. При начале звонка микрофон включится автоматически; его можно выключить кнопкой в звонке.</p>
                 <div class="hero-form">
                     <input
                         id="phoneInput"
@@ -773,7 +781,7 @@
                     <button type="button" id="startCallBtn" class="btn call">Позвонить</button>
                 </div>
                 <div class="phone-presets" id="phonePresets" aria-label="Быстрый выбор номера"></div>
-                <div class="hero-status" id="heroStatus"></div>
+                <div class="hero-status" id="heroStatus" role="status" aria-live="polite"></div>
             </div>
         </div>
 
@@ -839,7 +847,7 @@
                         </button>
                     </div>
 
-                    <div class="statusline" id="status"></div>
+                    <div class="statusline" id="status" role="status" aria-live="polite"></div>
                 </div>
             </footer>
 
@@ -931,6 +939,7 @@
       voiceField: $('#voiceField'),
       voiceSelect: $('#voiceSelect'),
       micSelect: $('#micSelect'),
+      audioDebugToggle: $('#audioDebugToggle'),
       micGrantBtn: $('#micGrantBtn'),
       micHint: $('#micHint'),
       cfgLlmWrap: $('#cfg-llm-wrap'),
@@ -983,8 +992,16 @@
       asrHistory: $('#asrHistory'),
     };
 
-    const UI_BUILD = 'barge-12';
+    const UI_BUILD = 'barge-46-resample-precision';
     console.info('[ui] страница загружена, клиент ' + UI_BUILD);
+    // Только уровень логирования — граф и обработка звука не изменяются.
+    ui.audioDebugToggle.checked = localStorage.getItem('audioDebug') === 'true';
+    ui.audioDebugToggle.addEventListener('change', () => {
+      localStorage.setItem('audioDebug', String(ui.audioDebugToggle.checked));
+    });
+    function audioDebug(...args) {
+      if (ui.audioDebugToggle.checked) console.info(...args);
+    }
 
     window.addEventListener('unhandledrejection', (e) => showStatus('JS: ' + (e.reason?.message || e.reason), true));
     window.addEventListener('error', (e) => showStatus('JS: ' + e.message, true));
@@ -1012,12 +1029,15 @@
       timer: null,
     };
 
+    // Явно отображаем удержание устройства даже когда запись не ведётся.
+    const standMic = { keep: false, pending: false, token: 0 };
     const micSupported = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
     const mobileMq = matchMedia('(max-width: 720px)');
 
     const inCall = () => Boolean(app.callId) && !app.ended;
     const micCanOpen = () => app.sessionActive && !app.ended && !app.ending && app.micEnabled;
-    const micListening = () => app.mode === 'call' && micCanOpen() && Boolean(app.callId) && !app.busy;
+    const micListening = () => app.mode === 'call' && micCanOpen() && Boolean(app.callId)
+      && voice.ready && !app.busy;
     function isBotSpeaking() {
       if (app.speaking) return true;
       if (speaker.el && !speaker.el.paused && !speaker.el.ended) return true;
@@ -1031,6 +1051,13 @@
        ========================================================= */
     function escapeHtml(value) {
       return String(value).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+    }
+    function safeHttpUrl(value) {
+      if (typeof value !== 'string' || !value.trim()) return '';
+      try {
+        const url = new URL(value, location.href);
+        return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : '';
+      } catch { return ''; }
     }
     function fmtTime(sec) {
       return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
@@ -1136,14 +1163,15 @@
       activeSettings: null,
     };
 
-    // Разрешение знаем заранее: прогревать микрофон можно только когда оно уже
-    // выдано — иначе браузер покажет запрос в самый неожиданный момент
+    // Отслеживаем состояние разрешения; запрос запускается при загрузке страницы.
     async function refreshMicPermission() {
       if (!navigator.permissions || !navigator.permissions.query) return;
       try {
         const status = await navigator.permissions.query({ name: 'microphone' });
         mic.permission = status.state;
+        audioDebug('[mic diag] разрешение: ' + status.state + ', от загрузки ' + Math.round(performance.now()) + ' мс');
         status.addEventListener('change', () => {
+          audioDebug('[mic diag] разрешение изменилось: ' + status.state + ', от загрузки ' + Math.round(performance.now()) + ' мс');
           mic.permission = status.state;
           if (status.state === 'granted' && micCanOpen()) openCallMic();
         });
@@ -1216,13 +1244,13 @@
         const selOpt = ui.micSelect.selectedOptions[0];
         mic.label = selOpt ? selOpt.textContent : 'По умолчанию (системный)';
 
-        ui.micGrantBtn.hidden = named;
+        ui.micGrantBtn.hidden = named && !mic.denied && micTracksLive(micStream.stream);
         if (mic.denied) {
           renderMicHint('Доступ к микрофону заблокирован в браузере', true);
         } else if (mic.activeLabel) {
           renderMicHint('Сейчас используется: ' + mic.activeLabel, false);
         } else if (!named) {
-          renderMicHint('Нажмите «Обновить список», чтобы выбрать конкретный микрофон', false);
+          renderMicHint('Нажмите «Подключить / обновить», чтобы выбрать микрофон', false);
         } else {
           renderMicHint('', false);
         }
@@ -1231,19 +1259,16 @@
       }
     }
 
+    // Сохраняем ранее выбранную обработку, чтобы удаление настройки
+    // из интерфейса не меняло звучание микрофона.
+    function micAudioConstraints() {
+      const processed = localStorage.getItem('micProcessing') !== 'raw';
+      return { channelCount: 1, echoCancellation: processed, noiseSuppression: processed, autoGainControl: processed };
+    }
+
     async function requestMicPermission() {
-      if (!micSupported) return;
-      try {
-        const s = await navigator.mediaDevices.getUserMedia({
-          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        });
-        s.getTracks().forEach((t) => t.stop());
-        mic.denied = false;
-        await refreshMicDevices();
-      } catch (err) {
-        mic.denied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
-        renderMicHint('Нет доступа: ' + (err.message || err.name), true);
-      }
+      await holdStandMic();
+      await refreshMicDevices();
     }
 
     ui.micGrantBtn.addEventListener('click', requestMicPermission);
@@ -1262,11 +1287,17 @@
         localStorage.removeItem('micDeviceLabel');
       }
 
+      const reopenStandMic = standMic.keep;
       const reopenCallMic = inCall() && !app.ending && app.micEnabled;
       const reopenAsr = app.mode === 'asr' && Boolean(asr.recording || asr.pending);
       abortUtterance(true);
+      closeCallMic();
       if (asr.recording || asr.pending) stopAsrCapture();
+      ++standMic.token;
+      standMic.pending = false;
       teardownCapture();
+      renderStandMic();
+      if (reopenStandMic) { standMic.keep = false; holdStandMic(); }
       if (reopenCallMic || reopenAsr) prepareAudioContextSync(true);
       if (reopenCallMic && micCanOpen()) openCallMic({ allowPrompt: true });
       if (reopenAsr) startAsr().catch((err) => setAsrResult('Микрофон: ' + err.message, 'error'));
@@ -1276,62 +1307,47 @@
       navigator.mediaDevices.addEventListener('devicechange', () => refreshMicDevices());
     }
 
-    async function micGetUserMedia() {
-      const base = { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true };
-      if (!mic.deviceId && mic.savedLabel && mic.granted) {
-        await refreshMicDevices();
+    async function timedGetUserMedia(constraints, label) {
+      const start = performance.now();
+      audioDebug('[mic diag] getUserMedia начало: ' + label
+        + ', разрешение=' + mic.permission + ', от загрузки ' + Math.round(start) + ' мс');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        audioDebug('[mic diag] getUserMedia успех: ' + label + ', ожидание '
+          + Math.round(performance.now() - start) + ' мс (включая ожидание разрешения)');
+        return stream;
+      } catch (err) {
+        console.warn('[mic diag] getUserMedia ошибка: ' + label + ', ожидание '
+          + Math.round(performance.now() - start) + ' мс, ' + (err.name || '') + ': ' + (err.message || ''));
+        throw err;
       }
+    }
+
+    async function micGetUserMedia() {
+      const base = micAudioConstraints();
       if (mic.deviceId) {
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({
+          const stream = await timedGetUserMedia({
             audio: Object.assign({}, base, { deviceId: { exact: mic.deviceId } }),
-          });
+          }, 'выбранное устройство');
           mic.denied = false;
           if (!mic.granted) refreshMicDevices();
           return stream;
         } catch (err) {
           if (err.name === 'OverconstrainedError' || err.name === 'NotFoundError') {
             mic.deviceId = '';
-            // Открываем дефолтный поток, чтобы раскрыть метки устройств, и пробуем найти сохранённый по имени
-            const fallbackStream = await navigator.mediaDevices.getUserMedia({ audio: base });
-            mic.denied = false;
+            localStorage.removeItem('micDeviceId');
             await refreshMicDevices();
-            if (mic.deviceId) {
-              const openedTrack = fallbackStream.getAudioTracks()[0];
-              const openedId = openedTrack && openedTrack.getSettings && openedTrack.getSettings().deviceId;
-              if (openedId !== mic.deviceId) {
-                try { fallbackStream.getTracks().forEach((t) => t.stop()); } catch { /* уже */ }
-                return navigator.mediaDevices.getUserMedia({
-                  audio: Object.assign({}, base, { deviceId: { exact: mic.deviceId } }),
-                });
-              }
-            }
-            return fallbackStream;
+          } else {
+            if (err.name === 'NotAllowedError') mic.denied = true;
+            throw err;
           }
-          if (err.name === 'NotAllowedError') mic.denied = true;
-          throw err;
         }
       }
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: base });
+        const stream = await timedGetUserMedia({ audio: base }, 'системное устройство');
         mic.denied = false;
-        if (!mic.granted) {
-          if (mic.savedLabel) {
-            await refreshMicDevices();
-            if (mic.deviceId) {
-              const openedTrack = stream.getAudioTracks()[0];
-              const openedId = openedTrack && openedTrack.getSettings && openedTrack.getSettings().deviceId;
-              if (openedId !== mic.deviceId) {
-                try { stream.getTracks().forEach((t) => t.stop()); } catch { /* уже */ }
-                return navigator.mediaDevices.getUserMedia({
-                  audio: Object.assign({}, base, { deviceId: { exact: mic.deviceId } }),
-                });
-              }
-            }
-          } else {
-            refreshMicDevices();
-          }
-        }
+        if (!mic.granted) refreshMicDevices();
         return stream;
       } catch (err) {
         if (err.name === 'NotAllowedError') mic.denied = true;
@@ -1538,7 +1554,9 @@
       const wasOpen = node.open;
       const info = reply.init || {};
       const timings = info.timings_ms || reply.timings || {};
-      const totalMs = Object.values(timings).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0) || elapsedMs || 0;
+      // Этапы сервера могут перекрываться или включать общий итог: их сумма
+      // не является достоверным временем ожидания первого ответа.
+      const firstReplyMs = Number.isFinite(elapsedMs) && elapsedMs > 0 ? elapsedMs : 0;
       const caller = info.caller;
       const callerShort = caller && caller.full_name
         ? caller.full_name
@@ -1549,7 +1567,7 @@
         info.phone || app.phone,
         callIdShort ? '#' + callIdShort : null,
         callerShort,
-        totalMs ? totalMs + ' мс' : null,
+        firstReplyMs ? firstReplyMs + ' мс до первого ответа' : null,
       ].filter(Boolean).join(' · ');
 
       const steps = Array.isArray(info.steps) && info.steps.length
@@ -1565,7 +1583,7 @@
         : 'не найден в CRM (новый абонент)';
 
       const timingParts = Object.entries(timings).map(([k, v]) => k + ': ' + v + ' мс');
-      if (elapsedMs) timingParts.push('rtt: ' + elapsedMs + ' мс');
+      if (firstReplyMs) timingParts.push('от старта до первого ответа: ' + firstReplyMs + ' мс');
 
       const summaryLines = [
         'call_id:  ' + (reply.call_id || info.call_id || '—'),
@@ -1651,16 +1669,22 @@
       pollOutbox(p.appeal_id, 0);
     }
 
-    async function pollOutbox(appealId, attempt) {
-      const box = document.getElementById('crm-' + appealId);
-      if (!box || attempt > 20) return;
+    async function pollOutbox(appealId, attempt, originalBox) {
+      const box = originalBox || document.getElementById('crm-' + appealId);
+      // Опрос привязан к конкретной карточке, а не только к её ID:
+      // новая сессия может создать другую карточку с тем же ID.
+      const stillCurrent = () => Boolean(box && box.isConnected
+        && document.getElementById('crm-' + appealId) === box);
+      if (attempt > 20 || !stillCurrent()) return;
       try {
         const list = await api('/debug/outbox');
-        const rec = list.find((r) => r.appeal.id === appealId);
+        if (!stillCurrent()) return;
+        const rec = list.find((r) => r.appeal && r.appeal.id === appealId);
         if (rec && rec.status === 'sent') {
           box.className = 'crm ok';
-          const link = rec.appeal.channel_link
-            ? ' · <a href="' + escapeHtml(rec.appeal.channel_link) + '" target="_blank" rel="noopener">заявка в канале ↗</a>'
+          const channelUrl = safeHttpUrl(rec.appeal.channel_link);
+          const link = channelUrl
+            ? ' · <a href="' + escapeHtml(channelUrl) + '" target="_blank" rel="noopener noreferrer">заявка в канале ↗</a>'
             : '';
           box.innerHTML = 'CRM: отправлено · сделка <b>' + escapeHtml(rec.appeal.bitrix_deal_id || '—') + '</b>' + link;
           record('CRM: заявка №' + appealId + ' отправлена, сделка ' + (rec.appeal.bitrix_deal_id || '—'));
@@ -1674,7 +1698,13 @@
         }
         if (rec) box.textContent = 'CRM: попытка ' + rec.attempts + (rec.last_error ? ' · ' + rec.last_error : '');
       } catch { /* повторим */ }
-      setTimeout(() => pollOutbox(appealId, attempt + 1), 1500);
+      if (!stillCurrent()) return;
+      if (attempt >= 20) {
+        // Таймаут опроса не означает ошибку доставки в CRM.
+        box.textContent = 'CRM: статус пока не получен — проверьте позже';
+        return;
+      }
+      setTimeout(() => pollOutbox(appealId, attempt + 1, box), 1500);
     }
 
     /* =========================================================
@@ -1764,8 +1794,12 @@
 
     function renderPhonePresets(demoPhones) {
       ui.phonePresets.innerHTML = '';
-      const items = (demoPhones || []).map((p) => ({ phone: p, tag: 'в CRM' }));
-      items.push({ phone: '+70000000000', tag: 'нет в CRM' });
+      const phones = Array.isArray(demoPhones) ? demoPhones : [];
+      const items = phones.map((p) => ({ phone: p, tag: 'в CRM' }));
+      // Нельзя одновременно пометить один номер как найденный и отсутствующий.
+      if (!phones.includes('+70000000000')) {
+        items.push({ phone: '+70000000000', tag: 'нет в CRM' });
+      }
       items.forEach(({ phone, tag }) => {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -1811,7 +1845,8 @@
       }
 
       const demoPhones = app.cfg.demo_phones || [];
-      if (!phoneTouched) {
+      // Конфигурация может прийти уже после начала звонка.
+      if (!phoneTouched && !app.sessionActive) {
         ui.phoneInput.value = demoPhones[0] || '+79990000001';
       }
       renderPhonePresets(demoPhones);
@@ -1831,8 +1866,6 @@
        ========================================================= */
     let audioCtx = null;
     let audioCtxPromise = null;
-    let audioCtxStale = false;           // после track.stop() пересоздаём ctx синхронно внутри следующего клика
-    let audioCtxFreshForCapture = false; // ctx уже пересоздан под захват микрофона
     let unlockedPrimed = false;
 
     const capture = {
@@ -1850,27 +1883,20 @@
       return Boolean(ctx)
         && ctx.state !== 'closed'
         && typeof ctx.createMediaStreamSource === 'function'
-        && typeof ctx.createScriptProcessor === 'function'
+        && (typeof ctx.createScriptProcessor === 'function' || (ctx.audioWorklet && typeof window.AudioWorkletNode === 'function'))
         && typeof ctx.createGain === 'function';
     }
 
-    // Всегда вызывается СИНХРОННО внутри обработчика пользовательского жеста (до любых await!),
-    // иначе браузер создаст AudioContext в состоянии suspended, а ctx.resume() зависнет навсегда.
+    // Как в версии до WebSocket: сохраняем работающий контекст между
+    // открытиями микрофона, не закрываем его только из-за остановки трека.
     function prepareAudioContextSync(forCapture) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
-      audioCtxPromise = null;
-      const busyWithWebAudio = Boolean(speaker.source || capture.processor || capture.openingPromise);
-      if (forCapture && (audioCtxStale || !audioCtxFreshForCapture) && !busyWithWebAudio) {
-        if (audioCtx) { try { audioCtx.close(); } catch { /* уже */ } }
+      if (!audioContextUsable(audioCtx)) {
+        if (audioCtx && audioCtx.state !== 'closed') {
+          try { audioCtx.close().catch(() => {}); } catch { /* уже */ }
+        }
         audioCtx = new AC();
-        audioCtxStale = false;
-        audioCtxFreshForCapture = true;
-      } else if (!audioContextUsable(audioCtx)) {
-        if (audioCtx) { try { audioCtx.close(); } catch { /* уже */ } }
-        audioCtx = new AC();
-        audioCtxStale = false;
-        audioCtxFreshForCapture = Boolean(forCapture);
       }
       if (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted') {
         try { audioCtx.resume().catch(() => {}); } catch { /* браузер разблокирует на жесте */ }
@@ -1911,7 +1937,7 @@
       audioCtxPromise = null;
       closeCallMic();
       stopAsrCapture();
-      teardownCapture();
+      if (!standMic.keep) teardownCapture();
       resumeAudioOnGesture();
     }
 
@@ -1940,7 +1966,14 @@
     function resumeAudioOnGesture() {
       if (gestureWired) return;
       gestureWired = true;
-      const handler = () => {
+      let gestureLogged = false;
+      const handler = (event) => {
+        if (!gestureLogged && event.isTrusted) {
+          gestureLogged = true;
+          audioDebug('[mic diag] первый жест на странице: ' + event.type
+            + ', от загрузки ' + Math.round(performance.now()) + ' мс, ctx='
+            + (audioCtx ? audioCtx.state : 'нет'));
+        }
         unlockAudio().catch(() => {});
       };
       ['pointerdown', 'touchstart', 'keydown'].forEach((event) =>
@@ -2010,7 +2043,7 @@
         el.onerror = null;
         try { el.pause(); } catch { /* уже */ }
         setTimeout(() => {
-          try { el.removeAttribute('src'); el.load(); } catch { /* уже */ }
+          try { el.removeAttribute('src'); el.load(); el.remove(); } catch { /* уже */ }
         }, 0);
         speaker.el = null;
       }
@@ -2095,7 +2128,7 @@
           if (speaker.el === el) {
             releaseSpeaker();
           } else {
-            try { el.removeAttribute('src'); el.load(); } catch { /* уже */ }
+            try { el.removeAttribute('src'); el.load(); el.remove(); } catch { /* уже */ }
             if (url) { try { URL.revokeObjectURL(url); } catch { /* уже */ } }
           }
         }, fadeMs + 40);
@@ -2128,12 +2161,6 @@
       if (finish) finish({ ok: true, interrupted: true });
     }
 
-    function isPlayInterrupted(err) {
-      if (!err) return false;
-      if (err.name === 'AbortError' || err.name === 'NotSupportedError') return true;
-      return /interrupted|removed from the document|load\(\)|paused/i.test(err.message || '');
-    }
-
     function mediaErrorText(code) {
       return {
         1: 'загрузка прервана',
@@ -2144,10 +2171,15 @@
     }
 
     function playViaElement(blob, mime) {
+      const seq = speechSeq;
       return new Promise((resolve) => {
         const url = URL.createObjectURL(blob);
         const el = new Audio(url);
         el.preload = 'auto';
+        // Удерживаем проигрыватель в документе до окончания воспроизведения:
+        // некоторые браузеры/расширения прерывают play() для удалённого элемента.
+        el.hidden = true;
+        document.body.appendChild(el);
         speaker.el = el;
         speaker.url = url;
         let settled = false;
@@ -2157,6 +2189,12 @@
           if (speaker.finish === finish) speaker.finish = null;
           if (speaker.el === el) speaker.el = null;
           if (speaker.url === url) speaker.url = null;
+          el.onended = null;
+          el.onerror = null;
+          // При перебивании fadeOutSpeech/releaseSpeaker сами освободят элемент.
+          if (!result.interrupted) {
+            try { el.removeAttribute('src'); el.load(); el.remove(); } catch { /* уже */ }
+          }
           try { URL.revokeObjectURL(url); } catch { /* уже */ }
           resolve(result);
         };
@@ -2168,8 +2206,12 @@
           finish({ ok: false, reason: (mime || '?') + ', код ' + code + ' ' + mediaErrorText(code) });
         };
         el.play().catch((err) => {
-          if (isPlayInterrupted(err)) { finish({ ok: true, interrupted: true }); return; }
-          console.warn('[tts] play() отклонён', err && err.name, err && err.message);
+          if (settled) return;
+          // AbortError и NotSupportedError сами по себе не означают, что
+          // пользователь прервал речь. Иначе проигрывание молча считается
+          // успешным и состояние «бот говорит» может остаться навсегда.
+          if (seq !== speechSeq) { finish({ ok: true, interrupted: true }); return; }
+          console.warn('[tts] play() отклонён', err && err.name, err && err.message, '| элемент в документе:', el.isConnected);
           finish({ ok: false, reason: (err && err.name) + ': ' + ((err && err.message) || '') });
         });
       });
@@ -2304,15 +2346,7 @@
     }
 
     function beginSpeaking(label) {
-      if (micStream.streaming) {
-        const spokenMs = Math.round(micStream.sentBytes / (SAMPLE_RATE * 2) * 1000);
-        // Если звонящий уже надиктовал полноценную фразу — не стираем её молча при приходе позднего ответа
-        if (spokenMs >= 500) {
-          endUtterance();
-        } else {
-          abortUtterance(true);
-        }
-      }
+      if (micStream.streaming) abortUtterance(true);
       app.speaking = true;
       micStream.speechStartedAt = Date.now();
       micStream.floorAt = 0;
@@ -2320,6 +2354,9 @@
       micStream.cal = [];
       micStream.bargeMs = 0;
       micStream.bargeStrongMs = 0;
+      micStream.earlyBarge = false;
+      micStream.lastBargeAt = 0;
+      micStream.duckCooldownUntil = 0;
       setSpeaking(label);
       refreshComposer();
     }
@@ -2335,7 +2372,15 @@
     async function speak(reply, customLabel) {
       const seq = ++speechSeq;
       stopSpeechWatchdog();
+      // Закрываем и разрешаем предыдущую операцию, прежде чем начать новую.
+      // Иначе releaseSpeaker удаляет обработчики, а старый Promise зависает.
+      const previousFinish = speaker.finish;
+      speaker.finish = null;
+      if (previousFinish && 'speechSynthesis' in window) {
+        try { speechSynthesis.cancel(); } catch { /* уже остановлен */ }
+      }
       releaseSpeaker();
+      if (previousFinish) previousFinish({ ok: true, interrupted: true });
 
       const label = customLabel || ('Бот говорит' + (app.ttsSpeaker ? ' · ' + app.ttsSpeaker : ''));
       let result = { ok: true };
@@ -2350,7 +2395,7 @@
       }
 
       if (!result.ok || result.interrupted) {
-        if (seq === speechSeq && !result.interrupted) endSpeaking();
+        if (seq === speechSeq) endSpeaking();
         if (result.interrupted) return result;
       }
 
@@ -2371,16 +2416,21 @@
     function setMode(mode) {
       if (!['call', 'tts', 'asr'].includes(mode)) mode = 'call';
       const prev = app.mode;
+      if (prev === 'tts' && mode !== 'tts') cancelTtsProbe();
       if (prev === 'call' && mode !== 'call') {
         abortUtterance(true);
         ui.micBtn.style.removeProperty('--level');
       }
-      if (prev === 'asr' && mode !== 'asr' && (asr.recording || asr.pending)) {
+      if (prev === 'asr' && mode !== 'asr' && (asr.recording || asr.pending || asr.recognition)) {
         stopAsrCapture();
       }
       app.mode = mode;
       localStorage.setItem('mode', mode);
-      ui.modeTabs.forEach((tab) => tab.classList.toggle('on', tab.dataset.mode === mode));
+      ui.modeTabs.forEach((tab) => {
+        const active = tab.dataset.mode === mode;
+        tab.classList.toggle('on', active);
+        tab.setAttribute('aria-pressed', String(active));
+      });
       document.querySelectorAll('[data-view]').forEach((view) => {
         view.hidden = view.dataset.view !== mode;
       });
@@ -2392,7 +2442,7 @@
         micStream.preroll = [];
         micStream.prerollBytes = 0;
         micStream.lastLevelAt = 0;
-        if (capture.processor && micTracksLive(capture.stream) && audioContextUsable(capture.ctx)) {
+        if (capture.processor && micTracksLive(micStream.stream) && audioContextUsable(capture.ctx)) {
           tryResumeAudioContext(capture.ctx, 200);
           updateMicButton();
           if (!app.busy && !app.speaking && voice.state !== 'thinking') {
@@ -2422,16 +2472,22 @@
     /* =========================================================
        Логика звонка
        ========================================================= */
+    let callTimerStartedAt = null;
+    function updateCallTimer() {
+      if (callTimerStartedAt === null) return;
+      app.seconds = Math.max(0, Math.floor((Date.now() - callTimerStartedAt) / 1000));
+      ui.liveTimer.textContent = fmtTime(app.seconds);
+    }
     function startCallTimer() {
       stopCallTimer();
       app.seconds = 0;
       ui.liveTimer.textContent = '00:00';
-      app.timer = setInterval(() => {
-        app.seconds++;
-        ui.liveTimer.textContent = fmtTime(app.seconds);
-      }, 1000);
+      callTimerStartedAt = Date.now();
+      app.timer = setInterval(updateCallTimer, 1000);
     }
     function stopCallTimer() {
+      updateCallTimer();
+      callTimerStartedAt = null;
       if (app.timer) {
         clearInterval(app.timer);
         app.timer = null;
@@ -2480,6 +2536,7 @@
        ========================================================= */
     const voice = {
       ws: null,
+      ready: false,
       callId: null,
       state: 'idle',        // idle | listening | thinking | speaking
       dialogState: 'topic', // greeting | topic | identify | slots | confirm | done | transferred
@@ -2497,6 +2554,10 @@
 
     const WS_OPEN_TIMEOUT_MS = 5000;
     const WS_READY_TIMEOUT_MS = 10000;
+    const WS_HEARTBEAT_INTERVAL_MS = 15000;
+    const WS_HEARTBEAT_TIMEOUT_MS = 60000;
+    // ~8 секунд моно PCM16/16 кГц. Не накапливаем неограниченную очередь.
+    const WS_MAX_AUDIO_BUFFER_BYTES = 256 * 1024;
 
     function setChannelLabel(kind) {
       if (!ui.cfgChannel) return;
@@ -2516,11 +2577,20 @@
     }
 
     function voiceSendBytes(int16) {
-      if (!voice.ws || voice.ws.readyState !== WebSocket.OPEN) return false;
+      if (!voice.ws || voice.ws.readyState !== WebSocket.OPEN) {
+        voice.audioSendError = 'Голосовой канал недоступен';
+        return false;
+      }
+      if (voice.ws.bufferedAmount + int16.byteLength > WS_MAX_AUDIO_BUFFER_BYTES) {
+        voice.audioSendError = 'Очередь аудио переполнена — проверьте соединение';
+        return false;
+      }
       try {
-        voice.ws.send(int16.buffer);
+        // Передаём именно представление, не весь лежащий под ним ArrayBuffer.
+        voice.ws.send(int16);
         return true;
       } catch (err) {
+        voice.audioSendError = 'Не удалось отправить аудио';
         console.warn('[ws] аудио не ушло', err && err.message);
         return false;
       }
@@ -2544,10 +2614,11 @@
       refreshComposer();
     }
 
-    function duckSpeech() {
+    function duckSpeech(early) {
       if (!app.speaking || speaker.ducked) return false;
       if (!speaker.el && !speaker.gain) return false;
       speaker.ducked = true;
+      speaker.duckEarly = Boolean(early);
       speaker.duckStartedAt = Date.now();
       micStream.duckMs = 0;
       micStream.lastDuckVoiceAt = speaker.duckStartedAt;
@@ -2557,11 +2628,11 @@
           const el = speaker.el;
           if (el && el.volume > DUCK_LEVEL + 0.3) {
             speaker.volumeLocked = true;
-            console.info('[barge] громкость элемента недоступна (iOS?) — решаю быстрее');
+            audioDebug('[barge] громкость элемента недоступна (iOS?) — решаю быстрее');
           }
         }, DUCK_FADE_MS + 60);
       }
-      console.info('[barge] бот присел до ' + Math.round(DUCK_LEVEL * 100)
+      audioDebug('[barge] бот присел до ' + Math.round(DUCK_LEVEL * 100)
         + '% — слушаю: продолжать или уступать');
       return true;
     }
@@ -2572,7 +2643,7 @@
       micStream.duckMs = 0;
       micStream.duckCooldownUntil = Date.now() + DUCK_RETRY_MS;
       rampSpeaker(1, DUCK_RESUME_MS);
-      console.info('[barge] короткая вставка — бот договаривает');
+      audioDebug('[barge] короткая вставка — бот договаривает');
     }
 
     function softBarge() {
@@ -2595,6 +2666,57 @@
       return proto + '//' + location.host + '/ws/call';
     }
 
+    // Принудительное восстановление не ждёт onclose: при полуоткрытом
+    // соединении браузер может очень долго ждать закрывающего handshake.
+    function recoverStalledVoice(ws, reason) {
+      if (voice.ws !== ws || ws.abandoned || !inCall() || app.ending) return;
+      console.warn('[ws] ' + reason + ' — переподключаюсь');
+      ws.abandoned = true;
+      ws.onclose = null;
+      ws.onerror = null;
+      ws.onmessage = null;
+      clearInterval(voice.pingTimer);
+      voice.pingTimer = null;
+      voice.ws = null;
+      voice.ready = false;
+      abortUtterance(false);
+      setChannelLabel(null);
+      try { ws.close(); } catch { /* канал уже закрыт */ }
+      showStatus('Канал не отвечает, переподключаюсь; последнюю фразу может понадобиться повторить', true);
+      reconnectVoice();
+    }
+
+    function heartbeatTick(ws, beat) {
+      if (voice.ws !== ws || ws.abandoned || !voice.ready || !inCall() || app.ending) return;
+      const now = performance.now();
+      const delayed = beat.lastTick !== null && now - beat.lastTick > WS_HEARTBEAT_INTERVAL_MS * 2;
+      beat.lastTick = now;
+      // В фоне или после длительной паузы таймеров не делаем вывод по старому
+      // ping: браузер может приостанавливать как таймеры, так и сетевые события.
+      if (document.hidden) {
+        beat.sentAt = null;
+        voiceSend({ t: 'ping' }); // сохраняем прежний keepalive в фоне
+        return;
+      }
+      if (delayed) beat.sentAt = null;
+      if (!beat.supported) {
+        // Защита совместимости: до первого pong сервер не считаем зависшим.
+        voiceSend({ t: 'ping' });
+        return;
+      }
+      if (beat.sentAt !== null && now - beat.sentAt >= WS_HEARTBEAT_TIMEOUT_MS) {
+        recoverStalledVoice(ws, 'сервер не ответил на ping');
+        return;
+      }
+      if (beat.sentAt === null) {
+        if (!voiceSend({ t: 'ping' })) {
+          recoverStalledVoice(ws, 'не удалось отправить ping');
+          return;
+        }
+        beat.sentAt = now;
+      }
+    }
+
     function openWsChannel(phone, resumeCallId) {
       return new Promise((resolve, reject) => {
         let settled = false;
@@ -2607,7 +2729,9 @@
           return;
         }
         ws.binaryType = 'arraybuffer';
+        const beat = { supported: false, sentAt: null, lastTick: null };
         voice.ws = ws;
+        voice.ready = false;
 
         const abandon = () => {
           ws.abandoned = true;
@@ -2615,7 +2739,12 @@
           ws.onerror = null;
           ws.onmessage = null;
           try { ws.close(); } catch { /* уже */ }
-          if (voice.ws === ws) voice.ws = null;
+          if (voice.ws === ws) {
+            voice.ws = null;
+            voice.ready = false;
+            clearInterval(voice.pingTimer);
+            voice.pingTimer = null;
+          }
         };
         const fail = (reason) => {
           if (settled) return;
@@ -2644,16 +2773,18 @@
           voiceSend(frame);
           console.info('[ws] канал открыт', url);
           clearInterval(voice.pingTimer);
-          voice.pingTimer = setInterval(() => voiceSend({ t: 'ping' }), 15000);
+          voice.pingTimer = setInterval(() => heartbeatTick(ws, beat), WS_HEARTBEAT_INTERVAL_MS);
           readyTimer = setTimeout(() => fail('сервер не ответил на старт звонка'), WS_READY_TIMEOUT_MS);
         };
         ws.onerror = () => fail('не удалось открыть WS ' + url);
         ws.onclose = (event) => {
-          if (ws.abandoned) return;
+          if (ws.abandoned || voice.ws !== ws) return;
           console.info('[ws] канал закрыт', event.code, event.reason);
           clearInterval(voice.pingTimer);
           voice.pingTimer = null;
-          if (voice.ws === ws) voice.ws = null;
+          voice.ws = null;
+          voice.ready = false;
+          abortUtterance(false);
           setChannelLabel(null);
           if (!settled) { fail('канал закрылся (' + event.code + ')'); return; }
           if (inCall() && !app.ending) {
@@ -2662,15 +2793,21 @@
           }
         };
         ws.onmessage = (event) => {
-          if (typeof event.data !== 'string') return;
+          if (voice.ws !== ws || ws.abandoned || typeof event.data !== 'string') return;
           let message;
           try { message = JSON.parse(event.data); } catch { return; }
+          if (message.t === 'pong') {
+            beat.supported = true;
+            beat.sentAt = null;
+          }
           if (message.t === 'ready') {
             clearTimeout(readyTimer);
             voice.callId = message.call_id;
             app.callId = message.call_id;
+            voice.ready = true;
             setChannelLabel('ws');
             refreshLiveView();
+            updateMicButton();
             if (!settled) { settled = true; resolve({ call_id: message.call_id }); }
           }
           handleVoiceMessage(message);
@@ -2723,6 +2860,7 @@
 
           if (message.end_call || message.transfer) {
             const isTransfer = Boolean(message.transfer);
+            const endingCallId = app.callId;
             app.ending = true;
             abortUtterance(false);
             closeCallMic();
@@ -2730,7 +2868,8 @@
             setVoiceState('speaking');
             showStatus(isTransfer ? 'Перевод на оператора…' : 'Завершение разговора…');
             const finishEnd = () => {
-              if (!app.sessionActive || app.ended) return;
+              // Завершение озвучки старого звонка не должно завершать новый.
+              if (!app.sessionActive || app.ended || !app.ending || app.callId !== endingCallId) return;
               hangup(
                 isTransfer ? 'Звонок передан оператору' : 'Бот завершил разговор',
                 isTransfer ? 'переведён на оператора' : 'бот завершил разговор'
@@ -2832,6 +2971,7 @@
     function closeVoiceChannel() {
       const ws = voice.ws;
       voice.ws = null;
+      voice.ready = false;
       voice.state = 'idle';
       voice.initCard = null;
       voice.reconnectTried = false;
@@ -2856,7 +2996,6 @@
         ui.phoneInput.focus();
         return;
       }
-      unlockAudio();
       closePopover();
 
       app.micEnabled = false;
@@ -2874,6 +3013,7 @@
       app.sessionActive = true;
       app.callStarted = true;
       app.statusError = false;
+      app.micEnabled = true;
       app.callId = null;
       voice.turn = 0;
       voice.generation = 0;
@@ -2894,10 +3034,18 @@
       showStatus('Инициализация звонка…');
       warmServer();
 
+      // Как до перехода на «микрофон по требованию»: открываем его по жесту
+      // «Позвонить», параллельно инициализации WS, а не после приветствия бота.
+      prepareAudioContextSync(true);
+      unlockAudio();
+      openCallMic({ allowPrompt: true }).catch((err) => {
+        console.warn('[mic] ошибка запуска', err);
+      });
       try {
         await openWsChannel(app.phone);
       } catch (err) {
         stopCallTimer();
+        app.micEnabled = false;
         closeCallMic();
         closeVoiceChannel();
         app.sessionActive = false;
@@ -3011,8 +3159,11 @@
     const MAX_UTTERANCE_MS = 20000;
 
     const SOFT_BARGE_CALIB_MS = 600;
+    // В первые 600 мс учитываем только достаточно сильный сигнал;
+    // обычный порог во время калибровки увеличил бы риск реакции на эхо.
+    const BARGE_EARLY_THRESHOLD = 0.025;
+    const DUCK_EARLY_COMMIT_MS = 250;
     const MIC_SETTLE_MS = 450;
-    const MIC_OPEN_TIMEOUT_MS = 8000;
     const SOFT_BARGE_HOLD_MS = 200;
     const SOFT_BARGE_HOLD_WEAK_MS = 350;
     const BARGE_MIN_THRESHOLD = 0.014;
@@ -3051,6 +3202,8 @@
       diagAt: 0,
       streaming: false,
       sentBytes: 0,
+      sendBlockedUntil: 0,
+      sendError: '',
       preroll: [],
       prerollBytes: 0,
       token: 0,
@@ -3068,20 +3221,55 @@
       return out;
     }
 
-    // Усреднение по окну децимации вместо выборки каждого k-го отсчёта (анти-алиасинг 48→16 кГц)
-    function resample(samples, from, to) {
+    // Потоковый полосовой ресемплер: сохраняет фазу и историю на границах
+    // аудиобуферов. Каузальный FIR (Blackman-windowed sinc), задержка 16
+    // входных сэмплов; при понижении частоты подавляет частоты выше Nyquist.
+    function resample(samples, from, to, state) {
       if (from === to) return samples;
-      const ratio = from / to;
-      const length = Math.floor(samples.length / ratio);
-      const out = new Float32Array(length);
-      for (let i = 0; i < length; i++) {
-        const start = Math.floor(i * ratio);
-        const end = Math.max(start + 1, Math.min(samples.length, Math.floor((i + 1) * ratio)));
-        let sum = 0;
-        for (let j = start; j < end; j++) sum += samples[j];
-        out[i] = sum / (end - start);
+      if (!Number.isFinite(from) || !Number.isFinite(to) || from <= 0 || to <= 0) {
+        throw new Error('Некорректная частота дискретизации');
       }
-      return out;
+      const half = 16;
+      const ratio = from / to;
+      const cutoff = 0.47 * Math.min(1, to / from);
+      const history = state.history || new Float32Array(0);
+      const combined = new Float32Array(history.length + samples.length);
+      combined.set(history);
+      combined.set(samples, history.length);
+      const base = state.total - history.length;
+      const total = state.total + samples.length;
+      const output = new Float32Array(Math.ceil(samples.length / ratio) + 2);
+      let count = 0;
+      // Фаза вычисляется из целого индекса, а не суммированием дробного
+      // шага: на 44,1 кГц накопление ошибки может породить лишний сэмпл.
+      let outputIndex = state.outputIndex || 0;
+      const targetCount = Math.ceil(total * to / from - 1e-9);
+      while (outputIndex < targetCount) {
+        const pos = outputIndex * ratio;
+        const center = pos - half;
+        const start = Math.floor(center) - half + 1;
+        let sum = 0;
+        let norm = 0;
+        for (let j = 0; j < 2 * half; j++) {
+          const index = start + j;
+          const d = center - index;
+          const x = Math.PI * 2 * cutoff * d;
+          const sinc = Math.abs(x) < 1e-12 ? 1 : Math.sin(x) / x;
+          const window = 0.42 + 0.5 * Math.cos(Math.PI * d / half)
+            + 0.08 * Math.cos(2 * Math.PI * d / half);
+          const weight = 2 * cutoff * sinc * window;
+          const offset = index - base;
+          if (offset >= 0 && offset < combined.length) sum += combined[offset] * weight;
+          norm += weight;
+        }
+        output[count++] = norm ? sum / norm : 0;
+        outputIndex++;
+      }
+      state.total = total;
+      state.outputIndex = outputIndex;
+      state.nextPos = outputIndex * ratio;
+      state.history = combined.slice(Math.max(0, combined.length - (2 * half + 2)));
+      return output.subarray(0, count);
     }
 
     function percentileOf(values, q) {
@@ -3166,17 +3354,10 @@
       if (micTracksLive(micStream.stream)) return micStream.stream;
       if (!micStream.streamPromise) {
         const epoch = captureEpoch;
-        let timedOut = false;
-        let timerId = null;
-        const timeoutPromise = new Promise((_, reject) => {
-          timerId = setTimeout(() => {
-            timedOut = true;
-            reject(new Error('не дождался ответа от микрофона — проверьте разрешение в браузере'));
-          }, MIC_OPEN_TIMEOUT_MS);
-        });
-        const rawOpening = micGetUserMediaWithRetry().then((stream) => {
-          clearTimeout(timerId);
-          if (timedOut || epoch !== captureEpoch) {
+        // Запрос разрешения может оставаться открытым сколько угодно: не
+        // отменяем его по таймеру, пока пользователь принимает решение.
+        const opening = micGetUserMediaWithRetry().then((stream) => {
+          if (epoch !== captureEpoch) {
             try { stream.getTracks().forEach((t) => t.stop()); } catch { /* уже */ }
             throw new Error('захват отменён');
           }
@@ -3189,7 +3370,7 @@
             noiseSuppression: settings.noiseSuppression,
             autoGainControl: settings.autoGainControl,
           };
-          console.info('[mic] используется: ' + mic.activeLabel
+          audioDebug('[mic] используется: ' + mic.activeLabel
             + ' | выбрано: ' + (mic.label || 'по умолчанию')
             + ' | AEC ' + (settings.echoCancellation ? 'вкл' : 'выкл')
             + ', шумоподавление ' + (settings.noiseSuppression ? 'вкл' : 'выкл')
@@ -3199,16 +3380,21 @@
           stream.getAudioTracks().forEach((t) => {
             t.addEventListener('ended', () => {
               if (micStream.stream !== stream) return;
+              standMic.keep = false;
+              standMic.pending = false;
+              ++standMic.token;
               app.micEnabled = false;
               closeCallMic();
               stopAsrCapture();
               teardownCapture();
+              renderMicHint('Устройство отключено. Подключите его снова в настройках.', true);
+              ui.micGrantBtn.hidden = false;
+              if (app.sessionActive) showStatus('Микрофон отключён. Подключите его снова в настройках.', true);
+              renderStandMic();
             });
           });
           return stream;
         });
-        rawOpening.catch(() => clearTimeout(timerId));
-        const opening = Promise.race([rawOpening, timeoutPromise]);
         micStream.streamPromise = opening;
         opening.finally(() => {
           if (micStream.streamPromise === opening) micStream.streamPromise = null;
@@ -3220,9 +3406,9 @@
     function releaseMic() {
       const stream = micStream.stream;
       micStream.stream = null;
+      mic.activeLabel = '';
+      mic.activeSettings = null;
       if (!stream) return;
-      audioCtxStale = true;
-      audioCtxFreshForCapture = false;
       try { stream.getTracks().forEach((track) => track.stop()); } catch { /* уже */ }
     }
 
@@ -3231,6 +3417,10 @@
       try {
         if (capture.processor) {
           capture.processor.onaudioprocess = null;
+          if (capture.processor.port) {
+            capture.processor.port.onmessage = null;
+            capture.processor.port.close();
+          }
           capture.processor.disconnect();
         }
         if (capture.source) capture.source.disconnect();
@@ -3247,6 +3437,9 @@
     function teardownCapture() {
       captureEpoch++;
       capture.openingPromise = null;
+      // Поздний поток отменённого запроса остановится в acquireMic
+      // благодаря проверке captureEpoch.
+      micStream.streamPromise = null;
       disconnectCaptureNodes();
       releaseMic();
       updateMicButton();
@@ -3254,8 +3447,117 @@
     }
 
     function stopCaptureIfIdle() {
-      if (captureWanted()) return;
+      if (captureWanted() || standMic.keep) return;
       teardownCapture();
+      renderStandMic();
+    }
+
+    function renderStandMic() {
+      // Устройство по-прежнему удерживается между записями, без надписи в шапке.
+    }
+
+    async function holdStandMic() {
+      if (!micSupported || standMic.pending) return;
+      const token = ++standMic.token;
+      standMic.keep = true;
+      standMic.pending = true;
+      renderStandMic();
+      prepareAudioContextSync(true);
+      try {
+        await ensureCaptureOpen();
+      } catch (err) {
+        if (token === standMic.token) {
+          standMic.keep = false;
+          stopCaptureIfIdle();
+          const message = mic.denied
+            ? 'Доступ к микрофону запрещён. Разрешите его в настройках браузера.'
+            : 'Не удалось подключить микрофон: ' + (err.message || err.name);
+          renderMicHint(message, true);
+          ui.micGrantBtn.hidden = false;
+          showStatus(message, true);
+        }
+      } finally {
+        if (token === standMic.token) { standMic.pending = false; renderStandMic(); }
+      }
+    }
+
+    function releaseStandMic() {
+      ++standMic.token;
+      standMic.keep = false;
+      standMic.pending = false;
+      app.micEnabled = false;
+      abortUtterance(true);
+      closeCallMic();
+      stopAsrCapture();
+      teardownCapture();
+      renderStandMic();
+    }
+
+    window.addEventListener('pagehide', releaseStandMic);
+    window.addEventListener('pageshow', (event) => {
+      if (event.persisted && micSupported) holdStandMic();
+    });
+
+    // Аудио захватывается в AudioWorklet; пакетирование сохраняет прежний
+    // размер фрейма. VAD и передача данных пока работают в основном потоке.
+    const workletModules = new WeakMap();
+    async function createCaptureProcessor(ctx, bufferSize) {
+      if (ctx.audioWorklet && typeof window.AudioWorkletNode === 'function') {
+        try {
+          let loading = workletModules.get(ctx);
+          if (!loading) {
+            const code = `
+              class MicCaptureProcessor extends AudioWorkletProcessor {
+                constructor(options) {
+                  super();
+                  this.size = options.processorOptions.size;
+                  this.frame = new Float32Array(this.size);
+                  this.offset = 0;
+                }
+                process(inputs) {
+                  const input = inputs[0] && inputs[0][0];
+                  if (!input) return true;
+                  let from = 0;
+                  while (from < input.length) {
+                    const count = Math.min(this.size - this.offset, input.length - from);
+                    this.frame.set(input.subarray(from, from + count), this.offset);
+                    this.offset += count;
+                    from += count;
+                    if (this.offset === this.size) {
+                      const completed = this.frame;
+                      this.frame = new Float32Array(this.size);
+                      this.offset = 0;
+                      this.port.postMessage(completed, [completed.buffer]);
+                    }
+                  }
+                  return true;
+                }
+              }
+              registerProcessor('mic-capture-v1', MicCaptureProcessor);
+            `;
+            const url = URL.createObjectURL(new Blob([code], { type: 'application/javascript' }));
+            loading = ctx.audioWorklet.addModule(url).finally(() => URL.revokeObjectURL(url));
+            workletModules.set(ctx, loading);
+            loading.catch(() => { if (workletModules.get(ctx) === loading) workletModules.delete(ctx); });
+          }
+          await loading;
+          const node = new AudioWorkletNode(ctx, 'mic-capture-v1', {
+            numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
+            processorOptions: { size: bufferSize },
+          });
+          node.onprocessorerror = () => console.error('[mic] ошибка AudioWorklet: перезагрузите страницу');
+          audioDebug('[mic diag] обработчик: AudioWorklet, фрейм=' + bufferSize);
+          return { node, kind: 'worklet' };
+        } catch (err) {
+          console.warn('[mic diag] AudioWorklet недоступен, использую ScriptProcessor:', err.name, err.message);
+        }
+      } else {
+        audioDebug('[mic diag] AudioWorklet не поддерживается, использую ScriptProcessor');
+      }
+      if (typeof ctx.createScriptProcessor !== 'function') {
+        throw new Error('Нет доступного обработчика аудио');
+      }
+      return { node: ctx.createScriptProcessor(bufferSize, 1, 1), kind: 'script' };
     }
 
     async function ensureCaptureOpen() {
@@ -3266,41 +3568,103 @@
       if (capture.openingPromise) return capture.openingPromise;
 
       const epoch = captureEpoch;
+      const started = performance.now();
+      const elapsed = () => Math.round(performance.now() - started);
+      audioDebug('[mic timing] запрос захвата, режим=' + app.mode);
       const opening = (async () => {
         disconnectCaptureNodes();
         const ctx = await ensureAudioContext(true);
+        audioDebug('[mic timing] контекст ' + ctx.state + ', ' + ctx.sampleRate
+          + ' Гц, ' + elapsed() + ' мс');
         const stream = await acquireMic();
+        const track = stream.getAudioTracks()[0];
+        audioDebug('[mic timing] поток открыт: ' + elapsed() + ' мс, muted='
+          + Boolean(track && track.muted) + ', ctx=' + ctx.state);
+        if (track) track.addEventListener('unmute', () => {
+          if (epoch === captureEpoch) audioDebug('[mic timing] unmute: ' + elapsed() + ' мс');
+        }, { once: true });
         await tryResumeAudioContext(ctx, 250);
-        if (epoch !== captureEpoch || !captureWanted()) {
+        if (epoch !== captureEpoch || (!captureWanted() && !standMic.keep)) {
           stopCaptureIfIdle();
           throw new Error('захват отменён');
         }
 
+        // Сохраняем прежнюю длительность фреймов для VAD и ASR.
+        const bufferSize = ctx.sampleRate <= 12000 ? 512 : ctx.sampleRate <= 24000 ? 1024 : 2048;
+        const created = await createCaptureProcessor(ctx, bufferSize);
+        const processor = created.node;
+        if (epoch !== captureEpoch || (!captureWanted() && !standMic.keep)) {
+          if (processor.port) processor.port.close();
+          processor.disconnect();
+          throw new Error('захват отменён');
+        }
         const sink = ctx.createGain();
         sink.gain.value = 0;
         sink.connect(ctx.destination);
         const source = ctx.createMediaStreamSource(stream);
-        const processor = ctx.createScriptProcessor(2048, 1, 1);
         const meter = createSharedMeter(ctx, source, sink);
 
-        processor.onaudioprocess = (event) => {
+        let signalLogged = false;
+        let resampler = { total: 0, nextPos: 0, history: null };
+        let previousConsumer = '';
+        // Только агрегированные уровни, без сохранения или отправки аудио.
+        const diagUntil = performance.now() + 15000;
+        let diagAt = performance.now();
+        let diagFrames = 0;
+        let diagNonzero = 0;
+        let diagMaxRms = 0;
+        const handleAudioFrame = (raw) => {
+          if (epoch !== captureEpoch || capture.processor !== processor) return;
           capture.framesSeen++;
+          if (capture.framesSeen === 1) {
+            audioDebug('[mic timing] первый аудиобуфер: ' + elapsed() + ' мс');
+          }
           const callOn = isCallMicLive() && app.mode === 'call';
           const asrOn = asr.recording && app.mode === 'asr';
-          if (!callOn && !asrOn) return;
-          const raw = event.inputBuffer.getChannelData(0);
-          const rms = rmsOf(raw);
+          const now = performance.now();
+          let rms;
+          // Измеряем и до записи: иначе нельзя отличить тишину от простоя ASR.
+          if (now <= diagUntil || callOn || asrOn) rms = rmsOf(raw);
+          if (now <= diagUntil) {
+            diagFrames++;
+            if (rms > 0) diagNonzero++;
+            diagMaxRms = Math.max(diagMaxRms, rms);
+            if (!signalLogged && rms > 0) {
+              signalLogged = true;
+              audioDebug('[mic timing] первый ненулевой входной сигнал (в любом режиме): ' + elapsed() + ' мс');
+            }
+            if (now - diagAt >= 1000) {
+              audioDebug('[mic diag] вход за ' + Math.round(now - diagAt) + ' мс: буферов=' + diagFrames
+                + ', ненулевых=' + diagNonzero + ', макс RMS=' + diagMaxRms.toFixed(6)
+                + ', режим=' + app.mode + ', звонок=' + callOn + ', ASR=' + asrOn
+                + ', ctx=' + ctx.state + ', track=' + (track ? track.readyState + '/muted=' + track.muted : 'нет'));
+              diagAt = now;
+              diagFrames = 0;
+              diagNonzero = 0;
+              diagMaxRms = 0;
+            }
+          }
+          const consumer = callOn ? 'call' : asrOn ? 'asr' : '';
+          if (consumer !== previousConsumer) {
+            resampler = { total: 0, nextPos: 0, history: null };
+            previousConsumer = consumer;
+          }
+          if (!consumer) return;
           const bufMs = raw.length / ctx.sampleRate * 1000;
-          const frame = ctx.sampleRate !== SAMPLE_RATE ? resample(raw, ctx.sampleRate, SAMPLE_RATE) : raw;
+          const frame = ctx.sampleRate !== SAMPLE_RATE ? resample(raw, ctx.sampleRate, SAMPLE_RATE, resampler) : raw;
           if (callOn) {
             onMicLevel(rms, bufMs);
             onAudioFrame(frame);
           }
           if (asrOn) {
             asr.chunks.push(floatToInt16(frame));
-            onAsrLevel(rms, bufMs);
           }
         };
+        if (created.kind === 'worklet') {
+          processor.port.onmessage = (event) => handleAudioFrame(event.data);
+        } else {
+          processor.onaudioprocess = (event) => handleAudioFrame(event.inputBuffer.getChannelData(0));
+        }
         source.connect(processor);
         processor.connect(sink);
 
@@ -3311,8 +3675,16 @@
         capture.meter = meter;
         capture.openedAt = Date.now();
         capture.framesSeen = 0;
+        audioDebug('[mic timing] граф подключён: ' + elapsed() + ' мс, ctx=' + ctx.state);
+        setTimeout(() => {
+          if (epoch !== captureEpoch || capture.ctx !== ctx || signalLogged) return;
+          audioDebug('[mic timing] нет ненулевого сигнала: ' + elapsed() + ' мс, кадров='
+            + capture.framesSeen + ', ctx=' + ctx.state + ', track='
+            + (track ? track.readyState + '/muted=' + track.muted : 'нет'));
+        }, 3000);
 
         ctx.onstatechange = () => {
+          audioDebug('[mic diag] AudioContext: ' + ctx.state + ', от загрузки ' + Math.round(performance.now()) + ' мс');
           if (capture.ctx === ctx && capture.processor && ctx.state !== 'running') {
             tryResumeAudioContext(ctx, 250).then(() => updateAsrUi());
           } else {
@@ -3327,6 +3699,8 @@
           }, delay);
         });
 
+        standMic.keep = true;
+        renderStandMic();
         return { ctx, coldOpen: true };
       })();
 
@@ -3341,6 +3715,7 @@
     async function openCallMic(opts) {
       const allowPrompt = Boolean(opts && opts.allowPrompt);
       if (!micSupported) {
+        app.micEnabled = false;
         showStatus(window.isSecureContext
           ? 'Браузер не поддерживает захват микрофона.'
           : 'Микрофон доступен только по HTTPS или с localhost.', true);
@@ -3373,7 +3748,8 @@
           setVoiceState('listening');
         }
       } catch (err) {
-        if (token === micStream.token) micStream.pending = false;
+        if (token !== micStream.token) return;
+        micStream.pending = false;
         app.micEnabled = false;
         stopCaptureIfIdle();
         updateMicButton();
@@ -3386,6 +3762,8 @@
       micStream.pending = false;
       micStream.streaming = false;
       micStream.sentBytes = 0;
+      micStream.sendBlockedUntil = 0;
+      micStream.sendError = '';
       micStream.voicedMs = 0;
       micStream.lastVoiceAt = 0;
       micStream.floor = 0;
@@ -3425,7 +3803,7 @@
 
     /* --- VAD: нарезка реплик по паузе и мягкое перебивание --- */
     function onMicLevel(rms, bufMs) {
-      if (!micListening()) return;
+      if (!micListening() || performance.now() < micStream.sendBlockedUntil) return;
       micStream.voice = rms;
       const now = Date.now();
       const elapsed = micStream.lastLevelAt ? (now - micStream.lastLevelAt) : 0;
@@ -3443,9 +3821,14 @@
           || (micStream.speechStartedAt && now - micStream.speechStartedAt > 500);
         if (!audioLive) return;
 
-        if (!micStream.floorAt) { micStream.floorAt = now; micStream.echoFloor = rms; }
+        if (!micStream.floorAt) {
+          micStream.floorAt = now;
+          // Первый буфер может уже содержать голос звонящего.
+          micStream.echoFloor = Math.min(rms, FLOOR_MAX);
+        }
         const calibrating = now - micStream.floorAt < SOFT_BARGE_CALIB_MS;
-        if (calibrating) {
+        const earlyVoice = calibrating && rms > BARGE_EARLY_THRESHOLD;
+        if (calibrating && !earlyVoice) {
           micStream.cal.push(rms);
           if (micStream.cal.length > 40) micStream.cal.shift();
           const quiet = percentileOf(micStream.cal, 0.1);
@@ -3453,20 +3836,12 @@
           const steady = loud <= quiet * 2.5;
           micStream.echoFloor = Math.max(0.0015,
             steady ? percentileOf(micStream.cal, 0.5) : quiet);
-        } else if (!speaker.ducked && !micStream.bargeMs) {
-          // Плавно подстраиваем эхо-фон на длинных ответах: быстро вниз на паузах и
-          // очень медленно вверх на громких фразах бота, чтобы не срываться от самого себя.
-          if (rms < micStream.echoFloor) {
-            micStream.echoFloor = Math.max(0.0015, micStream.echoFloor * 0.92 + rms * 0.08);
-          } else {
-            micStream.echoFloor = Math.min(0.02, micStream.echoFloor * 0.995 + rms * 0.005);
-          }
         }
         const strong = Math.max(BARGE_MIN_THRESHOLD, micStream.echoFloor * BARGE_ECHO_FACTOR);
         const weak = Math.max(BARGE_WEAK_MIN_THRESHOLD, micStream.echoFloor * BARGE_WEAK_ECHO_FACTOR);
         if (now - (micStream.diagAt || 0) > 1000) {
           micStream.diagAt = now;
-          console.info('[barge ' + UI_BUILD + '] микрофон ' + rms.toFixed(3)
+          audioDebug('[barge ' + UI_BUILD + '] микрофон ' + rms.toFixed(3)
             + ' | эхо-фон ' + micStream.echoFloor.toFixed(3)
             + ' | порог слабый ' + weak.toFixed(3) + ', сильный ' + strong.toFixed(3)
             + (speaker.ducked
@@ -3479,7 +3854,8 @@
             micStream.duckMs = (micStream.duckMs || 0) + frameMs;
             micStream.lastDuckVoiceAt = now;
           }
-          const commitMs = speaker.volumeLocked ? DUCK_COMMIT_FAST_MS : DUCK_COMMIT_MS;
+          const commitMs = speaker.duckEarly ? DUCK_EARLY_COMMIT_MS
+            : speaker.volumeLocked ? DUCK_COMMIT_FAST_MS : DUCK_COMMIT_MS;
           if (micStream.duckMs >= commitMs) {
             micStream.duckMs = 0;
             softBarge();
@@ -3488,29 +3864,34 @@
           }
           return;
         }
-        if (!calibrating && rms > weak) {
+        if (earlyVoice || (!calibrating && rms > weak)) {
+          if (earlyVoice) micStream.earlyBarge = true;
           micStream.bargeMs = (micStream.bargeMs || 0) + frameMs;
           micStream.lastBargeAt = now;
-          if (rms > strong) micStream.bargeStrongMs = (micStream.bargeStrongMs || 0) + frameMs;
+          if (earlyVoice || rms > strong) micStream.bargeStrongMs = (micStream.bargeStrongMs || 0) + frameMs;
         } else if (now - (micStream.lastBargeAt || 0) > BARGE_GAP_MS) {
           micStream.bargeMs = 0;
           micStream.bargeStrongMs = 0;
+          micStream.earlyBarge = false;
         }
         if (micStream.bargeStrongMs >= SOFT_BARGE_HOLD_MS
             || micStream.bargeMs >= SOFT_BARGE_HOLD_WEAK_MS) {
+          const wasEarly = Boolean(micStream.earlyBarge);
+          micStream.earlyBarge = false;
           micStream.bargeMs = 0;
           micStream.bargeStrongMs = 0;
           const left = speechRemainingMs();
           if (left !== null && left <= BARGE_TAIL_MS) {
-            console.info('[barge] до конца ответа ' + Math.round(left) + ' мс — не перебиваю');
+            audioDebug('[barge] до конца ответа ' + Math.round(left) + ' мс — не перебиваю');
             return;
           }
           if (now < (micStream.duckCooldownUntil || 0)) {
-            console.info('[barge] речь продолжается после короткой вставки — уступаю');
+            audioDebug('[barge] речь продолжается после короткой вставки — уступаю');
             softBarge();
             return;
           }
-          if (!duckSpeech()) softBarge();
+          if (wasEarly) audioDebug('[barge] раннее перебивание: проверка голоса');
+          if (!duckSpeech(wasEarly)) softBarge();
         }
         return;
       }
@@ -3523,13 +3904,8 @@
       const voiced = rms > speechThr;
       if (rms < micStream.floor) {
         micStream.floor = micStream.floor * 0.85 + rms * 0.15;
-      } else if (!voiced && !micStream.streaming) {
-        if (rms < THRESHOLD_SPEECH * 1.2) {
-          micStream.floor = Math.min(FLOOR_MAX, micStream.floor * 0.98 + rms * 0.02);
-        } else {
-          // Медленный распад залипшего верхнего фона, когда скачок шума прошёл
-          micStream.floor = Math.max(0, micStream.floor * 0.992);
-        }
+      } else if (!voiced && !micStream.streaming && rms < THRESHOLD_SPEECH * 1.2) {
+        micStream.floor = Math.min(FLOOR_MAX, micStream.floor * 0.98 + rms * 0.02);
       }
       if (voiced) {
         micStream.lastVoiceAt = now;
@@ -3538,11 +3914,7 @@
         return;
       }
       if (micStream.streaming) {
-        // При диктовке адреса, ФИО, номера дома/квартиры даём человеку микропаузу на вспоминание цифр
-        const effectiveEndpointMs = (voice.dialogState === 'slots' || voice.dialogState === 'identify')
-          ? Math.max(vad.endpointMs, 950)
-          : vad.endpointMs;
-        if (now - micStream.lastVoiceAt >= effectiveEndpointMs) endUtterance();
+        if (now - micStream.lastVoiceAt >= vad.endpointMs) endUtterance();
         return;
       }
       if (now - (micStream.lastVoiceAt || 0) > 400) micStream.voicedMs = 0;
@@ -3558,19 +3930,47 @@
       }
     }
 
+    // Если потеряли хотя бы один фрейм, отменяем всю реплику, чтобы сервер
+    // не распознал обрезанную фразу как полную. Небольшая пауза защищает от
+    // бесконечных повторов при плохой сети.
+    function failAudioSend(reason, started) {
+      const socket = voice.ws;
+      const aborted = !started || voiceSend({ t: 'abort' });
+      abortUtterance(false);
+      micStream.sendBlockedUntil = performance.now() + 1500;
+      micStream.sendError = (reason || 'Аудио не отправлено') + ' — повторите фразу';
+      showStatus(micStream.sendError, true);
+      console.warn('[ws] реплика отменена:', micStream.sendError);
+      // При невозможности отправить abort закрываем канал, чтобы сервер не
+      // оставался в состоянии незавершённой реплики; onclose переподключит его.
+      if (started && !aborted && socket && socket.readyState === WebSocket.OPEN) {
+        try { socket.close(); } catch (err) { console.warn('[ws] не удалось закрыть канал', err); }
+      }
+    }
+
     function startUtterance() {
+      if (performance.now() < micStream.sendBlockedUntil) return;
       const now = Date.now();
+      if (!voiceSend({ t: 'speech_start', at: now })) {
+        failAudioSend('Не удалось начать передачу речи', false);
+        return;
+      }
       micStream.streaming = true;
       micStream.sentBytes = 0;
       micStream.voicedMs = 0;
       micStream.startedAt = now;
       micStream.lastVoiceAt = now;
-      voiceSend({ t: 'speech_start', at: now });
-      micStream.preroll.forEach((chunk) => {
-        if (voiceSendBytes(chunk)) micStream.sentBytes += chunk.byteLength;
-      });
+      for (const chunk of micStream.preroll) {
+        if (!voiceSendBytes(chunk)) {
+          failAudioSend(voice.audioSendError, true);
+          return;
+        }
+        micStream.sentBytes += chunk.byteLength;
+      }
       micStream.preroll = [];
       micStream.prerollBytes = 0;
+      if (micStream.sendError && ui.status.textContent === micStream.sendError) showStatus('');
+      micStream.sendError = '';
       setVoiceState('listening');
     }
 
@@ -3588,7 +3988,10 @@
       micStream.voicedMs = 0;
       console.info('[vad] реплика: ' + (Date.now() - (micStream.startedAt || Date.now()))
         + ' мс, отправлено ' + ms + ' мс');
-      voiceSend({ t: 'utterance_end', ms: ms });
+      if (!voiceSend({ t: 'utterance_end', ms: ms })) {
+        failAudioSend('Не удалось завершить передачу речи', true);
+        return;
+      }
       setVoiceState('thinking');
     }
 
@@ -3604,10 +4007,14 @@
     }
 
     function onAudioFrame(frame) {
-      if (app.mode !== 'call') return;
+      if (!micListening() || performance.now() < micStream.sendBlockedUntil) return;
       const chunk = floatToInt16(frame);
       if (micStream.streaming) {
-        if (voiceSendBytes(chunk)) micStream.sentBytes += chunk.byteLength;
+        if (!voiceSendBytes(chunk)) {
+          failAudioSend(voice.audioSendError, true);
+          return;
+        }
+        micStream.sentBytes += chunk.byteLength;
         if (micStream.sentBytes / (SAMPLE_RATE * 2) * 1000 >= MAX_UTTERANCE_MS) endUtterance();
         return;
       }
@@ -3696,15 +4103,32 @@
        Проба TTS (/debug/tts)
        ========================================================= */
     let ttsPlaying = false;
+    let ttsRequestId = 0;
+    let ttsPlaybackSeq = null;
+
+    function cancelTtsProbe() {
+      if (!ttsPlaying) return;
+      ++ttsRequestId;
+      ttsPlaying = false;
+      // Не останавливаем озвучку звонка, если она уже сменила пробу.
+      if (ttsPlaybackSeq !== null && speechSeq === ttsPlaybackSeq) stopSpeech();
+      ttsPlaybackSeq = null;
+      updateTtsPlayBtn();
+      showTtsStatus('Остановлено');
+    }
 
     function updateTtsPlayBtn() {
       ui.ttsPlayLabel.textContent = ttsPlaying ? 'Остановить' : 'Озвучить';
     }
 
     async function playTts() {
+      if (ttsPlaying) {
+        cancelTtsProbe();
+        return;
+      }
       const text = ui.ttsInput.value.trim();
       if (!text) return;
-      if (ttsPlaying) { stopSpeech(); return; }
+      const requestId = ++ttsRequestId;
       unlockAudio();
       showTtsStatus('');
 
@@ -3715,6 +4139,8 @@
         ttsPlaying = true;
         updateTtsPlayBtn();
         const tts = await api('/debug/tts', postJson(body));
+        // Остановленный или заменённый запрос не должен запускать озвучивание.
+        if (requestId !== ttsRequestId) return;
         addTtsHistory(text, tts);
         const bytes = tts.audio_b64 ? Math.round(tts.audio_b64.length * 0.75) : 0;
         showTtsStatus(
@@ -3723,11 +4149,16 @@
             : 'Сервер вернул пустое аудио — читаю голосом браузера',
           !tts.audio_b64
         );
-        const result = await speak(
+        const playback = speak(
           { text: tts.spoken || text, audio_b64: tts.audio_b64, audio_mime: tts.audio_mime },
           'Проба синтеза'
         );
-        if (result && result.ok === false) {
+        ttsPlaybackSeq = speechSeq;
+        const result = await playback;
+        if (requestId !== ttsRequestId) return;
+        if (result && result.interrupted) {
+          showTtsStatus('Остановлено');
+        } else if (result && result.ok === false) {
           showTtsStatus('Звука нет: ' + result.reason, true);
         } else if (result && result.fallback) {
           showTtsStatus('Серверное аудио не пошло (' + result.fallback + ') — прочитал голосом браузера', true);
@@ -3737,10 +4168,13 @@
           showTtsStatus('Озвучено голосом браузера');
         }
       } catch (err) {
-        showTtsStatus('Ошибка синтеза: ' + err.message, true);
+        if (requestId === ttsRequestId) showTtsStatus('Ошибка синтеза: ' + err.message, true);
       } finally {
-        ttsPlaying = false;
-        updateTtsPlayBtn();
+        if (requestId === ttsRequestId) {
+          ttsPlaying = false;
+          ttsPlaybackSeq = null;
+          updateTtsPlayBtn();
+        }
       }
     }
 
@@ -3785,14 +4219,10 @@
     const asr = {
       recognition: null,
       chunks: [], recording: false, pending: false, token: 0,
-      speechSeen: false, voicedMs: 0, openedAt: 0, settleMs: 250, lastVoiceAt: 0,
-      floor: 0, diagAt: 0,
-      autoTimer: null, maxTimer: null,
+      maxTimer: null,
+      resultRevision: 0,
     };
-    // Проба останавливается сама: пауза после речи или общий лимит записи
-    const ASR_SILENCE_MS = 1200;
-    const ASR_MIN_VOICED_MS = 200;
-    const ASR_SETTLE_MS = 250;
+    // Ограничение длительности защищает память и сервер; это не VAD.
     const ASR_MAX_MS = 20000;
 
     function asrDiag(ctxOverride) {
@@ -3808,53 +4238,18 @@
       ui.asrMicBtn.classList.toggle('rec', asr.recording);
       ui.asrMicBtn.classList.toggle('pending', asr.pending);
       ui.asrState.classList.toggle('live', asr.recording);
+      ui.asrMicBtn.setAttribute('aria-label', asr.recording || asr.pending ? 'Остановить запись' : 'Начать запись');
       ui.asrState.textContent = asr.pending
         ? 'Открываю микрофон…'
         : asr.recording
-          ? 'Слушаю… говорите (остановлю сам после паузы) · ' + asrDiag()
-          : 'Нажмите и говорите — запись остановится сама';
+          ? 'Идёт запись — нажмите ещё раз для остановки (максимум 20 с) · ' + asrDiag()
+          : 'Нажмите для записи, затем ещё раз для распознавания';
       if (!asr.recording) ui.asrMicBtn.style.removeProperty('--level');
     }
 
     function clearAsrTimers() {
-      clearTimeout(asr.autoTimer);
       clearTimeout(asr.maxTimer);
-      asr.autoTimer = null;
       asr.maxTimer = null;
-    }
-
-    function onAsrLevel(rms, bufMs) {
-      if (!asr.recording) return;
-      const now = Date.now();
-      if (asr.openedAt && now - asr.openedAt < (asr.settleMs || ASR_SETTLE_MS)) return;
-      const frameMs = bufMs > 0 ? bufMs : 42;
-      const speechThr = Math.max(THRESHOLD_SPEECH, Math.min(FLOOR_MAX, asr.floor || 0) * 2.2);
-      const voiced = rms > speechThr;
-      if (rms < (asr.floor || 0)) {
-        asr.floor = asr.floor * 0.85 + rms * 0.15;
-      } else if (!voiced && !asr.speechSeen && rms < THRESHOLD_SPEECH * 1.2) {
-        asr.floor = Math.min(FLOOR_MAX, (asr.floor || 0) * 0.98 + rms * 0.02);
-      }
-      if (now - (asr.diagAt || 0) > 1000) {
-        asr.diagAt = now;
-        console.info('[asr ' + UI_BUILD + '] микрофон ' + rms.toFixed(3)
-          + ' | порог ' + speechThr.toFixed(3)
-          + ' | ' + asrDiag());
-      }
-      if (voiced) {
-        asr.lastVoiceAt = now;
-        asr.voicedMs = (asr.voicedMs || 0) + frameMs;
-        if (asr.voicedMs >= ASR_MIN_VOICED_MS) asr.speechSeen = true;
-        return;
-      }
-      if (!asr.speechSeen) {
-        if (now - (asr.lastVoiceAt || 0) > 400) asr.voicedMs = 0;
-        return;
-      }
-      if (now - asr.lastVoiceAt > ASR_SILENCE_MS) {
-        clearAsrTimers();
-        stopAsrAndSend();
-      }
     }
 
     function setAsrResult(text, kind) {
@@ -3865,7 +4260,10 @@
     }
 
     async function startAsr() {
-      if (asr.recording || asr.pending) return;
+      if (asr.recording || asr.pending || asr.recognition) return;
+      // Не меняем захват и не прерываем запрос: только запрещаем старому
+      // ответу перезаписать начатую позже пробу.
+      asr.resultRevision++;
 
       if (app.cfg.asr === 'fake') {
         unlockAudio();
@@ -3888,11 +4286,9 @@
       if (needOpen) setAsrResult('Открываю микрофон…', 'empty');
 
       let ctx = null;
-      let coldOpen = true;
       try {
         const opened = await ensureCaptureOpen();
         ctx = opened.ctx;
-        coldOpen = opened.coldOpen;
         if (token !== asr.token || !asr.pending || app.mode !== 'asr') {
           if (token === asr.token) asr.pending = false;
           stopCaptureIfIdle();
@@ -3900,7 +4296,8 @@
           return;
         }
       } catch (err) {
-        if (token === asr.token) asr.pending = false;
+        if (token !== asr.token) return;
+        asr.pending = false;
         stopCaptureIfIdle();
         updateAsrUi();
         setAsrResult('Микрофон не запустился: ' + (err.message || err.name) + ' [' + asrDiag(ctx) + ']', 'error');
@@ -3908,13 +4305,6 @@
       }
 
       asr.chunks = [];
-      asr.speechSeen = false;
-      asr.voicedMs = 0;
-      asr.floor = 0;
-      asr.diagAt = 0;
-      asr.openedAt = Date.now();
-      asr.settleMs = coldOpen ? MIC_SETTLE_MS : 120;
-      asr.lastVoiceAt = 0;
       clearAsrTimers();
       asr.pending = false;
       asr.recording = true;
@@ -3936,7 +4326,7 @@
         }
       }, 950);
 
-      setAsrResult('Говорите — запись остановится сама после паузы', 'empty');
+      setAsrResult('Говорите; нажмите ещё раз, чтобы остановить запись и распознать её', 'empty');
     }
 
     function stopAsrCapture() {
@@ -3944,7 +4334,6 @@
       clearAsrTimers();
       asr.pending = false;
       asr.recording = false;
-      asr.voicedMs = 0;
       if (asr.recognition) {
         const rec = asr.recognition;
         asr.recognition = null;
@@ -3963,6 +4352,20 @@
       }
       if (!asr.recording) return;
 
+      // Web Speech API управляет собственным потоком и завершает распознавание
+      // асинхронно через onend; не вызываем abort при обычной остановке.
+      if (asr.recognition) {
+        const rec = asr.recognition;
+        clearAsrTimers();
+        asr.recording = false;
+        updateAsrUi();
+        setAsrResult('Завершаю распознавание в браузере…', 'empty');
+        try { rec.stop(); } catch (err) {
+          asr.recognition = null;
+          setAsrResult('Ошибка остановки: ' + err.message, 'error');
+        }
+        return;
+      }
       stopAsrCapture();
 
       const total = asr.chunks.reduce((n, c) => n + c.length, 0);
@@ -3978,6 +4381,7 @@
       asr.chunks = [];
 
       setAsrResult('Распознаю…', 'empty');
+      const resultRevision = asr.resultRevision;
       const startedAt = performance.now();
       try {
         const reply = await api('/debug/asr', {
@@ -3985,6 +4389,7 @@
           headers: { 'Content-Type': 'audio/pcm' },
           body: new Blob([pcm.buffer], { type: 'audio/pcm' }),
         });
+        if (resultRevision !== asr.resultRevision) return;
         const serverMs = Math.round(performance.now() - startedAt);
         const text = reply.text || reply.recognized || '';
         console.debug('[asr] проба:', { ms: reply.ms, serverMs, dur });
@@ -3995,7 +4400,9 @@
         setAsrResult(text);
         addAsrHistory(text, app.cfg.asr || 'asr', dur);
       } catch (err) {
-        setAsrResult('Ошибка распознавания: ' + err.message, 'error');
+        if (resultRevision === asr.resultRevision) {
+          setAsrResult('Ошибка распознавания: ' + err.message, 'error');
+        }
       }
     }
 
@@ -4007,23 +4414,52 @@
       }
       const r = new Recognition();
       r.lang = 'ru-RU';
+      r.continuous = true;
       r.interimResults = false;
+      let text = '';
+      let hadError = false;
       asr.recognition = r;
       asr.recording = true;
       updateAsrUi();
-      setAsrResult('Слушаю (браузер)…', 'empty');
+      setAsrResult('Слушаю (браузер). Нажмите ещё раз для остановки.', 'empty');
       r.onresult = (e) => {
-        const text = e.results[0][0].transcript;
-        setAsrResult(text);
-        addAsrHistory(text, 'браузер', '');
+        if (asr.recognition !== r) return;
+        const parts = [];
+        for (let i = 0; i < e.results.length; i++) {
+          if (e.results[i].isFinal) parts.push(e.results[i][0].transcript.trim());
+        }
+        text = parts.join(' ').trim();
+        if (text) setAsrResult(text);
       };
-      r.onerror = (e) => setAsrResult('Ошибка: ' + e.error, 'error');
+      r.onerror = (e) => {
+        if (asr.recognition !== r) return;
+        hadError = true;
+        setAsrResult('Ошибка: ' + e.error, 'error');
+      };
       r.onend = () => {
-        if (asr.recognition === r) asr.recognition = null;
+        if (asr.recognition !== r) return;
+        asr.recognition = null;
+        asr.recording = false;
+        clearAsrTimers();
+        updateAsrUi();
+        if (text) {
+          setAsrResult(text);
+          addAsrHistory(text, 'браузер', '');
+        } else if (!hadError) {
+          setAsrResult('Ничего не распознано', 'empty');
+        }
+      };
+      try {
+        r.start();
+        asr.maxTimer = setTimeout(() => {
+          if (asr.recognition === r && asr.recording) stopAsrAndSend();
+        }, ASR_MAX_MS);
+      } catch (err) {
+        asr.recognition = null;
         asr.recording = false;
         updateAsrUi();
-      };
-      r.start();
+        setAsrResult('Ошибка запуска: ' + err.message, 'error');
+      }
     }
 
     function addAsrHistory(text, engine, dur) {
@@ -4066,6 +4502,16 @@
     refreshMicDevices();
     refreshMicPermission();
     resumeAudioOnGesture();
+
+    // Запрашиваем доступ заранее, чтобы устройство успело прогреться до звонка.
+    if (micSupported) {
+      holdStandMic();
+    } else {
+      renderStandMic();
+      showStatus(window.isSecureContext
+        ? 'Браузер не поддерживает захват микрофона.'
+        : 'Микрофон доступен только по HTTPS или с localhost.', true);
+    }
 
     loadConfig().catch((err) => showStatus('Не удалось загрузить /debug/config: ' + err.message, true));
 </script>
