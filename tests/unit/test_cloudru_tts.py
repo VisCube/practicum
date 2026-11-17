@@ -163,7 +163,7 @@ def test_synth_sends_cleaned_text_and_reports_it():
         sent = []
         tts = CloudRuTts(api_key="key", base_url="https://example.com")
 
-        async def fake_synth(text, voice):
+        async def fake_synth(text, voice, call_id):
             sent.append((text, voice))
             return Audio(data=b"wav", mime="audio/wav")
 

@@ -106,7 +106,13 @@ class Container:
         if with_audio and reply.text:
             started = time.perf_counter()
             try:
-                audio = await self.tts.synthesize(reply.text, speaker=tts_speaker)
+                synthesize_for_call = getattr(self.tts, "synthesize_for_call", None)
+                if callable(synthesize_for_call):
+                    audio = await synthesize_for_call(
+                        reply.text, call_id=call_id, speaker=tts_speaker
+                    )
+                else:
+                    audio = await self.tts.synthesize(reply.text, speaker=tts_speaker)
                 if not audio.empty:
                     audio_b64, mime = base64.b64encode(audio.data).decode(), audio.mime
             except TtsError as error:
@@ -292,6 +298,9 @@ class Container:
 
     def delete_call(self, call_id: str) -> None:
         """Удаляет сессию звонка и связанного с ней диалогового агента."""
+        drop_tts = getattr(self.tts, "drop_call", None)
+        if callable(drop_tts):
+            drop_tts(call_id)
         self.orchestrator.store.delete(call_id)
         drop_call = getattr(self.orchestrator, "drop_call", None)
         if callable(drop_call):

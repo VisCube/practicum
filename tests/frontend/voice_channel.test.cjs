@@ -461,3 +461,119 @@ test('starting a new ASR probe invalidates a previous result before requesting m
   await context.startAsr();
   assert.equal(asr.resultRevision, 5);
 });
+
+test('text interruption fades playback while sending barge and text immediately', () => {
+  const calls = [];
+  const context = vm.createContext({
+    app: { speaking: true }, voice: { generation: 3, turn: 5 }, speechSeq: 2,
+    speaker: { el: null, source: null, quietWavSeq: -1 }, ArrayBuffer, DataView, setTimeout,
+    inCall: () => true, composerLocked: () => false,
+    speechPlayedMs: () => 1234,
+    stopSpeechWatchdog: () => calls.push('watchdog'),
+    fadeOutSpeech: ms => calls.push(['fade', ms]),
+    endSpeaking: () => { calls.push('ended'); context.app.speaking = false; },
+    voiceSend: event => { calls.push(event.t); return true; },
+    abortUtterance: () => calls.push('abort'),
+    addBubble: () => calls.push('bubble'),
+    setVoiceState: state => calls.push(state),
+  });
+  vm.runInContext(section('    function quietCutDelay(', '    function fadeOutSpeech('), context);
+  vm.runInContext(section('    function sendText(text)', '    /* =========================================================\n       Непрерывный захват'), context);
+  context.sendText(' привет ');
+  assert.deepEqual(calls, ['watchdog', ['fade', 240], 'ended', 'barge', 'abort', 'bubble', 'text', 'thinking']);
+  assert.equal(context.voice.generation, 4);
+  assert.equal(context.speechSeq, 3);
+  calls.length = 0;
+  context.sendText('следующая');
+  assert.deepEqual(calls, ['abort', 'bubble', 'text', 'thinking']);
+});
+
+test('quiet cut uses valid PCM data and rejects malformed or unsupported WAV', () => {
+  const context = vm.createContext({ ArrayBuffer, DataView });
+  vm.runInContext(section('    function quietCutDelay(', '    function fadeInterruptionAtPause('), context);
+  function wav() {
+    const rate = 16000, frames = rate, bytes = new ArrayBuffer(44 + frames * 2), v = new DataView(bytes);
+    function tag(offset, value) { for (let i = 0; i < 4; i++) v.setUint8(offset + i, value.charCodeAt(i)); }
+    tag(0, 'RIFF'); v.setUint32(4, bytes.byteLength - 8, true); tag(8, 'WAVE');
+    tag(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    tag(36, 'data'); v.setUint32(40, frames * 2, true);
+    for (let i = 0; i < frames; i++) v.setInt16(44 + i * 2, (i >= 3200 && i < 4160) ? 0 : 10000, true);
+    return bytes;
+  }
+  const bytes = wav();
+  assert.equal(context.quietCutDelay(bytes, 0), 200);
+  assert.equal(context.quietCutDelay(bytes, 400), 720);
+  // Тишина 30 мс внутри слова недостаточна; берём следующую паузу 70 мс.
+  const altered = new DataView(bytes);
+  for (let i = 0; i < 16000; i++) {
+    const silent = (i >= 3200 && i < 3680) || (i >= 8000 && i < 9120);
+    altered.setInt16(44 + i * 2, silent ? 0 : 10000, true);
+  }
+  assert.equal(context.quietCutDelay(bytes, 0), 500);
+  assert.equal(context.quietCutDelay(new ArrayBuffer(10), 0), null);
+  new DataView(bytes).setUint16(22, 2, true);
+  assert.equal(context.quietCutDelay(bytes, 0), null);
+});
+
+test('delayed quiet cut never stops a newer player', () => {
+  const timers = [], fades = [];
+  const old = { currentTime: 1 };
+  const context = vm.createContext({
+    speaker: { el: old, source: null, quietWav: {}, quietWavSeq: 5 }, speechSeq: 5,
+    quietCutDelay: () => 120, speechPlayedMs: () => 1000,
+    stopSpeechWatchdog: () => {}, fadeOutSpeech: ms => fades.push(ms),
+    setTimeout: callback => timers.push(callback),
+  });
+  vm.runInContext(section('    function fadeInterruptionAtPause(', '    function fadeOutSpeech('), context);
+  context.fadeInterruptionAtPause(240);
+  assert.equal(context.speechSeq, 6);
+  assert.equal(timers.length, 1);
+  context.speechSeq++;
+  context.speaker.el = { currentTime: 0 };
+  timers[0]();
+  assert.deepEqual(fades, []);
+  context.speaker.el = old;
+  context.speaker.quietWavSeq = context.speechSeq;
+  context.fadeInterruptionAtPause(240);
+  timers[1]();
+  assert.deepEqual(fades, [80]);
+});
+
+test('voice interruption starts listening immediately and leaves delayed audio stop isolated', () => {
+  const calls = [], timers = [];
+  const old = { currentTime: 1.2 };
+  const context = vm.createContext({
+    app: { speaking: true }, voice: { generation: 2, turn: 5 }, speechSeq: 7,
+    speaker: { el: old, source: null, quietWav: {}, quietWavSeq: 7 },
+    micStream: { streaming: false, lastVoiceAt: 0 }, Date,
+    quietCutDelay: () => 500, speechPlayedMs: () => 1200,
+    stopSpeechWatchdog: () => calls.push('watchdog'),
+    fadeOutSpeech: ms => calls.push(['fade', ms]),
+    endSpeaking: () => { calls.push('ended'); context.app.speaking = false; },
+    voiceSend: event => { calls.push(event.t); return true; },
+    record: () => calls.push('record'), setVoiceState: state => calls.push(state),
+    startUtterance: () => calls.push('start-audio'),
+    setTimeout: (callback, delay) => { timers.push({ callback, delay }); },
+  });
+  vm.runInContext(section('    function fadeInterruptionAtPause(', '    function fadeOutSpeech('), context);
+  vm.runInContext(section('    function softBarge()', '    function voiceUrl()'), context);
+  context.softBarge();
+  assert.deepEqual(calls, ['watchdog', 'ended', 'barge', 'record', 'listening', 'start-audio']);
+  assert.equal(timers[0].delay, 500);
+  assert.equal(context.voice.generation, 3);
+  timers[0].callback();
+  assert.deepEqual(calls.at(-1), ['fade', 80]);
+});
+
+test('voice interruption retains 150ms fallback without Cloud.ru WAV', () => {
+  const fades = [];
+  const context = vm.createContext({
+    speaker: { el: null, source: null, quietWavSeq: -1 }, speechSeq: 4,
+    speechPlayedMs: () => 100, stopSpeechWatchdog() {},
+    fadeOutSpeech: ms => fades.push(ms), setTimeout,
+  });
+  vm.runInContext(section('    function fadeInterruptionAtPause(', '    function fadeOutSpeech('), context);
+  context.fadeInterruptionAtPause(150);
+  assert.deepEqual(fades, [150]);
+});

@@ -992,7 +992,7 @@
       asrHistory: $('#asrHistory'),
     };
 
-    const UI_BUILD = 'barge-46-resample-precision';
+    const UI_BUILD = 'barge-50-voice-pause-cut';
     console.info('[ui] страница загружена, клиент ' + UI_BUILD);
     // Только уровень логирования — граф и обработка звука не изменяются.
     ui.audioDebugToggle.checked = localStorage.getItem('audioDebug') === 'true';
@@ -2027,6 +2027,8 @@
       volumeLocked: false,   // браузер не даёт менять громкость <audio>
       duckStartedAt: 0,
       volumeTimer: 0,
+      quietWav: null,       // копия WAV только для поиска тихого участка
+      quietWavSeq: -1,
     };
 
     function stopSpeechWatchdog() {
@@ -2034,6 +2036,8 @@
     }
 
     function releaseSpeaker() {
+      speaker.quietWav = null;
+      speaker.quietWavSeq = -1;
       if (speaker.volumeTimer) { clearInterval(speaker.volumeTimer); speaker.volumeTimer = 0; }
       speaker.ducked = false;
       micStream.duckMs = 0;
@@ -2108,6 +2112,76 @@
         return Math.max(0, Math.round(performance.now() - speaker.startedAt));
       }
       return Math.round(speaker.playedMs || 0);
+    }
+
+    // Это поиск тихого участка, не таймкоды слов. Считаем только ближайшие
+    // 800 мс PCM16 WAV; неизвестный формат не меняет прежнее поведение.
+    function quietCutDelay(wav, positionMs) {
+      if (!(wav instanceof ArrayBuffer) || !Number.isFinite(positionMs) || positionMs < 0) return null;
+      const v = new DataView(wav);
+      if (v.byteLength < 44) return null;
+      const tag = (p) => String.fromCharCode(v.getUint8(p), v.getUint8(p + 1), v.getUint8(p + 2), v.getUint8(p + 3));
+      if (tag(0) !== 'RIFF' || tag(8) !== 'WAVE') return null;
+      let fmt = null, dataStart = 0, dataSize = 0;
+      for (let p = 12; p + 8 <= v.byteLength;) {
+        const n = v.getUint32(p + 4, true);
+        const start = p + 8;
+        if (n > v.byteLength - start) return null;
+        const name = tag(p);
+        if (name === 'fmt ' && n >= 16) {
+          fmt = { type: v.getUint16(start, true), channels: v.getUint16(start + 2, true),
+            rate: v.getUint32(start + 4, true), align: v.getUint16(start + 12, true), bits: v.getUint16(start + 14, true) };
+        }
+        if (name === 'data') { dataStart = start; dataSize = n; }
+        p = start + n + (n % 2);
+      }
+      if (!fmt || fmt.type !== 1 || fmt.channels !== 1 || fmt.bits !== 16 || fmt.align !== 2
+          || fmt.rate < 8000 || fmt.rate > 96000 || !dataSize) return null;
+      const total = Math.floor(dataSize / 2);
+      const from = Math.min(total, Math.floor(positionMs * fmt.rate / 1000));
+      const window = Math.max(1, Math.floor(fmt.rate * 0.01));
+      const limit = Math.min(total, from + Math.floor(fmt.rate * 0.8));
+      const levels = [];
+      for (let i = from; i + window <= limit; i += window) {
+        let sum = 0;
+        for (let j = i; j < i + window; j++) {
+          const sample = v.getInt16(dataStart + j * 2, true) / 32768;
+          sum += sample * sample;
+        }
+        levels.push(Math.sqrt(sum / window));
+      }
+      if (levels.length < 6) return null;
+      const threshold = Math.max(0.004, Math.max(...levels) * 0.06);
+      for (let i = 0; i + 5 < levels.length; i++) {
+        // Не начинаем затухать до паузы: иначе прежняя версия резала конец слова.
+        if (levels.slice(i, i + 6).every(level => level <= threshold)) {
+          return Math.min(720, i * 10);
+        }
+      }
+      // Если пауза не обнаружена, пробуем дать фразе 720 мс, затем 80 мс fade.
+      // Это не гарантирует границу слова и может прозвучать часть следующего.
+      return 720;
+    }
+
+    function fadeInterruptionAtPause(fallbackMs) {
+      const oldEl = speaker.el;
+      const oldSource = speaker.source;
+      const pos = oldEl && Number.isFinite(oldEl.currentTime)
+        ? oldEl.currentTime * 1000 : speechPlayedMs();
+      const delay = speaker.quietWavSeq === speechSeq
+        ? quietCutDelay(speaker.quietWav, pos) : null;
+      const seq = ++speechSeq;
+      stopSpeechWatchdog();
+      if (delay === null) {
+        fadeOutSpeech(fallbackMs);
+        return;
+      }
+      // Не гасим новую озвучку, если она успела стартовать во время ожидания.
+      const fade = () => {
+        if (speechSeq !== seq || (oldEl ? speaker.el !== oldEl : speaker.source !== oldSource)) return;
+        fadeOutSpeech(80);
+      };
+      if (delay > 0) setTimeout(fade, delay); else fade();
     }
 
     function fadeOutSpeech(ms) {
@@ -2222,6 +2296,15 @@
       let blob = null;
       try {
         blob = base64ToBlob(audioB64, mime);
+        // Не задерживаем воспроизведение и не меняем аудиограф микрофона.
+        if (app.cfg && app.cfg.tts === 'cloudru' && /audio\/(?:wav|wave|x-wav)/i.test(mime || '') && typeof blob.arrayBuffer === 'function') {
+          blob.arrayBuffer().then((data) => {
+            if (seq === speechSeq && app.speaking && (speaker.el || speaker.source)) {
+              speaker.quietWav = data;
+              speaker.quietWavSeq = seq;
+            }
+          }).catch(() => {});
+        }
         console.info('[tts] играю ответ:', mime, Math.round(blob.size / 1024) + ' КБ');
       } catch (err) {
         return { ok: false, reason: 'битый base64: ' + err.message };
@@ -2649,9 +2732,7 @@
     function softBarge() {
       if (!app.speaking) return;
       const playedMs = speechPlayedMs();
-      speechSeq++;
-      stopSpeechWatchdog();
-      fadeOutSpeech(150);
+      fadeInterruptionAtPause(150);
       endSpeaking();
       voice.generation++;
       voiceSend({ t: 'barge', turn: voice.turn, played_ms: playedMs });
@@ -3126,9 +3207,7 @@
       if (!trimmed || !inCall() || composerLocked()) return;
       if (app.speaking) {
         const playedMs = speechPlayedMs();
-        speechSeq++;
-        stopSpeechWatchdog();
-        fadeOutSpeech(100);
+        fadeInterruptionAtPause(240);
         endSpeaking();
         voice.generation++;
         voiceSend({ t: 'barge', turn: voice.turn, played_ms: playedMs });
