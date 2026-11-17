@@ -1,0 +1,22 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# секреты и локальные настройки
+.env
+.env.*
+!.env.example
+
+# модели — тяжёлые, качаются скриптом
+models/*
+!models/.gitkeep
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store

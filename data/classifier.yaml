@@ -1,0 +1,162 @@
+# Таксономия обращений. Правит заказчик. Одна для робота и для отчётов.
+# kind: appeal — создаём Сделку; consult — отвечаем из базы знаний.
+# bitrix_id — значение поля-списка «Тема» в Сделке Битрикс24.
+#
+# keywords — основы слов, каждое слово в ключе — начало слова в реплике:
+#   «горяч»        → горячая / горячей / горячую
+#   «холодн вод»   → холодная вода / холодной воды
+#   «газ.»         → точка в конце = слово целиком: «газ», но не «газон» и не «газета»
+# Тема выбирается по числу совпадений; при равенстве — сначала critical, потом порядок в файле.
+
+slots:
+  - id: full_name
+    label: ФИО
+    kind: name
+    question: "Назовите, пожалуйста, вашу фамилию, имя и отчество."
+  - id: address
+    label: Адрес
+    kind: address
+    question: "Назовите адрес: улицу и номер дома."
+  - id: apartment
+    label: Квартира
+    kind: number
+    cues: [квартир, кв.]
+    question: "Какой номер квартиры?"
+  - id: leak_source
+    label: Откуда течёт
+    kind: choice
+    choices: [сверху от соседей, из стояка, из батареи, с потолка, из-под пола, из крана]
+    question: "Откуда идёт вода: сверху от соседей, из стояка, из батареи или с потолка?"
+  - id: details
+    label: Подробности
+    kind: text
+    question: "Опишите коротко, что именно случилось."
+  - id: period
+    label: Период
+    kind: text
+    question: "За какой период нужен перерасчёт? Назовите месяц и год."
+  - id: certificate_type
+    label: Тип справки
+    kind: choice
+    choices: [об отсутствии задолженности, о составе семьи, о начислениях, о проживании]
+    question: "Какая справка нужна: об отсутствии задолженности, о составе семьи, о начислениях или о проживании?"
+  - id: floor
+    label: Этаж
+    kind: number
+    cues: [этаж]
+    question: "На каком этаже это произошло?"
+
+topics:
+  - id: leak
+    name: Протечка или затопление
+    kind: appeal
+    bitrix_id: TOPIC_LEAK
+    risk_level: critical
+    keywords: [течет, течь, затопило, затапливает, затоплен, протечк, протекает, залило, заливает, прорвало, потоп, капает, льется, мокрый потолок, лужа]
+    required_slots: [apartment, leak_source]
+
+  - id: gas
+    name: Запах газа
+    kind: appeal
+    bitrix_id: TOPIC_GAS
+    risk_level: critical
+    keywords: [газ., газа., газу., газом., газов, пахнет газ, запах газ, утечк газ, воняет газ]
+    required_slots: [apartment]
+
+  - id: no_water
+    name: Нет воды или слабый напор
+    kind: appeal
+    bitrix_id: TOPIC_NO_WATER
+    risk_level: normal
+    keywords: [нет воды, воды нет, без воды, где вода, отключили воду, воду отключили, пропала вода, вода пропала, горяч, холодн вод, напор, давлен, ржав, мутн]
+    required_slots: [apartment]
+
+  - id: no_heating
+    name: Нет отопления
+    kind: appeal
+    bitrix_id: TOPIC_NO_HEATING
+    risk_level: normal
+    keywords: [отоплен, батаре, радиатор, холодно, не греет, не греют, нет тепла, тепла нет, замерза, мерзн]
+    required_slots: [apartment]
+
+  - id: no_electricity
+    name: Нет электричества
+    kind: appeal
+    bitrix_id: TOPIC_NO_POWER
+    risk_level: normal
+    keywords: [нет света, света нет, без света, свет отключ, отключили свет, свет погас, погас свет, выбило, электрич, электроэнерг, автомат, пробки, замыкан, искрит, напряжен, обесточ]
+    required_slots: [apartment]
+
+  - id: sewage
+    name: Канализация
+    kind: appeal
+    bitrix_id: TOPIC_SEWAGE
+    risk_level: normal
+    keywords: [канализац, засор, забилось, забился, не уходит, унитаз, слив, запах канализации, переливается]
+    required_slots: [apartment]
+
+  - id: elevator
+    name: Лифт
+    kind: appeal
+    bitrix_id: TOPIC_ELEVATOR
+    risk_level: normal
+    keywords: [лифт]
+    required_slots: [floor, details]
+
+  - id: ipu
+    name: Поверка или замена счётчика
+    kind: consult
+    bitrix_id: TOPIC_IPU
+    risk_level: low
+    keywords: [поверк, счетчик, ипу, прибор учета, пломб, показания]
+    required_slots: []
+
+  - id: recalculation
+    name: Перерасчёт начислений
+    kind: appeal
+    bitrix_id: TOPIC_RECALC
+    risk_level: normal
+    keywords: [перерасчет, пересчита, ошибка в начислен, ошибка в квитанц, переплат, начислили лишн, не согласен с начислен, неправильно начислили]
+    required_slots: [period, details]
+
+  - id: charges
+    name: Начисления, КР на СОИ, ОДН
+    kind: consult
+    bitrix_id: TOPIC_CHARGES
+    risk_level: low
+    keywords: [сои, одн, общедомов, начислен, квитанц, тариф, за что плат, откуда сумма, содержание жилья]
+    required_slots: []
+
+  - id: certificate
+    name: Выдача справки
+    kind: appeal
+    bitrix_id: TOPIC_CERT
+    risk_level: low
+    keywords: [справк, выписк]
+    required_slots: [certificate_type]
+
+  - id: contract
+    name: Договор или смена собственника
+    kind: appeal
+    bitrix_id: TOPIC_CONTRACT
+    risk_level: low
+    keywords: [договор, смена собственника, новый собственник, купил квартиру, купила квартиру, переоформ, лицевой счет]
+    required_slots: [details]
+
+  # Не путать с маркерами complaint в escalation.yaml: там — угроза жалобы в надзорный орган,
+  # здесь — обращение с претензией к работе УК как самостоятельная тема.
+  - id: complaint
+    name: Жалоба или претензия
+    kind: appeal
+    bitrix_id: TOPIC_COMPLAINT
+    risk_level: critical
+    keywords: [жалоб, претензи, недоволен, недовольна, безобразие, бездейств, не реагир, хамств, грубост]
+    required_slots: [details]
+
+  - id: other
+    name: Другое
+    kind: appeal
+    bitrix_id: TOPIC_OTHER
+    risk_level: normal
+    keywords: []
+    required_slots: [details]

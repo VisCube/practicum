@@ -1,0 +1,4598 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>Демо-стенд · Ассистент УК</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMwYzVmNTIiLz48dGV4dCB4PSIzMiIgeT0iNDIiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXdlaWdodD0iYm9sZCIgZm9udC1zaXplPSIyNiIgZmlsbD0id2hpdGUiPtCj0Jo8L3RleHQ+PC9zdmc+">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <script>
+        (function () {
+          var pref = localStorage.getItem('theme');
+          var dark = pref === 'dark' || (pref !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        })();
+    </script>
+    <style>
+        :root {
+          color-scheme: light;
+          --paper: #f3f0e8;
+          --panel: #fbfaf6;
+          --field: #ffffff;
+          --ink: #16150f;
+          --ink-2: #3d3a33;
+          --mute: #6b665c;
+          --line: #ded8ca;
+          --line-strong: #b8b0a0;
+          --accent: #0c5f52;
+          --ok: #166f47;
+          --warn: #9c6716;
+          --bad: #a82e21;
+          --user-bg: #16150f;
+          --user-fg: #f3f0e8;
+          --knob: #ffffff;
+          --hover: rgba(22, 21, 15, .05);
+          --shadow: 0 12px 32px rgba(22, 21, 15, .12), 0 2px 6px rgba(22, 21, 15, .06);
+          --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+          --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+        :root[data-theme="dark"] {
+          color-scheme: dark;
+          --paper: #141311;
+          --panel: #1c1b18;
+          --field: #23221e;
+          --ink: #f0ece1;
+          --ink-2: #c9c4b7;
+          --mute: #9c9585;
+          --line: #34312c;
+          --line-strong: #474339;
+          --accent: #45b59a;
+          --ok: #52c98b;
+          --warn: #e0b05a;
+          --bad: #eb6a5d;
+          --user-bg: #f0ece1;
+          --user-fg: #141311;
+          --knob: #f0ece1;
+          --hover: rgba(240, 236, 225, .06);
+          --shadow: 0 16px 40px rgba(0, 0, 0, .45), 0 2px 8px rgba(0, 0, 0, .3);
+        }
+
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+          margin: 0;
+          height: 100dvh;
+          overflow: hidden;
+          display: grid;
+          grid-template-rows: auto 1fr;
+          background: var(--paper);
+          color: var(--ink);
+          font: 15px/1.5 var(--sans);
+          -webkit-font-smoothing: antialiased;
+        }
+        [hidden] { display: none !important; }
+        button { font: inherit; }
+        svg { display: block; flex: none; }
+
+        /* ============ TOPBAR ============ */
+        .topbar {
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 20px;
+          border-bottom: 1px solid var(--line);
+          background: var(--panel);
+          min-height: 58px;
+          position: relative;
+          z-index: 30;
+        }
+        .brand { display: flex; gap: 10px; align-items: center; justify-self: start; }
+        .brand-mark {
+          width: 34px; height: 34px; border-radius: 9px;
+          background: var(--ink); color: var(--paper);
+          display: grid; place-items: center; font: 600 12px var(--mono);
+          flex: none;
+        }
+        .brand-title { font-weight: 600; font-size: 14px; line-height: 1.2; }
+        .brand-sub { font: 11px var(--mono); color: var(--mute); }
+
+        .modes {
+          display: flex; gap: 3px; padding: 3px;
+          background: color-mix(in srgb, var(--ink) 6%, transparent);
+          border-radius: 11px;
+        }
+        .modes button {
+          display: inline-flex; align-items: center; gap: 7px;
+          padding: 7px 14px; border: 0; border-radius: 8px;
+          background: transparent; color: var(--ink-2);
+          font: 500 13.5px var(--sans); cursor: pointer;
+          white-space: nowrap; transition: background .15s, color .15s;
+        }
+        .modes button:hover:not(:disabled):not(.on) { background: var(--hover); }
+        .modes button.on {
+          background: var(--panel); color: var(--ink);
+          box-shadow: 0 1px 2px rgba(0, 0, 0, .08), 0 0 0 1px var(--line-strong);
+        }
+        .modes button:disabled { opacity: .4; cursor: default; }
+        .modes button svg { color: var(--mute); }
+        .modes button.on svg { color: var(--ink); }
+        .live-dot {
+          width: 6px; height: 6px; border-radius: 50%;
+          background: var(--ok);
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent);
+          animation: pulse 1.6s ease-in-out infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+
+        .topbar-right {
+          display: flex; gap: 4px; align-items: center; justify-self: end;
+          position: relative;
+        }
+        .icon-btn {
+          width: 36px; height: 36px; padding: 0;
+          display: grid; place-items: center;
+          border: 1px solid transparent; border-radius: 9px;
+          background: transparent; color: var(--ink-2); cursor: pointer;
+          transition: background .15s, color .15s, border-color .15s;
+        }
+        .icon-btn:hover { background: var(--hover); color: var(--ink); }
+        .icon-btn.active {
+          background: var(--hover); color: var(--ink);
+          border-color: var(--line-strong);
+        }
+        :root[data-theme="light"] .ico-sun { display: none; }
+        :root[data-theme="dark"] .ico-moon { display: none; }
+
+        /* ============ SETTINGS POPOVER ============ */
+        .popover {
+          position: absolute;
+          top: calc(100% + 10px);
+          right: 0;
+          width: min(312px, calc(100vw - 24px));
+          background: var(--panel);
+          border: 1px solid var(--line-strong);
+          border-radius: 14px;
+          padding: 16px;
+          box-shadow: var(--shadow);
+          z-index: 50;
+          animation: rise .14s ease-out;
+        }
+        .popover-title {
+          margin: 0 0 12px;
+          font: 600 13px var(--sans);
+          color: var(--ink);
+        }
+        .field { display: block; margin-bottom: 12px; }
+        .field > .field-head {
+          display: flex; align-items: center; justify-content: space-between;
+          font: 12px var(--mono); color: var(--mute); margin-bottom: 5px;
+        }
+        .field > .field-head button {
+          border: 0; background: none; padding: 0;
+          font: 11.5px var(--mono); color: var(--accent); cursor: pointer;
+        }
+        .field > .field-head button:hover { text-decoration: underline; }
+        .field select {
+          width: 100%; background: var(--field); color: var(--ink);
+          border: 1px solid var(--line-strong); border-radius: 9px;
+          padding: 8px 10px; font: 13.5px var(--sans); outline: none;
+        }
+        .field select:focus { border-color: var(--accent); }
+        .field select:disabled { opacity: .5; }
+        .field-hint {
+          margin-top: 5px;
+          font: 11.5px/1.4 var(--mono);
+          color: var(--mute);
+        }
+        .field-hint.err { color: var(--bad); }
+
+        .switch {
+          display: flex; gap: 10px; align-items: center; justify-content: space-between;
+          cursor: pointer; padding: 8px 0 4px;
+        }
+        .switch:has(input:disabled) { opacity: .45; cursor: default; }
+        .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+        .switch .lbl { font-size: 13.5px; line-height: 1.3; }
+        .switch .lbl small { display: block; color: var(--mute); font-size: 11.5px; margin-top: 2px; }
+        .switch .track {
+          flex: none; width: 34px; height: 20px; border-radius: 10px;
+          background: var(--line-strong); position: relative; transition: background .15s;
+        }
+        .switch .track::after {
+          content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+          border-radius: 50%; background: var(--knob); box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+          transition: transform .15s;
+        }
+        .switch input:checked + .track { background: var(--accent); }
+        .switch input:checked + .track::after { transform: translateX(14px); }
+        .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+        .sys-pill {
+          margin-top: 12px; padding-top: 10px;
+          border-top: 1px solid var(--line);
+          font: 11px/1.5 var(--mono); color: var(--mute);
+          display: flex; flex-wrap: wrap; gap: 4px 10px;
+        }
+        .sys-pill b { color: var(--ink-2); font-weight: 500; }
+
+        /* ============ MAIN & BUTTONS ============ */
+        main { position: relative; min-height: 0; overflow: hidden; }
+        .view { position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+        .btn {
+          display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+          border: 1px solid var(--line-strong); border-radius: 10px;
+          padding: 9px 15px; font: 500 14px var(--sans);
+          cursor: pointer; background: var(--panel); color: var(--ink);
+          transition: filter .15s, background .15s, border-color .15s;
+        }
+        .btn:hover:not(:disabled) { background: var(--hover); }
+        .btn:disabled { opacity: .4; cursor: default; }
+        .btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+        .btn.primary:hover:not(:disabled) { filter: brightness(1.12); background: var(--ink); }
+        .btn.call {
+          background: var(--accent); color: #fff; border-color: var(--accent);
+          padding: 11px 22px; font-size: 15px;
+        }
+        .btn.call:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
+        .btn.danger {
+          background: transparent; color: var(--bad);
+          border-color: color-mix(in srgb, var(--bad) 45%, var(--line-strong));
+          padding: 6px 12px; font-size: 13px; border-radius: 8px;
+        }
+        .btn.danger:hover:not(:disabled) {
+          background: color-mix(in srgb, var(--bad) 10%, transparent);
+          border-color: var(--bad);
+        }
+        .btn.small { padding: 6px 12px; font-size: 12.5px; border-radius: 8px; }
+
+        /* ============ CALL HERO ============ */
+        .call-hero {
+          display: grid; place-items: center;
+          height: 100%; padding: 32px 24px; overflow-y: auto;
+        }
+        .hero-inner { max-width: 440px; width: 100%; text-align: center; }
+        .hero-icon {
+          width: 58px; height: 58px; margin: 0 auto 18px;
+          border-radius: 18px;
+          background: color-mix(in srgb, var(--accent) 14%, transparent);
+          color: var(--accent);
+          display: grid; place-items: center;
+        }
+        .call-hero h1 { margin: 0 0 8px; font-size: 23px; font-weight: 600; letter-spacing: -.01em; }
+        .call-hero p { margin: 0 0 24px; color: var(--ink-2); font-size: 14.5px; }
+        .hero-form { display: flex; gap: 8px; }
+        .hero-form input {
+          flex: 1; min-width: 0;
+          background: var(--field); color: var(--ink);
+          border: 1px solid var(--line-strong); border-radius: 10px;
+          padding: 11px 13px; font: 14px var(--mono); outline: none;
+        }
+        .hero-form input:focus { border-color: var(--accent); }
+        .hero-form input:disabled { opacity: .6; cursor: not-allowed; }
+        .phone-presets {
+          display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;
+          margin-top: 10px;
+        }
+        .phone-presets:empty { display: none; }
+        .phone-presets button {
+          background: var(--panel); color: var(--mute);
+          border: 1px solid var(--line); border-radius: 999px;
+          padding: 4px 10px; font: 11.5px var(--mono); cursor: pointer;
+          transition: border-color .12s, color .12s, background .12s;
+        }
+        .phone-presets button:hover:not(:disabled) {
+          border-color: var(--line-strong); color: var(--ink);
+        }
+        .phone-presets button.on {
+          border-color: var(--accent); color: var(--accent);
+          background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+        }
+        .phone-presets button:disabled { opacity: .45; cursor: not-allowed; }
+        .hero-status {
+          margin-top: 12px; min-height: 18px;
+          font: 12px var(--mono); color: var(--mute);
+        }
+        .hero-status.err { color: var(--bad); }
+
+        /* ============ CALL LIVE ============ */
+        .call-live {
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr) auto;
+          height: 100%; min-height: 0;
+        }
+        .call-live-bar {
+          display: flex; align-items: center; gap: 12px;
+          padding: 9px 20px;
+          border-bottom: 1px solid var(--line);
+          background: var(--panel);
+        }
+        .live-state { display: flex; align-items: center; gap: 9px; font: 13px var(--mono); }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); }
+        .dot.live {
+          background: var(--ok);
+          box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 22%, transparent);
+          animation: pulse 1.6s ease-in-out infinite;
+        }
+        .dot.hold { background: var(--warn); }
+        .live-phone { color: var(--ink); font-weight: 500; }
+        .live-timer { color: var(--mute); }
+        .live-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+        /* ============ TRANSCRIPT ============ */
+        .transcript { overflow-y: auto; min-height: 0; padding: 24px 20px; }
+        .thread {
+          max-width: 760px; margin: 0 auto;
+          display: flex; flex-direction: column; gap: 12px;
+        }
+        .bubble {
+          max-width: 74%; padding: 10px 14px; border-radius: 16px;
+          word-break: break-word; animation: rise .15s ease-out;
+        }
+        .bubble .text { white-space: pre-wrap; }
+        .bubble.bot {
+          align-self: flex-start; background: var(--panel);
+          border: 1px solid var(--line); border-bottom-left-radius: 4px;
+        }
+        .bubble.user {
+          align-self: flex-end; background: var(--user-bg);
+          color: var(--user-fg); border-bottom-right-radius: 4px;
+        }
+        .bubble .meta { font: 11px var(--mono); color: var(--mute); margin-top: 5px; }
+        .bubble.user .meta { color: var(--user-fg); opacity: .65; }
+
+        .tool-call {
+          align-self: flex-start; width: min(560px, 100%);
+          background: var(--panel); border: 1px solid var(--line);
+          border-left: 3px solid var(--accent);
+          border-radius: 10px; font: 12px/1.45 var(--mono); color: var(--ink-2);
+          animation: rise .15s ease-out; overflow: hidden;
+        }
+        .tool-call.ok { border-left-color: var(--ok); }
+        .tool-call.warn { border-left-color: var(--warn); }
+        .tool-call.bad { border-left-color: var(--bad); }
+        .tool-call > summary {
+          list-style: none; cursor: pointer; user-select: none;
+          display: flex; align-items: center; gap: 8px;
+          padding: 7px 11px;
+        }
+        .tool-call > summary::-webkit-details-marker { display: none; }
+        .tool-call > summary:hover { background: var(--hover); }
+        .tool-fn {
+          display: inline-flex; align-items: center; gap: 5px;
+          color: var(--ink); font-weight: 600; flex: none;
+        }
+        .tool-fn i {
+          font-style: normal; font-size: 11px; padding: 1px 5px;
+          border-radius: 4px; background: color-mix(in srgb, var(--accent) 14%, transparent);
+          color: var(--accent);
+        }
+        .tool-call.ok .tool-fn i { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+        .tool-call.warn .tool-fn i { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+        .tool-call.bad .tool-fn i { background: color-mix(in srgb, var(--bad) 15%, transparent); color: var(--bad); }
+        .tool-call.pending { border-left-color: var(--warn); }
+        .tool-call.pending .tool-fn i {
+          background: color-mix(in srgb, var(--warn) 18%, transparent);
+          color: var(--warn);
+          animation: pulse 1.3s ease-in-out infinite;
+        }
+        .tool-brief {
+          color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+          min-width: 0; flex: 1;
+        }
+        .tool-chev { color: var(--mute); flex: none; transition: transform .15s; }
+        .tool-call[open] .tool-chev { transform: rotate(90deg); }
+        .tool-body {
+          border-top: 1px dashed var(--line);
+          padding: 8px 11px; display: grid; gap: 6px;
+          background: color-mix(in srgb, var(--paper) 55%, var(--panel));
+        }
+        .tool-sec-lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--mute); }
+        .tool-pre {
+          margin: 2px 0 0; white-space: pre-wrap; word-break: break-word;
+          color: var(--ink); max-height: 220px; overflow-y: auto;
+        }
+
+        .card {
+          align-self: center; width: min(560px, 100%);
+          background: var(--panel); border: 1px solid var(--line-strong);
+          border-left: 3px solid var(--ok);
+          border-radius: 12px; padding: 13px 16px; font-size: 13.5px;
+          animation: rise .2s ease-out;
+        }
+        .card.flagged { border-left-color: var(--bad); }
+        .card header {
+          display: flex; justify-content: space-between; align-items: center;
+          gap: 8px; margin-bottom: 9px;
+        }
+        .card h3 { margin: 0; font-size: 14px; font-weight: 600; }
+        .card h3 span { font: 12px var(--mono); color: var(--mute); margin-left: 6px; font-weight: 400; }
+        .pill {
+          font: 500 11px/1 var(--mono); padding: 4px 8px; border-radius: 999px;
+          border: 1px solid currentColor; text-transform: uppercase;
+          letter-spacing: .04em; white-space: nowrap; color: var(--warn);
+        }
+        .pill.low { color: var(--ok); }
+        .pill.normal { color: var(--warn); }
+        .pill.critical { color: var(--bad); }
+        .card dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
+        .card dt { color: var(--mute); }
+        .card dd { margin: 0; word-break: break-word; }
+        .card dd small { color: var(--mute); }
+        .card .flag { color: var(--bad); font-weight: 500; }
+        .card .crm {
+          margin-top: 9px; padding-top: 9px;
+          border-top: 1px dashed var(--line-strong);
+          font: 12px var(--mono); color: var(--ink-2);
+        }
+        .card .crm.ok { color: var(--ok); }
+        .card .crm.bad { color: var(--bad); }
+        .card .crm a { color: inherit; }
+
+        /* ============ COMPOSER ============ */
+        .composer {
+          border-top: 1px solid var(--line); background: var(--panel);
+          padding: 10px 20px calc(12px + env(safe-area-inset-bottom));
+        }
+        .composer-inner { max-width: 760px; margin: 0 auto; }
+
+        .speaking {
+          display: flex; align-items: center; gap: 10px;
+          margin-bottom: 8px; padding: 5px 10px 5px 12px;
+          border-radius: 9px; font: 12px var(--mono); color: var(--accent);
+          background: color-mix(in srgb, var(--accent) 12%, transparent);
+        }
+        .speaking .eq { display: flex; gap: 2px; align-items: center; height: 13px; }
+        .speaking .eq i {
+          display: block; width: 3px; height: 4px; border-radius: 1px;
+          background: currentColor; animation: eq .9s ease-in-out infinite;
+        }
+        .speaking .eq i:nth-child(2) { animation-delay: .15s; }
+        .speaking .eq i:nth-child(3) { animation-delay: .3s; }
+        .speaking .eq i:nth-child(4) { animation-delay: .45s; }
+        .speaking button { margin-left: auto; color: inherit; border-color: currentColor; background: transparent; }
+
+        .quick-chips {
+          display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px;
+        }
+        .quick-chips button {
+          border: 1px solid var(--line); background: var(--paper); color: var(--ink-2);
+          border-radius: 999px; padding: 4px 11px; font: 12px var(--sans); cursor: pointer;
+          transition: border-color .15s, color .15s, opacity .15s;
+        }
+        .quick-chips button:hover:not(:disabled) { border-color: var(--accent); color: var(--ink); }
+        .quick-chips button:disabled { opacity: .38; cursor: not-allowed; pointer-events: none; }
+
+        .composer-row {
+          display: flex; align-items: flex-end; gap: 4px;
+          background: var(--field);
+          border: 1px solid var(--line-strong);
+          border-radius: 24px;
+          padding: 4px 6px;
+          transition: border-color .15s, box-shadow .15s, opacity .15s;
+        }
+        .composer-row.locked {
+          background: var(--paper);
+          opacity: .72;
+        }
+        .composer-row:focus-within {
+          border-color: var(--accent);
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+        }
+        .composer-row button {
+          width: 36px; height: 36px; padding: 0; flex: none;
+          display: grid; place-items: center;
+          border: 0; border-radius: 50%;
+          background: transparent; color: var(--ink-2); cursor: pointer;
+          position: relative;
+          transition: background .15s, color .15s, transform .1s;
+        }
+        .composer-row button:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+        .composer-row button:disabled { opacity: .35; cursor: not-allowed; pointer-events: none; }
+
+        .composer-row .voice-toggle.off { color: var(--mute); }
+        .composer-row .voice-toggle .ico-off { display: none; }
+        .composer-row .voice-toggle.off .ico-on { display: none; }
+        .composer-row .voice-toggle.off .ico-off { display: block; }
+
+        .composer-row .mic.off { color: var(--mute); }
+        .composer-row .mic .ico-mic-off { display: none; }
+        .composer-row .mic.off .ico-mic { display: none; }
+        .composer-row .mic.off .ico-mic-off { display: block; }
+        .composer-row .mic.rec { background: var(--bad); color: #fff; }
+        .composer-row .mic.pending { color: var(--warn); }
+        .composer-row .mic.rec::after {
+          content: ""; position: absolute; inset: -3px; border-radius: 50%;
+          border: 2px solid var(--bad); opacity: .55;
+          transform: scale(calc(1 + var(--level, 0) * .28));
+          transition: transform .06s linear;
+        }
+        .composer-row .mic.pending::after {
+          content: ""; position: absolute; inset: -3px; border-radius: 50%;
+          border: 2px solid currentColor;
+          animation: micWait .9s ease-in-out infinite;
+        }
+
+        .composer-row textarea {
+          flex: 1; min-width: 0;
+          background: transparent; color: var(--ink);
+          border: 0; outline: none;
+          padding: 8px 4px; font: inherit; line-height: 20px;
+          max-height: 140px; resize: none;
+        }
+        .composer-row textarea::placeholder { color: var(--mute); }
+        .composer-row textarea:disabled,
+        .composer-row textarea:read-only { color: var(--mute); cursor: not-allowed; }
+
+        .composer-row .send-btn { background: var(--accent); color: #fff; }
+        .composer-row .send-btn:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+        .composer-row .send-btn:disabled { background: var(--line); color: var(--mute); opacity: 1; }
+
+        .statusline {
+          font: 12px var(--mono); color: var(--ink-2);
+          margin-top: 6px; padding: 0 6px;
+        }
+        .statusline:empty { display: none; }
+        .statusline.err { color: var(--bad); }
+
+        /* ============ CALL ENDED ============ */
+        .call-ended {
+          border-top: 1px solid var(--line); background: var(--panel);
+          padding: 13px 20px calc(13px + env(safe-area-inset-bottom));
+          display: flex; align-items: center; gap: 10px; justify-content: center; flex-wrap: wrap;
+          font: 13px var(--mono); color: var(--ink-2);
+        }
+        .call-ended .summary { margin-right: 6px; }
+        .call-ended b { color: var(--ink); font-weight: 500; }
+
+        /* ============ TTS & ASR PROBES ============ */
+        .stage-split {
+          display: flex; flex-direction: column;
+          height: 100%; max-width: 720px; width: 100%; margin: 0 auto;
+          padding: 24px 20px 0;
+        }
+        .stage-top { flex: none; }
+        .stage-top h1 { margin: 0 0 4px; font-size: 21px; font-weight: 600; letter-spacing: -.01em; }
+        .stage-top > .lead { margin: 0 0 16px; color: var(--mute); font-size: 14px; }
+        .stage-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 28px; }
+
+        .block {
+          background: var(--panel); border: 1px solid var(--line);
+          border-radius: 14px; padding: 16px 18px; margin-bottom: 14px;
+        }
+        .block h2 {
+          margin: 0 0 12px; font: 500 11.5px var(--mono);
+          color: var(--mute); letter-spacing: .07em; text-transform: uppercase;
+        }
+        .probe textarea {
+          width: 100%; min-height: 82px; padding: 10px 12px; font: inherit;
+          border-radius: 10px; resize: vertical;
+          background: var(--field); color: var(--ink);
+          border: 1px solid var(--line-strong); outline: none;
+        }
+        .probe textarea:focus { border-color: var(--accent); }
+        .probe-row {
+          display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+        }
+        .probe-row select {
+          background: var(--field); color: var(--ink);
+          border: 1px solid var(--line-strong); border-radius: 9px;
+          padding: 8px 11px; font: 13.5px var(--sans); outline: none;
+        }
+        .probe-row select:focus { border-color: var(--accent); }
+        .probe-row .hint { margin-left: auto; font: 12px var(--mono); color: var(--mute); }
+
+        .history-list { display: flex; flex-direction: column; gap: 8px; }
+        .history-empty { font: 13px var(--mono); color: var(--mute); padding: 4px 0; }
+        .history-item {
+          display: flex; align-items: center; gap: 10px;
+          padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+          background: var(--paper);
+          animation: rise .14s ease-out;
+        }
+        .history-item .h-body { flex: 1; min-width: 0; }
+        .history-item .h-text { font-size: 14px; line-height: 1.4; word-break: break-word; }
+        .history-item .h-meta {
+          font: 11px var(--mono); color: var(--mute);
+          margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px 12px;
+        }
+        .history-item button {
+          width: 32px; height: 32px; flex: none; border: 0; border-radius: 8px;
+          background: transparent; color: var(--ink-2); cursor: pointer;
+          display: grid; place-items: center;
+        }
+        .history-item button:hover { background: var(--hover); color: var(--ink); }
+
+        .asr-recorder {
+          display: flex; align-items: center; gap: 18px; padding: 4px 0;
+        }
+        .asr-mic {
+          width: 68px; height: 68px; border-radius: 50%; flex: none;
+          border: 1px solid var(--line-strong);
+          background: var(--field); color: var(--ink);
+          display: grid; place-items: center; cursor: pointer;
+          position: relative;
+          transition: background .15s, color .15s, border-color .15s;
+        }
+        .asr-mic:hover:not(.rec) { background: var(--hover); }
+        .asr-mic.rec {
+          background: var(--bad); color: #fff; border-color: var(--bad);
+        }
+        .asr-mic.rec::after {
+          content: ""; position: absolute; inset: -5px; border-radius: 50%;
+          border: 2px solid var(--bad); opacity: .45;
+          transform: scale(calc(1 + var(--level, 0) * .3));
+          transition: transform .06s linear;
+        }
+        .asr-mic.pending { color: var(--warn); border-color: var(--warn); }
+        .asr-mic.pending::after {
+          content: ""; position: absolute; inset: -5px; border-radius: 50%;
+          border: 2px solid currentColor;
+          animation: micWait .9s ease-in-out infinite;
+        }
+        .asr-box { flex: 1; min-width: 0; }
+        .asr-state { font: 12px var(--mono); color: var(--mute); margin-bottom: 6px; }
+        .asr-state.live { color: var(--bad); }
+        .asr-result {
+          min-height: 46px; padding: 10px 12px;
+          border-radius: 10px; border: 1px dashed var(--line-strong);
+          background: var(--field); font-size: 14.5px; word-break: break-word;
+        }
+        .asr-result.empty { color: var(--mute); font-style: italic; }
+        .asr-result.error { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, var(--line-strong)); }
+
+        @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+        @keyframes eq { 0%, 100% { height: 4px; } 50% { height: 13px; } }
+        @keyframes micWait { 0%, 100% { opacity: .55; transform: scale(1); } 50% { opacity: .12; transform: scale(1.22); } }
+
+        @media (max-width: 720px) {
+          .topbar { grid-template-columns: auto 1fr; padding: 8px 12px; }
+          .topbar-right { grid-column: 2; grid-row: 1; }
+          .modes { grid-column: 1 / -1; grid-row: 2; }
+          .brand-txt { display: none; }
+          .modes { justify-self: center; }
+          .modes button span:not(.live-dot) { display: none; }
+          .modes button { padding: 8px 10px; }
+          .hero-form { flex-direction: column; }
+          .bubble { max-width: 88%; }
+          .asr-recorder { flex-direction: column; align-items: stretch; text-align: center; }
+          .asr-mic { margin: 0 auto; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ============ TOPBAR ============ -->
+<header class="topbar">
+    <div class="brand">
+        <div class="brand-mark">УК</div>
+        <div class="brand-txt">
+            <div class="brand-title">Ассистент первой линии</div>
+            <div class="brand-sub">демо-стенд · телефония</div>
+        </div>
+    </div>
+
+    <nav class="modes" id="modeNav" aria-label="Режим стенда">
+        <button type="button" data-mode="call" class="on">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+            </svg>
+            <span>Звонок</span>
+            <span class="live-dot" id="callTabLive" hidden></span>
+        </button>
+        <button type="button" data-mode="tts">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 5 6 9H2v6h4l5 4z"/>
+                <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+            </svg>
+            <span>Синтез речи</span>
+        </button>
+        <button type="button" data-mode="asr">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="2" width="6" height="12" rx="3"/>
+                <path d="M5 11a7 7 0 0 0 14 0M12 18v4"/>
+            </svg>
+            <span>Распознавание</span>
+        </button>
+    </nav>
+
+    <div class="topbar-right">
+        <button class="icon-btn" id="themeBtn" type="button" title="Переключить тему" aria-label="Переключить тему">
+            <svg class="ico-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+            </svg>
+            <svg class="ico-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+        </button>
+        <button class="icon-btn" id="settingsBtn" type="button" title="Настройки" aria-label="Настройки">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="4" y1="6" x2="20" y2="6"/>
+                <line x1="4" y1="12" x2="20" y2="12"/>
+                <line x1="4" y1="18" x2="20" y2="18"/>
+                <circle cx="8" cy="6" r="2" fill="var(--panel)"/>
+                <circle cx="16" cy="12" r="2" fill="var(--panel)"/>
+                <circle cx="10" cy="18" r="2" fill="var(--panel)"/>
+            </svg>
+        </button>
+
+        <div class="popover" id="settingsPopover" hidden>
+            <h2 class="popover-title">Параметры стенда</h2>
+
+            <label class="field" id="voiceField" hidden>
+                <span class="field-head"><span>Голос бота</span></span>
+                <select id="voiceSelect"></select>
+            </label>
+
+            <div class="field" style="margin-bottom:4px">
+                <div class="field-head">
+                    <span>Микрофон</span>
+                    <button type="button" id="micGrantBtn" hidden>Подключить / обновить</button>
+                </div>
+                <select id="micSelect">
+                    <option value="">По умолчанию (системный)</option>
+                </select>
+                <div class="field-hint" id="micHint" hidden></div>
+            </div>
+
+            <label class="switch">
+                <span class="lbl">Подробные аудиологи<small>Ошибки выводятся всегда; для логов запуска обновите страницу.</small></span>
+                <input type="checkbox" id="audioDebugToggle">
+                <span class="track"></span>
+            </label>
+
+            <div class="sys-pill" id="sysPill">
+                <span>диалог: <b id="cfg-dialog">—</b></span>
+                <span>asr: <b id="cfg-asr">—</b></span>
+                <span>tts: <b id="cfg-tts">—</b></span>
+                <span id="cfg-llm-wrap">llm: <b id="cfg-llm">—</b></span>
+                <span>crm: <b id="cfg-crm">—</b></span>
+                <span>ui: <b id="cfg-uibuild">—</b></span>
+                <span>канал: <b id="cfg-channel">—</b></span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main>
+    <!-- ========= MODE: CALL ========= -->
+    <section class="view" data-view="call">
+        <div class="call-hero" id="callHero">
+            <div class="hero-inner">
+                <div class="hero-icon">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                    </svg>
+                </div>
+                <h1>Диспетчерская УК «Территория»</h1>
+                <p>Введите номер абонента и начните тестовый звонок голосовому ассистенту. При начале звонка микрофон включится автоматически; его можно выключить кнопкой в звонке.</p>
+                <div class="hero-form">
+                    <input
+                        id="phoneInput"
+                        type="tel"
+                        inputmode="tel"
+                        autocomplete="off"
+                        spellcheck="false"
+                        value="+79990000001"
+                        placeholder="+79990000001"
+                        aria-label="Номер абонента"
+                    >
+                    <button type="button" id="startCallBtn" class="btn call">Позвонить</button>
+                </div>
+                <div class="phone-presets" id="phonePresets" aria-label="Быстрый выбор номера"></div>
+                <div class="hero-status" id="heroStatus" role="status" aria-live="polite"></div>
+            </div>
+        </div>
+
+        <div class="call-live" id="callLive" hidden>
+            <div class="call-live-bar">
+                <div class="live-state">
+                    <span class="dot live" id="liveDot"></span>
+                    <span class="live-phone" id="livePhone"></span>
+                    <span class="live-timer" id="liveTimer">00:00</span>
+                </div>
+                <div class="live-actions">
+                    <button type="button" class="btn danger" id="hangupBtn">Завершить</button>
+                </div>
+            </div>
+
+            <div class="transcript" id="transcript">
+                <div class="thread" id="thread"></div>
+            </div>
+
+            <footer class="composer" id="composer">
+                <div class="composer-inner">
+                    <div class="speaking" id="speakingBar" hidden>
+                        <span class="eq"><i></i><i></i><i></i><i></i></span>
+                        <span id="speakingLabel">Бот говорит</span>
+                        <button type="button" class="btn small" id="stopSpeakBtn">Стоп</button>
+                    </div>
+
+                    <div class="quick-chips" id="quickChips">
+                        <button type="button" data-chip="Не работает лифт в нашем подъезде">Не работает лифт</button>
+                        <button type="button" data-chip="Подскажите статус заявки 1234">Статус заявки №1234</button>
+                        <button type="button" data-chip="Подскажите, как часто нужна поверка счётчика воды?">Вопрос по базе знаний</button>
+                        <button type="button" data-chip="Соедините меня с живым оператором">Перевод на оператора</button>
+                    </div>
+
+                    <div class="composer-row" id="composerRow">
+                        <button type="button" id="voiceToggleBtn" class="voice-toggle" title="Озвучка ответа бота">
+                            <svg class="ico-on" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M11 5 6 9H2v6h4l5 4z"/>
+                                <path d="M15.5 8.5a5 5 0 0 1 0 7"/>
+                                <path d="M18.5 5.5a9 9 0 0 1 0 13"/>
+                            </svg>
+                            <svg class="ico-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M11 5 6 9H2v6h4l5 4z"/>
+                                <path d="M22 9l-6 6M16 9l6 6"/>
+                            </svg>
+                        </button>
+                        <textarea id="input" rows="1" placeholder="Реплика звонящего…"></textarea>
+                        <button type="button" id="micBtn" class="mic" title="Микрофон">
+                            <svg class="ico-mic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="2" width="6" height="12" rx="3"/>
+                                <path d="M5 11a7 7 0 0 0 14 0M12 18v4"/>
+                            </svg>
+                            <svg class="ico-mic-off" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="2" y1="2" x2="22" y2="22"/>
+                                <path d="M18.89 13.23A7.12 7.12 0 0 0 19 11M5 11a7 7 0 0 0 12 5M12 18v4"/>
+                                <path d="M15 9.34V5a3 3 0 0 0-5.68-1.33M9 9v2a3 3 0 0 0 5.12 2.12"/>
+                            </svg>
+                        </button>
+                        <button type="button" id="sendBtn" class="send-btn" title="Отправить" disabled>
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12h14M13 5l7 7-7 7"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="statusline" id="status" role="status" aria-live="polite"></div>
+                </div>
+            </footer>
+
+            <div class="call-ended" id="callEndedBar" hidden>
+                <span class="summary"><b>Разговор завершён</b> · <span id="endedReason"></span></span>
+                <button type="button" class="btn small" id="downloadLogBtn">Скачать лог (.txt)</button>
+                <button type="button" class="btn primary small" id="newCallBtn">Выйти из звонка</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========= MODE: TTS ========= -->
+    <section class="view" data-view="tts" hidden>
+        <div class="stage-split">
+            <div class="stage-top">
+                <h1>Проба синтеза речи</h1>
+                <p class="lead" id="ttsLead">Проверка голоса TTS отдельно от диалога.</p>
+                <div class="block probe">
+                    <textarea id="ttsInput" placeholder="Введите текст для озвучки…">Здравствуйте! Ваше обращение принято, номер заявки пять тысяч четыреста тридцать два.</textarea>
+                    <div class="probe-row">
+                        <select id="ttsVoiceSelect" aria-label="Голос TTS" hidden></select>
+                        <button type="button" id="ttsPlayBtn" class="btn primary">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>
+                            <span id="ttsPlayLabel">Озвучить</span>
+                        </button>
+                        <span class="hint">Ctrl + Enter</span>
+                    </div>
+                    <div class="statusline" id="ttsStatus"></div>
+                </div>
+            </div>
+            <div class="stage-scroll">
+                <div class="block">
+                    <h2>Последние пробы</h2>
+                    <div class="history-list" id="ttsHistory">
+                        <div class="history-empty">Пока пусто — озвучьте первый текст.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========= MODE: ASR ========= -->
+    <section class="view" data-view="asr" hidden>
+        <div class="stage-split">
+            <div class="stage-top">
+                <h1>Проба распознавания речи</h1>
+                <p class="lead" id="asrLead">Проверка распознавания речи отдельно от диалога.</p>
+                <div class="block">
+                    <div class="asr-recorder">
+                        <button id="asrMicBtn" class="asr-mic" type="button" aria-label="Запись">
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="2" width="6" height="12" rx="3"/>
+                                <path d="M5 11a7 7 0 0 0 14 0M12 18v4"/>
+                            </svg>
+                        </button>
+                        <div class="asr-box">
+                            <div class="asr-state" id="asrState">Нажмите, чтобы начать запись</div>
+                            <div class="asr-result empty" id="asrResult">Распознанный текст появится здесь…</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="stage-scroll">
+                <div class="block">
+                    <h2>История распознаваний</h2>
+                    <div class="history-list" id="asrHistory">
+                        <div class="history-empty">Пока пусто — запишите первую фразу.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<script>
+    'use strict';
+
+    /* =========================================================
+       DOM
+       ========================================================= */
+    const $ = (sel) => document.querySelector(sel);
+    const ui = {
+      modeTabs: document.querySelectorAll('#modeNav [data-mode]'),
+      callTabLive: $('#callTabLive'),
+      themeBtn: $('#themeBtn'),
+      settingsBtn: $('#settingsBtn'),
+      settingsPopover: $('#settingsPopover'),
+
+      voiceField: $('#voiceField'),
+      voiceSelect: $('#voiceSelect'),
+      micSelect: $('#micSelect'),
+      audioDebugToggle: $('#audioDebugToggle'),
+      micGrantBtn: $('#micGrantBtn'),
+      micHint: $('#micHint'),
+      cfgLlmWrap: $('#cfg-llm-wrap'),
+      cfgUiBuild: $('#cfg-uibuild'),
+      cfgChannel: $('#cfg-channel'),
+
+      callHero: $('#callHero'),
+      callLive: $('#callLive'),
+      phoneInput: $('#phoneInput'),
+      phonePresets: $('#phonePresets'),
+      startCallBtn: $('#startCallBtn'),
+      heroStatus: $('#heroStatus'),
+
+      liveDot: $('#liveDot'),
+      livePhone: $('#livePhone'),
+      liveTimer: $('#liveTimer'),
+      hangupBtn: $('#hangupBtn'),
+      transcript: $('#transcript'),
+      thread: $('#thread'),
+
+      composer: $('#composer'),
+      composerRow: $('#composerRow'),
+      speakingBar: $('#speakingBar'),
+      speakingLabel: $('#speakingLabel'),
+      stopSpeakBtn: $('#stopSpeakBtn'),
+      quickChips: document.querySelectorAll('#quickChips [data-chip]'),
+      voiceToggleBtn: $('#voiceToggleBtn'),
+      input: $('#input'),
+      micBtn: $('#micBtn'),
+      sendBtn: $('#sendBtn'),
+      status: $('#status'),
+
+      callEndedBar: $('#callEndedBar'),
+      endedReason: $('#endedReason'),
+      downloadLogBtn: $('#downloadLogBtn'),
+      newCallBtn: $('#newCallBtn'),
+
+      ttsLead: $('#ttsLead'),
+      ttsInput: $('#ttsInput'),
+      ttsVoiceSelect: $('#ttsVoiceSelect'),
+      ttsPlayBtn: $('#ttsPlayBtn'),
+      ttsPlayLabel: $('#ttsPlayLabel'),
+      ttsStatus: $('#ttsStatus'),
+      ttsHistory: $('#ttsHistory'),
+
+      asrLead: $('#asrLead'),
+      asrMicBtn: $('#asrMicBtn'),
+      asrState: $('#asrState'),
+      asrResult: $('#asrResult'),
+      asrHistory: $('#asrHistory'),
+    };
+
+    const UI_BUILD = 'barge-50-voice-pause-cut';
+    console.info('[ui] страница загружена, клиент ' + UI_BUILD);
+    // Только уровень логирования — граф и обработка звука не изменяются.
+    ui.audioDebugToggle.checked = localStorage.getItem('audioDebug') === 'true';
+    ui.audioDebugToggle.addEventListener('change', () => {
+      localStorage.setItem('audioDebug', String(ui.audioDebugToggle.checked));
+    });
+    function audioDebug(...args) {
+      if (ui.audioDebugToggle.checked) console.info(...args);
+    }
+
+    window.addEventListener('unhandledrejection', (e) => showStatus('JS: ' + (e.reason?.message || e.reason), true));
+    window.addEventListener('error', (e) => showStatus('JS: ' + e.message, true));
+
+    /* =========================================================
+       Состояние
+       ========================================================= */
+    const app = {
+      cfg: {},
+      mode: 'call',
+      callId: null,
+      phone: '',
+      ended: false,
+      ending: false,
+      endedReason: '',
+      busy: false,
+      speaking: false,
+      statusError: false,
+      micEnabled: false,
+      ttsSpeaker: null,
+      voiceOut: localStorage.getItem('voiceOut') !== 'false',
+      sessionActive: false,
+      callStarted: false,
+      seconds: 0,
+      timer: null,
+    };
+
+    // Явно отображаем удержание устройства даже когда запись не ведётся.
+    const standMic = { keep: false, pending: false, token: 0 };
+    const micSupported = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    const mobileMq = matchMedia('(max-width: 720px)');
+
+    const inCall = () => Boolean(app.callId) && !app.ended;
+    const micCanOpen = () => app.sessionActive && !app.ended && !app.ending && app.micEnabled;
+    const micListening = () => app.mode === 'call' && micCanOpen() && Boolean(app.callId)
+      && voice.ready && !app.busy;
+    function isBotSpeaking() {
+      if (app.speaking) return true;
+      if (speaker.el && !speaker.el.paused && !speaker.el.ended) return true;
+      if ('speechSynthesis' in window && app.callId && (speechSynthesis.speaking || speechSynthesis.pending)) return true;
+      return false;
+    }
+    const composerLocked = () => app.busy || app.ending;
+
+    /* =========================================================
+       Хелперы
+       ========================================================= */
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+    }
+    function safeHttpUrl(value) {
+      if (typeof value !== 'string' || !value.trim()) return '';
+      try {
+        const url = new URL(value, location.href);
+        return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : '';
+      } catch { return ''; }
+    }
+    function fmtTime(sec) {
+      return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+    }
+    function showStatus(text, isError) {
+      const msg = text || '';
+      app.statusError = Boolean(isError);
+      ui.status.textContent = msg;
+      ui.status.classList.toggle('err', Boolean(isError));
+      if (!app.sessionActive) {
+        ui.heroStatus.textContent = msg;
+        ui.heroStatus.classList.toggle('err', Boolean(isError));
+      } else {
+        ui.heroStatus.textContent = '';
+      }
+    }
+    function showTtsStatus(text, isError) {
+      ui.ttsStatus.textContent = text || '';
+      ui.ttsStatus.classList.toggle('err', Boolean(isError));
+    }
+    function autosizeInput() {
+      ui.input.style.height = 'auto';
+      ui.input.style.height = Math.min(ui.input.scrollHeight, 140) + 'px';
+      refreshComposer();
+    }
+    function clearInput() {
+      ui.input.value = '';
+      ui.input.style.height = 'auto';
+      refreshComposer();
+    }
+    function focusInput() {
+      if (!inCall() || mobileMq.matches || composerLocked()) return;
+      if (document.activeElement === ui.input) return;
+      ui.input.focus();
+    }
+
+    /* =========================================================
+       Тема + поповер настроек
+       ========================================================= */
+    ui.themeBtn.addEventListener('click', () => {
+      const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem('theme', next);
+    });
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      if (!localStorage.getItem('theme')) {
+        document.documentElement.dataset.theme = e.matches ? 'dark' : 'light';
+      }
+    });
+
+    function closePopover() {
+      ui.settingsPopover.hidden = true;
+      ui.settingsBtn.classList.remove('active');
+    }
+    ui.settingsBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const opening = ui.settingsPopover.hidden;
+      ui.settingsPopover.hidden = !opening;
+      ui.settingsBtn.classList.toggle('active', opening);
+      if (opening) await refreshMicDevices();
+    });
+    document.addEventListener('click', (e) => {
+      if (!ui.settingsPopover.hidden && !ui.settingsPopover.contains(e.target) && e.target !== ui.settingsBtn) {
+        closePopover();
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closePopover();
+    });
+
+    /* =========================================================
+       Озвучка
+       ========================================================= */
+    localStorage.removeItem('bargeIn');
+
+    function updateVoiceToggleBtn() {
+      ui.voiceToggleBtn.classList.toggle('off', !app.voiceOut);
+      ui.voiceToggleBtn.title = app.voiceOut
+        ? 'Озвучка включена — нажмите, чтобы выключить'
+        : 'Озвучка выключена — нажмите, чтобы включить';
+    }
+    ui.voiceToggleBtn.addEventListener('click', () => {
+      app.voiceOut = !app.voiceOut;
+      localStorage.setItem('voiceOut', String(app.voiceOut));
+      if (!app.voiceOut) stopSpeech();
+      if (inCall()) voiceSend({ t: 'config', audio: app.voiceOut });
+      updateVoiceToggleBtn();
+      refreshComposer();
+    });
+
+    /* =========================================================
+       Микрофон и выбор устройства
+       ========================================================= */
+    const mic = {
+      deviceId: localStorage.getItem('micDeviceId') || '',
+      savedLabel: localStorage.getItem('micDeviceLabel') || '',
+      label: localStorage.getItem('micDeviceLabel') || 'По умолчанию (системный)',
+      devices: [],
+      granted: false,
+      denied: false,
+      permission: 'unknown',        // granted | prompt | denied | unknown
+      activeLabel: '',
+      activeSettings: null,
+    };
+
+    // Отслеживаем состояние разрешения; запрос запускается при загрузке страницы.
+    async function refreshMicPermission() {
+      if (!navigator.permissions || !navigator.permissions.query) return;
+      try {
+        const status = await navigator.permissions.query({ name: 'microphone' });
+        mic.permission = status.state;
+        audioDebug('[mic diag] разрешение: ' + status.state + ', от загрузки ' + Math.round(performance.now()) + ' мс');
+        status.addEventListener('change', () => {
+          audioDebug('[mic diag] разрешение изменилось: ' + status.state + ', от загрузки ' + Math.round(performance.now()) + ' мс');
+          mic.permission = status.state;
+          if (status.state === 'granted' && micCanOpen()) openCallMic();
+        });
+      } catch { /* Firefox/Safari могут не знать про микрофон — тогда узнаем по факту */ }
+    }
+    const micReadyToOpen = () => mic.permission === 'granted' || mic.permission === 'unknown';
+
+    function renderMicHint(text, isErr) {
+      ui.micHint.hidden = !text;
+      ui.micHint.textContent = text || '';
+      ui.micHint.classList.toggle('err', Boolean(isErr));
+    }
+
+    async function refreshMicDevices() {
+      if (!micSupported) {
+        ui.micSelect.disabled = true;
+        ui.micGrantBtn.hidden = true;
+        renderMicHint(
+          window.isSecureContext
+            ? 'Браузер не поддерживает захват микрофона'
+            : 'Микрофон доступен только по HTTPS или с localhost',
+          true
+        );
+        return;
+      }
+
+      try {
+        const all = await navigator.mediaDevices.enumerateDevices();
+        const inputs = all.filter((d) => d.kind === 'audioinput' && d.deviceId !== 'communications');
+        const named = inputs.some((d) => Boolean(d.label));
+        mic.devices = inputs;
+        mic.granted = named;
+
+        ui.micSelect.length = 0;
+        ui.micSelect.add(new Option('По умолчанию (системный)', ''));
+        if (named) {
+          inputs.forEach((d, idx) => {
+            if (d.deviceId && d.deviceId !== 'default') {
+              ui.micSelect.add(new Option(d.label || ('Микрофон ' + (idx + 1)), d.deviceId));
+            }
+          });
+          const options = Array.from(ui.micSelect.options);
+          let matched = mic.deviceId
+            ? options.find((o) => o.value === mic.deviceId)
+            : null;
+          // Браузер мог перегенерировать deviceId между сессиями при том же имени устройства
+          if (!matched && mic.savedLabel) {
+            matched = options.find((o) => o.value && o.textContent === mic.savedLabel) || null;
+          }
+          if (matched && matched.value) {
+            mic.deviceId = matched.value;
+            mic.savedLabel = matched.textContent;
+            localStorage.setItem('micDeviceId', mic.deviceId);
+            localStorage.setItem('micDeviceLabel', mic.savedLabel);
+            ui.micSelect.value = mic.deviceId;
+          } else {
+            ui.micSelect.value = '';
+            // Сбрасываем в памяти только если список реальных устройств уже раскрыт,
+            // а сохранённого микрофона среди подключённых нет.
+            mic.deviceId = '';
+          }
+        } else if (mic.deviceId) {
+          // До первого getUserMedia браузер скрывает список — НЕ затираем mic.deviceId!
+          ui.micSelect.add(new Option(mic.savedLabel || 'Сохранённый микрофон', mic.deviceId));
+          ui.micSelect.value = mic.deviceId;
+        } else {
+          ui.micSelect.value = '';
+        }
+
+        const selOpt = ui.micSelect.selectedOptions[0];
+        mic.label = selOpt ? selOpt.textContent : 'По умолчанию (системный)';
+
+        ui.micGrantBtn.hidden = named && !mic.denied && micTracksLive(micStream.stream);
+        if (mic.denied) {
+          renderMicHint('Доступ к микрофону заблокирован в браузере', true);
+        } else if (mic.activeLabel) {
+          renderMicHint('Сейчас используется: ' + mic.activeLabel, false);
+        } else if (!named) {
+          renderMicHint('Нажмите «Подключить / обновить», чтобы выбрать микрофон', false);
+        } else {
+          renderMicHint('', false);
+        }
+      } catch {
+        renderMicHint('Не удалось получить список аудиоустройств', true);
+      }
+    }
+
+    // Сохраняем ранее выбранную обработку, чтобы удаление настройки
+    // из интерфейса не меняло звучание микрофона.
+    function micAudioConstraints() {
+      const processed = localStorage.getItem('micProcessing') !== 'raw';
+      return { channelCount: 1, echoCancellation: processed, noiseSuppression: processed, autoGainControl: processed };
+    }
+
+    async function requestMicPermission() {
+      await holdStandMic();
+      await refreshMicDevices();
+    }
+
+    ui.micGrantBtn.addEventListener('click', requestMicPermission);
+
+    ui.micSelect.addEventListener('change', () => {
+      mic.deviceId = ui.micSelect.value || '';
+      const opt = ui.micSelect.selectedOptions[0];
+      mic.label = opt ? opt.textContent : 'По умолчанию (системный)';
+      if (mic.deviceId) {
+        mic.savedLabel = mic.label;
+        localStorage.setItem('micDeviceId', mic.deviceId);
+        localStorage.setItem('micDeviceLabel', mic.savedLabel);
+      } else {
+        mic.savedLabel = '';
+        localStorage.removeItem('micDeviceId');
+        localStorage.removeItem('micDeviceLabel');
+      }
+
+      const reopenStandMic = standMic.keep;
+      const reopenCallMic = inCall() && !app.ending && app.micEnabled;
+      const reopenAsr = app.mode === 'asr' && Boolean(asr.recording || asr.pending);
+      abortUtterance(true);
+      closeCallMic();
+      if (asr.recording || asr.pending) stopAsrCapture();
+      ++standMic.token;
+      standMic.pending = false;
+      teardownCapture();
+      renderStandMic();
+      if (reopenStandMic) { standMic.keep = false; holdStandMic(); }
+      if (reopenCallMic || reopenAsr) prepareAudioContextSync(true);
+      if (reopenCallMic && micCanOpen()) openCallMic({ allowPrompt: true });
+      if (reopenAsr) startAsr().catch((err) => setAsrResult('Микрофон: ' + err.message, 'error'));
+    });
+
+    if (micSupported && navigator.mediaDevices.addEventListener) {
+      navigator.mediaDevices.addEventListener('devicechange', () => refreshMicDevices());
+    }
+
+    async function timedGetUserMedia(constraints, label) {
+      const start = performance.now();
+      audioDebug('[mic diag] getUserMedia начало: ' + label
+        + ', разрешение=' + mic.permission + ', от загрузки ' + Math.round(start) + ' мс');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        audioDebug('[mic diag] getUserMedia успех: ' + label + ', ожидание '
+          + Math.round(performance.now() - start) + ' мс (включая ожидание разрешения)');
+        return stream;
+      } catch (err) {
+        console.warn('[mic diag] getUserMedia ошибка: ' + label + ', ожидание '
+          + Math.round(performance.now() - start) + ' мс, ' + (err.name || '') + ': ' + (err.message || ''));
+        throw err;
+      }
+    }
+
+    async function micGetUserMedia() {
+      const base = micAudioConstraints();
+      if (mic.deviceId) {
+        try {
+          const stream = await timedGetUserMedia({
+            audio: Object.assign({}, base, { deviceId: { exact: mic.deviceId } }),
+          }, 'выбранное устройство');
+          mic.denied = false;
+          if (!mic.granted) refreshMicDevices();
+          return stream;
+        } catch (err) {
+          if (err.name === 'OverconstrainedError' || err.name === 'NotFoundError') {
+            mic.deviceId = '';
+            localStorage.removeItem('micDeviceId');
+            await refreshMicDevices();
+          } else {
+            if (err.name === 'NotAllowedError') mic.denied = true;
+            throw err;
+          }
+        }
+      }
+      try {
+        const stream = await timedGetUserMedia({ audio: base }, 'системное устройство');
+        mic.denied = false;
+        if (!mic.granted) refreshMicDevices();
+        return stream;
+      } catch (err) {
+        if (err.name === 'NotAllowedError') mic.denied = true;
+        throw err;
+      }
+    }
+
+    /* =========================================================
+       Транскрипт + скачивание лога
+       ========================================================= */
+    const transcriptLog = [];
+
+    function record(line) {
+      const time = new Date().toLocaleTimeString('ru-RU', { hour12: false });
+      transcriptLog.push('[' + time + '] ' + line);
+      ui.downloadLogBtn.disabled = transcriptLog.length === 0;
+    }
+
+    function transcriptText() {
+      const c = app.cfg;
+      const head = [
+        'Демо-стенд · Ассистент УК',
+        app.phone ? 'Звонок: ' + app.phone + ' (' + fmtTime(app.seconds) + ')' : null,
+        c.dialog ? 'Диалог ' + c.dialog + ' · ASR ' + c.asr + ' · TTS ' + c.tts + ' · CRM ' + c.crm : null,
+        app.ttsSpeaker ? 'Голос бота: ' + app.ttsSpeaker : null,
+        mic.label ? 'Микрофон: ' + mic.label : null,
+        new Date().toLocaleString('ru-RU'),
+        '',
+      ].filter(Boolean);
+      return head.concat(transcriptLog).join('\n');
+    }
+
+    function downloadTranscript() {
+      if (!transcriptLog.length) return;
+      const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+      const phone = (app.phone || '').replace(/\D/g, '') || 'demo';
+      const blob = new Blob([transcriptText()], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'call-' + phone + '-' + stamp + '.txt';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function clearTranscript() {
+      ui.thread.innerHTML = '';
+      transcriptLog.length = 0;
+      ui.downloadLogBtn.disabled = true;
+    }
+
+    function appendToThread(className, html) {
+      const node = document.createElement('div');
+      node.className = className;
+      node.innerHTML = html;
+      ui.thread.appendChild(node);
+      ui.transcript.scrollTop = ui.transcript.scrollHeight;
+      return node;
+    }
+
+    function addBubble(role, text, meta) {
+      const metaHtml = meta ? '<div class="meta">' + escapeHtml(meta) + '</div>' : '';
+      const node = appendToThread('bubble ' + role, '<div class="text">' + escapeHtml(text) + '</div>' + metaHtml);
+      record((role === 'bot' ? 'бот' : 'абонент') + ': ' + text + (meta ? '  (' + meta + ')' : ''));
+      return node;
+    }
+
+    function formatToolValue(val) {
+      if (val === null || val === undefined) return 'null';
+      if (typeof val === 'string') return val;
+      try { return JSON.stringify(val, null, 2); } catch { return String(val); }
+    }
+
+    function summarizeToolCall(name, args, res) {
+      let tone = '';
+      let brief = '';
+      if (name === 'get_resident_by_phone') {
+        if (res && typeof res === 'object' && res.name) {
+          tone = 'ok';
+          const addrObj = res.address || {};
+          const loc = [
+            addrObj.street ? 'ул. ' + addrObj.street : '',
+            addrObj.house ? 'д. ' + addrObj.house : '',
+            res.apartment != null ? 'кв. ' + res.apartment : '',
+          ].filter(Boolean).join(', ');
+          brief = res.name + (loc ? ' · ' + loc : '');
+        } else {
+          tone = 'warn';
+          brief = (args.phone || '') + (args.phone ? ' · ' : '') + 'нет в CRM';
+        }
+      } else if (name === 'get_category') {
+        const cat = (res && res.name) || args.category || '';
+        const id = res && res.id != null ? ' #' + res.id : '';
+        const act = res && res.action ? ' [' + res.action + ']' : '';
+        brief = cat + id + act;
+      } else if (name === 'get_tickets_by_address') {
+        const loc = [
+          args.street ? 'ул. ' + args.street : '',
+          args.house ? 'д. ' + args.house : '',
+          args.apartment != null ? 'кв. ' + args.apartment : '',
+        ].filter(Boolean).join(', ');
+        if (Array.isArray(res) && res.length) {
+          tone = 'warn';
+          brief = (loc ? loc + ' → ' : '') + 'найдено: ' + res.map((t) => '№' + t.id).join(', ');
+        } else {
+          brief = (loc ? loc + ' → ' : '') + 'дублей нет';
+        }
+      } else if (name === 'get_ticket') {
+        if (res && typeof res === 'object' && res.id != null) {
+          tone = 'ok';
+          brief = '№ ' + res.id
+            + (res.status ? ' · ' + res.status : '')
+            + (res.deadline ? ' · до ' + res.deadline : '');
+        } else {
+          tone = 'warn';
+          brief = '№ ' + (args.number || '?') + ' · не найдена';
+        }
+      } else if (name === 'create_ticket') {
+        if (res && Array.isArray(res.missing_fields) && res.missing_fields.length) {
+          tone = 'warn';
+          brief = 'missing_fields: ' + res.missing_fields.join(', ');
+        } else if (res && res.id != null) {
+          tone = 'ok';
+          brief = '№ ' + res.id
+            + (res.category ? ' · ' + res.category : '')
+            + (res.deadline ? ' · до ' + res.deadline : '');
+        } else {
+          brief = args.category || '';
+        }
+      } else if (name === 'search_knowledge_base') {
+        brief = args.query ? '«' + args.query + '»' : '';
+      } else if (name === 'transfer_to_operator') {
+        tone = 'bad';
+        brief = args.reason || (typeof res === 'string' ? res : '');
+      } else {
+        const pairs = Object.entries(args).slice(0, 2).map(([k, v]) => k + '=' + v);
+        brief = pairs.join(', ');
+      }
+      return { tone, brief };
+    }
+
+    function addToolCall(p) {
+      const name = (p && p.name) || 'tool';
+      const args = (p && p.arguments) || {};
+      const res = p ? p.result : undefined;
+      const { tone, brief } = summarizeToolCall(name, args, res);
+
+      const node = document.createElement('details');
+      node.className = 'tool-call' + (tone ? ' ' + tone : '');
+      node.innerHTML =
+        '<summary>' +
+          '<span class="tool-fn"><i>tool</i>' + escapeHtml(name) + '</span>' +
+          (brief ? '<span class="tool-brief">' + escapeHtml(brief) + '</span>' : '<span class="tool-brief"></span>') +
+          '<span class="tool-chev">▸</span>' +
+        '</summary>' +
+        '<div class="tool-body">' +
+          '<div><div class="tool-sec-lbl">аргументы</div><pre class="tool-pre">' + escapeHtml(formatToolValue(args)) + '</pre></div>' +
+          '<div><div class="tool-sec-lbl">результат</div><pre class="tool-pre">' + escapeHtml(formatToolValue(res)) + '</pre></div>' +
+        '</div>';
+      ui.thread.appendChild(node);
+      ui.transcript.scrollTop = ui.transcript.scrollHeight;
+      record('[tool] ' + name + '(' + JSON.stringify(args) + ') → ' + JSON.stringify(res));
+    }
+
+    function formatPipelineLine(pipe) {
+      const p = pipe || app.cfg || {};
+      return [
+        p.dialog ? 'dialog: ' + p.dialog : null,
+        p.llm_model ? 'model: ' + p.llm_model : null,
+        p.asr ? 'asr: ' + p.asr : null,
+        p.tts ? 'tts: ' + p.tts + (app.ttsSpeaker ? ' (' + app.ttsSpeaker + ')' : '') : null,
+        p.crm ? 'crm: ' + p.crm : null,
+      ].filter(Boolean).join(' · ');
+    }
+
+    function addCallStartPending(phone) {
+      const node = document.createElement('details');
+      node.className = 'tool-call init pending';
+      const hint = app.cfg.dialog === 'cloudru'
+        ? 'передача номера в Assistant, идентификация и приветствие…'
+        : 'создание сессии, проверка CRM и приветствие…';
+      node.innerHTML =
+        '<summary>' +
+          '<span class="tool-fn"><i>init</i>call.start</span>' +
+          '<span class="tool-brief">' + escapeHtml(phone + ' · ' + hint) + '</span>' +
+          '<span class="tool-chev">▸</span>' +
+        '</summary>' +
+        '<div class="tool-body">' +
+          '<div><div class="tool-sec-lbl">ход инициализации</div>' +
+            '<pre class="tool-pre">1. WS /ws/call (start, phone=' + escapeHtml(JSON.stringify(phone)) + ')\n' +
+            '2. Ожидание инициализации сессии и ответа сервера…</pre>' +
+          '</div>' +
+          '<div><div class="tool-sec-lbl">активный контур</div>' +
+            '<pre class="tool-pre">' + escapeHtml(formatPipelineLine(app.cfg) || 'загрузка…') + '</pre>' +
+          '</div>' +
+        '</div>';
+      ui.thread.appendChild(node);
+      ui.transcript.scrollTop = ui.transcript.scrollHeight;
+      return node;
+    }
+
+    function resolveCallStartCard(node, reply, elapsedMs) {
+      if (!node) return;
+      const wasOpen = node.open;
+      const info = reply.init || {};
+      const timings = info.timings_ms || reply.timings || {};
+      // Этапы сервера могут перекрываться или включать общий итог: их сумма
+      // не является достоверным временем ожидания первого ответа.
+      const firstReplyMs = Number.isFinite(elapsedMs) && elapsedMs > 0 ? elapsedMs : 0;
+      const caller = info.caller;
+      const callerShort = caller && caller.full_name
+        ? caller.full_name
+        : 'нет в CRM';
+      const tone = reply.transfer ? 'bad' : (info.identified ? 'ok' : '');
+      const callIdShort = (reply.call_id || info.call_id || '').slice(0, 8);
+      const brief = [
+        info.phone || app.phone,
+        callIdShort ? '#' + callIdShort : null,
+        callerShort,
+        firstReplyMs ? firstReplyMs + ' мс до первого ответа' : null,
+      ].filter(Boolean).join(' · ');
+
+      const steps = Array.isArray(info.steps) && info.steps.length
+        ? info.steps.map((s, idx) => (idx + 1) + '. ' + s).join('\n')
+        : '1. Сессия открыта (call_id=' + (reply.call_id || '—') + ')';
+
+      const callerFull = caller && caller.full_name
+        ? [
+            caller.full_name,
+            caller.address || null,
+            caller.apartment ? 'кв. ' + caller.apartment : null,
+          ].filter(Boolean).join(', ')
+        : 'не найден в CRM (новый абонент)';
+
+      const timingParts = Object.entries(timings).map(([k, v]) => k + ': ' + v + ' мс');
+      if (firstReplyMs) timingParts.push('от старта до первого ответа: ' + firstReplyMs + ' мс');
+
+      const summaryLines = [
+        'call_id:  ' + (reply.call_id || info.call_id || '—'),
+        'телефон:  ' + (info.phone || app.phone || '—'),
+        'абонент:  ' + callerFull,
+        'контур:   ' + (formatPipelineLine(info.pipeline) || '—'),
+        timingParts.length ? 'тайминги: ' + timingParts.join(' · ') : null,
+      ].filter(Boolean).join('\n');
+
+      node.className = 'tool-call init' + (tone ? ' ' + tone : '');
+      node.innerHTML =
+        '<summary>' +
+          '<span class="tool-fn"><i>init</i>call.start</span>' +
+          '<span class="tool-brief">' + escapeHtml(brief) + '</span>' +
+          '<span class="tool-chev">▸</span>' +
+        '</summary>' +
+        '<div class="tool-body">' +
+          '<div><div class="tool-sec-lbl">ход инициализации</div><pre class="tool-pre">' + escapeHtml(steps) + '</pre></div>' +
+          '<div><div class="tool-sec-lbl">сессия и тайминги</div><pre class="tool-pre">' + escapeHtml(summaryLines) + '</pre></div>' +
+          (info.context
+            ? '<div><div class="tool-sec-lbl">контекст старта</div><pre class="tool-pre">' + escapeHtml(formatToolValue(info.context)) + '</pre></div>'
+            : '') +
+        '</div>';
+      node.open = wasOpen;
+      record('[init] call.start · ' + brief);
+    }
+
+    function addOutageNotice(p) {
+      if (!p) return;
+      const addr = p.address || '';
+      const desc = p.description || '';
+      const brief = [addr, desc].filter(Boolean).join(' · ');
+      const node = document.createElement('details');
+      node.className = 'tool-call warn';
+      node.innerHTML =
+        '<summary>' +
+          '<span class="tool-fn"><i>crm</i>outage_notice</span>' +
+          '<span class="tool-brief">' + escapeHtml(brief) + '</span>' +
+          '<span class="tool-chev">▸</span>' +
+        '</summary>' +
+        '<div class="tool-body">' +
+          '<div><div class="tool-sec-lbl">активное отключение по адресу</div><pre class="tool-pre">' + escapeHtml(formatToolValue(p)) + '</pre></div>' +
+        '</div>';
+      ui.thread.appendChild(node);
+      ui.transcript.scrollTop = ui.transcript.scrollHeight;
+      record('[crm] outage_notice · ' + brief);
+    }
+
+    function addEvent(event) {
+      if (event.type === 'tool_call') return addToolCall(event.payload);
+      if (event.type === 'outage_notice') return addOutageNotice(event.payload);
+      if (event.type === 'appeal_created') return addAppealCard(event.payload);
+    }
+
+    function addAppealCard(p) {
+      const fields = p.fields || [];
+      const markers = p.escalation_markers || [];
+      const rows = [
+        ['Тема', escapeHtml(p.topic || '—')],
+        ['Заявитель', p.owner ? escapeHtml(p.owner) + ' <small>из CRM</small>' : '<small>не идентифицирован, со слов</small>'],
+        ['Телефон', escapeHtml(p.phone || '')],
+      ].concat(fields.map((f) => [f.label, escapeHtml(String(f.value ?? ''))]));
+
+      if (p.escalated) {
+        rows.push(['Жалоба', '<span class="flag">' + escapeHtml(markers.length ? markers.join(', ') : 'угроза жалобы') + '</span>']);
+      }
+      const risk = escapeHtml(p.risk_level || 'normal');
+      const bitrix = p.bitrix_id ? '<span>' + escapeHtml(p.bitrix_id) + '</span>' : '';
+      const html =
+        '<header>' +
+          '<h3>Заявка № ' + escapeHtml(p.appeal_id) + bitrix + '</h3>' +
+          '<span class="pill ' + risk + '">' + risk + (p.escalated ? ' · флаг' : '') + '</span>' +
+        '</header>' +
+        '<dl>' + rows.map((r) => '<dt>' + escapeHtml(r[0]) + '</dt><dd>' + r[1] + '</dd>').join('') + '</dl>' +
+        '<div class="crm" id="crm-' + escapeHtml(p.appeal_id) + '">CRM: в очереди…</div>';
+
+      appendToThread('card' + (p.escalated ? ' flagged' : ''), html);
+      record([
+        'ЗАЯВКА №' + p.appeal_id, p.topic, 'риск ' + (p.risk_level || 'normal'),
+        p.escalated ? 'флаг жалобы: ' + (markers.join(', ') || 'да') : null,
+        p.owner ? 'заявитель ' + p.owner : 'заявитель не идентифицирован',
+      ].concat(fields.map((f) => f.label + ': ' + f.value)).filter(Boolean).join(' · '));
+      pollOutbox(p.appeal_id, 0);
+    }
+
+    async function pollOutbox(appealId, attempt, originalBox) {
+      const box = originalBox || document.getElementById('crm-' + appealId);
+      // Опрос привязан к конкретной карточке, а не только к её ID:
+      // новая сессия может создать другую карточку с тем же ID.
+      const stillCurrent = () => Boolean(box && box.isConnected
+        && document.getElementById('crm-' + appealId) === box);
+      if (attempt > 20 || !stillCurrent()) return;
+      try {
+        const list = await api('/debug/outbox');
+        if (!stillCurrent()) return;
+        const rec = list.find((r) => r.appeal && r.appeal.id === appealId);
+        if (rec && rec.status === 'sent') {
+          box.className = 'crm ok';
+          const channelUrl = safeHttpUrl(rec.appeal.channel_link);
+          const link = channelUrl
+            ? ' · <a href="' + escapeHtml(channelUrl) + '" target="_blank" rel="noopener noreferrer">заявка в канале ↗</a>'
+            : '';
+          box.innerHTML = 'CRM: отправлено · сделка <b>' + escapeHtml(rec.appeal.bitrix_deal_id || '—') + '</b>' + link;
+          record('CRM: заявка №' + appealId + ' отправлена, сделка ' + (rec.appeal.bitrix_deal_id || '—'));
+          return;
+        }
+        if (rec && rec.status === 'failed') {
+          box.className = 'crm bad';
+          box.textContent = 'CRM: не доставлено после ' + rec.attempts + ' попыток — ' + (rec.last_error || '');
+          record('CRM: заявка №' + appealId + ' не доставлена — ' + (rec.last_error || ''));
+          return;
+        }
+        if (rec) box.textContent = 'CRM: попытка ' + rec.attempts + (rec.last_error ? ' · ' + rec.last_error : '');
+      } catch { /* повторим */ }
+      if (!stillCurrent()) return;
+      if (attempt >= 20) {
+        // Таймаут опроса не означает ошибку доставки в CRM.
+        box.textContent = 'CRM: статус пока не получен — проверьте позже';
+        return;
+      }
+      setTimeout(() => pollOutbox(appealId, attempt + 1, box), 1500);
+    }
+
+    /* =========================================================
+       API + Конфигурация стенда
+       ========================================================= */
+    async function api(path, options) {
+      const response = await fetch(path, options || {});
+      if (!response.ok) throw new Error(response.status + ' ' + (await response.text()));
+      return response.json();
+    }
+    // Прогрев серверных моделей (TTS/LLM): первый ход звонка не должен платить
+    // за холодный старт. Не чаще раза в минуту и молча — это фоновая оптимизация.
+    let warmAt = 0;
+    function warmServer(force) {
+      const now = Date.now();
+      if (!force && now - warmAt < 60000) return;
+      warmAt = now;
+      fetch('/debug/warmup', { method: 'POST' }).catch(() => {});
+    }
+
+    function audioHeader() {
+      const h = { 'X-Audio': app.voiceOut ? 'on' : 'off' };
+      if (app.ttsSpeaker) h['X-Tts-Speaker'] = app.ttsSpeaker;
+      return h;
+    }
+    function postJson(body, headers) {
+      return {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, headers || {}),
+        body: JSON.stringify(body),
+      };
+    }
+
+    function syncSpeaker(speakerName) {
+      app.ttsSpeaker = speakerName || null;
+      if (ui.voiceSelect.options.length) ui.voiceSelect.value = speakerName || '';
+      if (ui.ttsVoiceSelect.options.length) ui.ttsVoiceSelect.value = speakerName || '';
+      if (app.ttsSpeaker) localStorage.setItem('ttsSpeaker', app.ttsSpeaker);
+      else localStorage.removeItem('ttsSpeaker');
+      if (inCall()) voiceSend({ t: 'config', tts_speaker: app.ttsSpeaker || '' });
+    }
+
+    function fillVoiceSelects(speakers, defaultSpeaker) {
+      ui.voiceSelect.length = 0;
+      ui.ttsVoiceSelect.length = 0;
+
+      if (!speakers || !speakers.length) {
+        ui.voiceField.hidden = true;
+        ui.ttsVoiceSelect.hidden = true;
+        app.ttsSpeaker = null;
+        return;
+      }
+
+      ui.voiceField.hidden = false;
+      ui.ttsVoiceSelect.hidden = false;
+
+      const sorted = speakers.slice().sort((a, b) => {
+        const ar = a.startsWith('ru_') ? 0 : 1;
+        const br = b.startsWith('ru_') ? 0 : 1;
+        return ar - br || a.localeCompare(b, 'ru');
+      });
+      const label = (sp) => (sp.startsWith('ru_') ? sp + ' · RU' : sp);
+
+      const saved = localStorage.getItem('ttsSpeaker');
+      const chosen = (saved && speakers.includes(saved))
+        ? saved
+        : (defaultSpeaker && speakers.includes(defaultSpeaker) ? defaultSpeaker : sorted[0]);
+
+      [ui.voiceSelect, ui.ttsVoiceSelect].forEach((sel) => {
+        sorted.forEach((sp) => sel.add(new Option(label(sp), sp)));
+        sel.value = chosen;
+      });
+      app.ttsSpeaker = chosen;
+    }
+
+    ui.voiceSelect.addEventListener('change', () => syncSpeaker(ui.voiceSelect.value));
+    ui.ttsVoiceSelect.addEventListener('change', () => syncSpeaker(ui.ttsVoiceSelect.value));
+
+    let phoneTouched = false;
+
+    function syncPhonePresetsActive() {
+      const current = (ui.phoneInput.value || '').trim();
+      ui.phonePresets.querySelectorAll('button').forEach((btn) => {
+        btn.classList.toggle('on', btn.dataset.phone === current);
+      });
+    }
+
+    function renderPhonePresets(demoPhones) {
+      ui.phonePresets.innerHTML = '';
+      const phones = Array.isArray(demoPhones) ? demoPhones : [];
+      const items = phones.map((p) => ({ phone: p, tag: 'в CRM' }));
+      // Нельзя одновременно пометить один номер как найденный и отсутствующий.
+      if (!phones.includes('+70000000000')) {
+        items.push({ phone: '+70000000000', tag: 'нет в CRM' });
+      }
+      items.forEach(({ phone, tag }) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.phone = phone;
+        btn.textContent = phone + ' · ' + tag;
+        btn.disabled = app.sessionActive;
+        btn.addEventListener('click', () => {
+          if (app.sessionActive) return;
+          phoneTouched = true;
+          ui.phoneInput.value = phone;
+          syncPhonePresetsActive();
+          showStatus('');
+          ui.phoneInput.focus();
+        });
+        ui.phonePresets.appendChild(btn);
+      });
+      syncPhonePresetsActive();
+    }
+
+    ui.phoneInput.addEventListener('input', () => {
+      phoneTouched = true;
+      syncPhonePresetsActive();
+    });
+    ui.phoneInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!app.busy && !app.sessionActive) startCall();
+      }
+    });
+
+    async function loadConfig() {
+      app.cfg = await api('/debug/config');
+      ['dialog', 'asr', 'tts', 'llm', 'crm'].forEach((key) => {
+        const el = $('#cfg-' + key);
+        if (el) el.textContent = app.cfg[key] || '—';
+      });
+      if (ui.cfgUiBuild) ui.cfgUiBuild.textContent = app.cfg.ui_build || '—';
+      console.info('[ui] клиент ' + UI_BUILD + ', сборка ' + (app.cfg.ui_build || '?')
+        + ' | tts:', app.cfg.tts, '| asr:', app.cfg.asr);
+      warmServer();
+      if (ui.cfgLlmWrap) {
+        ui.cfgLlmWrap.hidden = app.cfg.dialog === 'cloudru';
+      }
+
+      const demoPhones = app.cfg.demo_phones || [];
+      // Конфигурация может прийти уже после начала звонка.
+      if (!phoneTouched && !app.sessionActive) {
+        ui.phoneInput.value = demoPhones[0] || '+79990000001';
+      }
+      renderPhonePresets(demoPhones);
+
+      fillVoiceSelects(app.cfg.tts_speakers || [], app.cfg.tts_speaker || null);
+
+      if (app.cfg.tts) {
+        ui.ttsLead.textContent = 'Проверка адаптера ' + app.cfg.tts + ' отдельно от диалога.';
+      }
+      if (app.cfg.asr) {
+        ui.asrLead.textContent = 'Проверка адаптера ' + app.cfg.asr + ' отдельно от диалога.';
+      }
+    }
+
+    /* =========================================================
+       AudioContext & воспроизведение TTS
+       ========================================================= */
+    let audioCtx = null;
+    let audioCtxPromise = null;
+    let unlockedPrimed = false;
+
+    const capture = {
+      ctx: null,
+      sink: null,
+      source: null,
+      processor: null,
+      meter: null,
+      openingPromise: null,
+      openedAt: 0,
+      framesSeen: 0,
+    };
+
+    function audioContextUsable(ctx) {
+      return Boolean(ctx)
+        && ctx.state !== 'closed'
+        && typeof ctx.createMediaStreamSource === 'function'
+        && (typeof ctx.createScriptProcessor === 'function' || (ctx.audioWorklet && typeof window.AudioWorkletNode === 'function'))
+        && typeof ctx.createGain === 'function';
+    }
+
+    // Как в версии до WebSocket: сохраняем работающий контекст между
+    // открытиями микрофона, не закрываем его только из-за остановки трека.
+    function prepareAudioContextSync(forCapture) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      if (!audioContextUsable(audioCtx)) {
+        if (audioCtx && audioCtx.state !== 'closed') {
+          try { audioCtx.close().catch(() => {}); } catch { /* уже */ }
+        }
+        audioCtx = new AC();
+      }
+      if (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted') {
+        try { audioCtx.resume().catch(() => {}); } catch { /* браузер разблокирует на жесте */ }
+      }
+      return audioCtx;
+    }
+
+    async function tryResumeAudioContext(ctx, timeoutMs) {
+      if (!ctx || ctx.state === 'running') return;
+      try {
+        await Promise.race([
+          ctx.resume(),
+          new Promise((resolve) => setTimeout(resolve, timeoutMs || 250)),
+        ]);
+      } catch { /* игнорируем */ }
+    }
+
+    async function ensureAudioContext(forCapture) {
+      const syncCtx = prepareAudioContextSync(Boolean(forCapture));
+      if (!syncCtx) throw new Error('WebAudio не поддерживается браузером');
+      if (syncCtx.state === 'running') return syncCtx;
+      if (audioCtxPromise) return audioCtxPromise;
+
+      const opening = (async () => {
+        await tryResumeAudioContext(syncCtx, 250);
+        return syncCtx;
+      })();
+
+      audioCtxPromise = opening;
+      try {
+        return await opening;
+      } finally {
+        if (audioCtxPromise === opening) audioCtxPromise = null;
+      }
+    }
+
+    function resetAudioContext() {
+      audioCtxPromise = null;
+      closeCallMic();
+      stopAsrCapture();
+      if (!standMic.keep) teardownCapture();
+      resumeAudioOnGesture();
+    }
+
+    async function unlockAudio() {
+      let ctx = null;
+      try { ctx = await ensureAudioContext(false); } catch { /* нет WebAudio */ }
+      if (!ctx || ctx.state !== 'running' || isBotSpeaking()) return;
+      if (!unlockedPrimed && !isBotSpeaking()) {
+        unlockedPrimed = true;
+        if ('speechSynthesis' in window) {
+          try { speechSynthesis.speak(new SpeechSynthesisUtterance(' ')); } catch { /* нет синтеза */ }
+        }
+        try {
+          const buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+          const source = ctx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(ctx.destination);
+          source.start(0);
+        } catch { /* не критично */ }
+      }
+    }
+
+    // Любой жест «будит» звук: после перезагрузки, после возврата во вкладку,
+    // после звонка в другой вкладке браузер мог усыпить контекст
+    let gestureWired = false;
+    function resumeAudioOnGesture() {
+      if (gestureWired) return;
+      gestureWired = true;
+      let gestureLogged = false;
+      const handler = (event) => {
+        if (!gestureLogged && event.isTrusted) {
+          gestureLogged = true;
+          audioDebug('[mic diag] первый жест на странице: ' + event.type
+            + ', от загрузки ' + Math.round(performance.now()) + ' мс, ctx='
+            + (audioCtx ? audioCtx.state : 'нет'));
+        }
+        unlockAudio().catch(() => {});
+      };
+      ['pointerdown', 'touchstart', 'keydown'].forEach((event) =>
+        document.addEventListener(event, handler, { passive: true }));
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && audioCtx && audioCtx.state !== 'running') {
+          ensureAudioContext(false).catch(() => {});
+        }
+      });
+    }
+
+    if ('speechSynthesis' in window) {
+      speechSynthesis.getVoices();
+      speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+    }
+    function russianVoice() {
+      if (!('speechSynthesis' in window)) return null;
+      return speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith('ru')) || null;
+    }
+    function canBrowserSpeak() { return Boolean(russianVoice()); }
+
+    function base64ToBlob(b64, mime) {
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return new Blob([bytes], { type: mime });
+    }
+
+    function setSpeaking(label) {
+      ui.speakingBar.hidden = !label;
+      if (label) ui.speakingLabel.textContent = label;
+    }
+
+    /* =========================================================
+       Плеер ответов бота (<audio> ради AEC + откат на WebAudio / браузер)
+       ========================================================= */
+    let speechSeq = 0;
+    let speechWatchdog = null;
+
+    const speaker = {
+      el: null,              // <audio> — входит в контур эхоподавления браузера
+      url: null,
+      source: null,          // AudioBufferSourceNode (запасной путь)
+      gain: null,
+      ctx: null,
+      duration: 0,
+      playedMs: 0,
+      startedAt: 0,
+      finish: null,
+      ducked: false,         // бот присел под голос, но ещё не уступил
+      volumeLocked: false,   // браузер не даёт менять громкость <audio>
+      duckStartedAt: 0,
+      volumeTimer: 0,
+      quietWav: null,       // копия WAV только для поиска тихого участка
+      quietWavSeq: -1,
+    };
+
+    function stopSpeechWatchdog() {
+      if (speechWatchdog) { clearInterval(speechWatchdog); speechWatchdog = null; }
+    }
+
+    function releaseSpeaker() {
+      speaker.quietWav = null;
+      speaker.quietWavSeq = -1;
+      if (speaker.volumeTimer) { clearInterval(speaker.volumeTimer); speaker.volumeTimer = 0; }
+      speaker.ducked = false;
+      micStream.duckMs = 0;
+      if (speaker.el) {
+        const el = speaker.el;
+        el.onended = null;
+        el.onerror = null;
+        try { el.pause(); } catch { /* уже */ }
+        setTimeout(() => {
+          try { el.removeAttribute('src'); el.load(); el.remove(); } catch { /* уже */ }
+        }, 0);
+        speaker.el = null;
+      }
+      if (speaker.url) { try { URL.revokeObjectURL(speaker.url); } catch { /* уже */ } speaker.url = null; }
+      if (speaker.source) {
+        speaker.source.onended = null;
+        try { speaker.source.stop(); } catch { /* уже */ }
+        speaker.source = null;
+      }
+      if (speaker.gain) { try { speaker.gain.disconnect(); } catch { /* уже */ } speaker.gain = null; }
+      speaker.ctx = null;
+      speaker.playedMs = 0;
+      speaker.duration = 0;
+    }
+
+    function rampSpeaker(level, ms) {
+      const el = speaker.el;
+      if (el) {
+        if (speaker.volumeTimer) { clearInterval(speaker.volumeTimer); speaker.volumeTimer = 0; }
+        const from = Number.isFinite(el.volume) ? el.volume : 1;
+        const step = 40;
+        const steps = Math.max(1, Math.round((ms || step) / step));
+        let done = 0;
+        speaker.volumeTimer = setInterval(() => {
+          done++;
+          const value = from + (level - from) * (done / steps);
+          try { el.volume = Math.max(0, Math.min(1, value)); } catch { /* iOS не пишет volume */ }
+          if (done >= steps) {
+            clearInterval(speaker.volumeTimer);
+            speaker.volumeTimer = 0;
+          }
+        }, step);
+        return;
+      }
+      if (speaker.gain && speaker.ctx && speaker.ctx.state === 'running') {
+        const now = speaker.ctx.currentTime;
+        try {
+          speaker.gain.gain.cancelScheduledValues(now);
+          speaker.gain.gain.setValueAtTime(speaker.gain.gain.value, now);
+          speaker.gain.gain.linearRampToValueAtTime(level, now + (ms || 0) / 1000);
+        } catch { /* уже */ }
+      }
+    }
+
+    function speechRemainingMs() {
+      const el = speaker.el;
+      if (el && Number.isFinite(el.duration) && el.duration > 0) {
+        return Math.max(0, (el.duration - el.currentTime) * 1000);
+      }
+      if (speaker.duration && speaker.startedAt) {
+        return Math.max(0, speaker.duration - (performance.now() - speaker.startedAt));
+      }
+      return null;
+    }
+
+    function speechPlayedMs() {
+      const el = speaker.el;
+      if (el && Number.isFinite(el.currentTime) && el.currentTime > 0) {
+        return Math.round(el.currentTime * 1000);
+      }
+      if (speaker.startedAt) {
+        return Math.max(0, Math.round(performance.now() - speaker.startedAt));
+      }
+      return Math.round(speaker.playedMs || 0);
+    }
+
+    // Это поиск тихого участка, не таймкоды слов. Считаем только ближайшие
+    // 800 мс PCM16 WAV; неизвестный формат не меняет прежнее поведение.
+    function quietCutDelay(wav, positionMs) {
+      if (!(wav instanceof ArrayBuffer) || !Number.isFinite(positionMs) || positionMs < 0) return null;
+      const v = new DataView(wav);
+      if (v.byteLength < 44) return null;
+      const tag = (p) => String.fromCharCode(v.getUint8(p), v.getUint8(p + 1), v.getUint8(p + 2), v.getUint8(p + 3));
+      if (tag(0) !== 'RIFF' || tag(8) !== 'WAVE') return null;
+      let fmt = null, dataStart = 0, dataSize = 0;
+      for (let p = 12; p + 8 <= v.byteLength;) {
+        const n = v.getUint32(p + 4, true);
+        const start = p + 8;
+        if (n > v.byteLength - start) return null;
+        const name = tag(p);
+        if (name === 'fmt ' && n >= 16) {
+          fmt = { type: v.getUint16(start, true), channels: v.getUint16(start + 2, true),
+            rate: v.getUint32(start + 4, true), align: v.getUint16(start + 12, true), bits: v.getUint16(start + 14, true) };
+        }
+        if (name === 'data') { dataStart = start; dataSize = n; }
+        p = start + n + (n % 2);
+      }
+      if (!fmt || fmt.type !== 1 || fmt.channels !== 1 || fmt.bits !== 16 || fmt.align !== 2
+          || fmt.rate < 8000 || fmt.rate > 96000 || !dataSize) return null;
+      const total = Math.floor(dataSize / 2);
+      const from = Math.min(total, Math.floor(positionMs * fmt.rate / 1000));
+      const window = Math.max(1, Math.floor(fmt.rate * 0.01));
+      const limit = Math.min(total, from + Math.floor(fmt.rate * 0.8));
+      const levels = [];
+      for (let i = from; i + window <= limit; i += window) {
+        let sum = 0;
+        for (let j = i; j < i + window; j++) {
+          const sample = v.getInt16(dataStart + j * 2, true) / 32768;
+          sum += sample * sample;
+        }
+        levels.push(Math.sqrt(sum / window));
+      }
+      if (levels.length < 6) return null;
+      const threshold = Math.max(0.004, Math.max(...levels) * 0.06);
+      for (let i = 0; i + 5 < levels.length; i++) {
+        // Не начинаем затухать до паузы: иначе прежняя версия резала конец слова.
+        if (levels.slice(i, i + 6).every(level => level <= threshold)) {
+          return Math.min(720, i * 10);
+        }
+      }
+      // Если пауза не обнаружена, пробуем дать фразе 720 мс, затем 80 мс fade.
+      // Это не гарантирует границу слова и может прозвучать часть следующего.
+      return 720;
+    }
+
+    function fadeInterruptionAtPause(fallbackMs) {
+      const oldEl = speaker.el;
+      const oldSource = speaker.source;
+      const pos = oldEl && Number.isFinite(oldEl.currentTime)
+        ? oldEl.currentTime * 1000 : speechPlayedMs();
+      const delay = speaker.quietWavSeq === speechSeq
+        ? quietCutDelay(speaker.quietWav, pos) : null;
+      const seq = ++speechSeq;
+      stopSpeechWatchdog();
+      if (delay === null) {
+        fadeOutSpeech(fallbackMs);
+        return;
+      }
+      // Не гасим новую озвучку, если она успела стартовать во время ожидания.
+      const fade = () => {
+        if (speechSeq !== seq || (oldEl ? speaker.el !== oldEl : speaker.source !== oldSource)) return;
+        fadeOutSpeech(80);
+      };
+      if (delay > 0) setTimeout(fade, delay); else fade();
+    }
+
+    function fadeOutSpeech(ms) {
+      const fadeMs = Math.max(60, ms || 150);
+      const finish = speaker.finish;
+      speaker.finish = null;
+      if ('speechSynthesis' in window) {
+        try { speechSynthesis.cancel(); } catch { /* уже */ }
+      }
+      speaker.ducked = false;
+      micStream.duckMs = 0;
+      if (speaker.el) {
+        const el = speaker.el;
+        const url = speaker.url;
+        rampSpeaker(0, fadeMs);
+        setTimeout(() => {
+          try { el.pause(); } catch { /* уже */ }
+          if (speaker.el === el) {
+            releaseSpeaker();
+          } else {
+            try { el.removeAttribute('src'); el.load(); el.remove(); } catch { /* уже */ }
+            if (url) { try { URL.revokeObjectURL(url); } catch { /* уже */ } }
+          }
+        }, fadeMs + 40);
+      } else if (speaker.gain && speaker.ctx) {
+        rampSpeaker(0, fadeMs);
+        const source = speaker.source;
+        const ctx = speaker.ctx;
+        setTimeout(() => {
+          try { if (source) source.stop(); } catch { /* уже */ }
+          if (ctx === speaker.ctx && source === speaker.source) releaseSpeaker();
+        }, fadeMs + 40);
+      } else {
+        releaseSpeaker();
+      }
+      if (finish) finish({ ok: true, interrupted: true });
+    }
+
+    function stopSpeech() {
+      speechSeq++;
+      stopSpeechWatchdog();
+      const finish = speaker.finish;
+      speaker.finish = null;
+      if ('speechSynthesis' in window) {
+        try { speechSynthesis.cancel(); } catch { /* уже */ }
+      }
+      releaseSpeaker();
+      app.speaking = false;
+      setSpeaking(null);
+      refreshComposer();
+      if (finish) finish({ ok: true, interrupted: true });
+    }
+
+    function mediaErrorText(code) {
+      return {
+        1: 'загрузка прервана',
+        2: 'ошибка сети',
+        3: 'ошибка декодирования',
+        4: 'формат не поддерживается',
+      }[code] || '';
+    }
+
+    function playViaElement(blob, mime) {
+      const seq = speechSeq;
+      return new Promise((resolve) => {
+        const url = URL.createObjectURL(blob);
+        const el = new Audio(url);
+        el.preload = 'auto';
+        // Удерживаем проигрыватель в документе до окончания воспроизведения:
+        // некоторые браузеры/расширения прерывают play() для удалённого элемента.
+        el.hidden = true;
+        document.body.appendChild(el);
+        speaker.el = el;
+        speaker.url = url;
+        let settled = false;
+        const finish = (result) => {
+          if (settled) return;
+          settled = true;
+          if (speaker.finish === finish) speaker.finish = null;
+          if (speaker.el === el) speaker.el = null;
+          if (speaker.url === url) speaker.url = null;
+          el.onended = null;
+          el.onerror = null;
+          // При перебивании fadeOutSpeech/releaseSpeaker сами освободят элемент.
+          if (!result.interrupted) {
+            try { el.removeAttribute('src'); el.load(); el.remove(); } catch { /* уже */ }
+          }
+          try { URL.revokeObjectURL(url); } catch { /* уже */ }
+          resolve(result);
+        };
+        speaker.finish = finish;
+        el.onended = () => finish({ ok: true });
+        el.onerror = () => {
+          const code = el.error ? el.error.code : '?';
+          console.warn('[tts] <audio> не смог проиграть', mime, 'код', code, mediaErrorText(code));
+          finish({ ok: false, reason: (mime || '?') + ', код ' + code + ' ' + mediaErrorText(code) });
+        };
+        el.play().catch((err) => {
+          if (settled) return;
+          // AbortError и NotSupportedError сами по себе не означают, что
+          // пользователь прервал речь. Иначе проигрывание молча считается
+          // успешным и состояние «бот говорит» может остаться навсегда.
+          if (seq !== speechSeq) { finish({ ok: true, interrupted: true }); return; }
+          console.warn('[tts] play() отклонён', err && err.name, err && err.message, '| элемент в документе:', el.isConnected);
+          finish({ ok: false, reason: (err && err.name) + ': ' + ((err && err.message) || '') });
+        });
+      });
+    }
+
+    async function playServerAudio(audioB64, mime) {
+      const seq = speechSeq;
+      let blob = null;
+      try {
+        blob = base64ToBlob(audioB64, mime);
+        // Не задерживаем воспроизведение и не меняем аудиограф микрофона.
+        if (app.cfg && app.cfg.tts === 'cloudru' && /audio\/(?:wav|wave|x-wav)/i.test(mime || '') && typeof blob.arrayBuffer === 'function') {
+          blob.arrayBuffer().then((data) => {
+            if (seq === speechSeq && app.speaking && (speaker.el || speaker.source)) {
+              speaker.quietWav = data;
+              speaker.quietWavSeq = seq;
+            }
+          }).catch(() => {});
+        }
+        console.info('[tts] играю ответ:', mime, Math.round(blob.size / 1024) + ' КБ');
+      } catch (err) {
+        return { ok: false, reason: 'битый base64: ' + err.message };
+      }
+
+      // Сначала <audio>: только он входит в контур эхоподавления браузера.
+      const byElement = await playViaElement(blob, mime);
+      if (byElement.ok || byElement.interrupted || seq !== speechSeq) return byElement;
+      console.info('[tts] элемент не сыграл (' + (byElement.reason || '?') + '), пробую WebAudio');
+
+      const ctx = await ensureAudioContext().catch(() => null);
+      if (ctx && ctx.state === 'running') {
+        try {
+          const buffer = await ctx.decodeAudioData(await blob.arrayBuffer());
+          if (seq !== speechSeq) return { ok: true, interrupted: true };
+          return await new Promise((resolve) => {
+            const gain = ctx.createGain();
+            gain.gain.value = 1;
+            gain.connect(ctx.destination);
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(gain);
+            speaker.ctx = ctx;
+            speaker.gain = gain;
+            speaker.source = source;
+            speaker.duration = buffer.duration * 1000;
+            speaker.startedAt = performance.now();
+
+            let settled = false;
+            const finish = (result) => {
+              if (settled) return;
+              settled = true;
+              if (speaker.finish === finish) speaker.finish = null;
+              if (speaker.source === source) speaker.playedMs = performance.now() - speaker.startedAt;
+              resolve(result);
+            };
+            speaker.finish = finish;
+            source.onended = () => finish({ ok: true });
+            try {
+              source.start(0);
+            } catch (err) {
+              finish({ ok: false, reason: 'BufferSource: ' + err.message });
+            }
+          });
+        } catch (err) {
+          console.warn('[tts] decodeAudioData не осилил', mime, err && err.name);
+        }
+      }
+      return byElement;
+    }
+
+    function splitForSpeech(text, limit) {
+      const max = limit || 180;
+      const sentences = String(text).match(/[^.!?…]+[.!?…]*/g) || [String(text)];
+      const chunks = [];
+      let current = '';
+      sentences.forEach((raw) => {
+        const sentence = raw.trim();
+        if (!sentence) return;
+        if ((current + ' ' + sentence).trim().length <= max) {
+          current = (current ? current + ' ' : '') + sentence;
+          return;
+        }
+        if (current) chunks.push(current);
+        if (sentence.length <= max) { current = sentence; return; }
+        let buffer = '';
+        sentence.split(/\s+/).forEach((word) => {
+          if ((buffer + ' ' + word).trim().length > max) { if (buffer) chunks.push(buffer); buffer = word; }
+          else buffer = (buffer ? buffer + ' ' : '') + word;
+        });
+        current = buffer;
+      });
+      if (current) chunks.push(current);
+      return chunks.length ? chunks : [String(text)];
+    }
+
+    function primeVoices() {
+      if (!('speechSynthesis' in window)) return;
+      try { speechSynthesis.getVoices(); } catch { /* нет синтеза */ }
+    }
+
+    function speakWithBrowser(text, label) {
+      return new Promise((resolve) => {
+        if (!text) { resolve({ ok: false, reason: 'пустой текст' }); return; }
+        if (!canBrowserSpeak()) { resolve({ ok: false, reason: 'в браузере нет русского голоса' }); return; }
+        beginSpeaking(label);
+        primeVoices();
+        try { speechSynthesis.cancel(); } catch { /* уже */ }
+        const seq = speechSeq;
+        const chunks = splitForSpeech(text);
+        let index = 0;
+        let settled = false;
+        const finish = (result) => {
+          if (settled) return;
+          settled = true;
+          stopSpeechWatchdog();
+          if (speaker.finish === finish) speaker.finish = null;
+          resolve(result);
+        };
+        speaker.finish = finish;
+        const next = () => {
+          if (settled) return;
+          if (seq !== speechSeq) { finish({ ok: true, interrupted: true }); return; }
+          if (index >= chunks.length) { finish({ ok: true }); return; }
+          const utterance = new SpeechSynthesisUtterance(chunks[index++]);
+          utterance.lang = 'ru-RU';
+          utterance.rate = 1.05;
+          const voice = russianVoice();
+          if (voice) utterance.voice = voice;
+          let moved = false;
+          const advance = () => { if (moved || settled) return; moved = true; setTimeout(next, 120); };
+          utterance.onend = advance;
+          utterance.onerror = advance;
+          try { speechSynthesis.speak(utterance); } catch { next(); }
+        };
+        setTimeout(next, 200);
+        speechWatchdog = setInterval(() => {
+          if (settled || seq !== speechSeq) { finish({ ok: true, interrupted: true }); return; }
+          if (speechSynthesis.paused) { try { speechSynthesis.resume(); } catch { /* уже */ } }
+        }, 4000);
+      });
+    }
+
+    function beginSpeaking(label) {
+      if (micStream.streaming) abortUtterance(true);
+      app.speaking = true;
+      micStream.speechStartedAt = Date.now();
+      micStream.floorAt = 0;
+      micStream.echoFloor = 0;
+      micStream.cal = [];
+      micStream.bargeMs = 0;
+      micStream.bargeStrongMs = 0;
+      micStream.earlyBarge = false;
+      micStream.lastBargeAt = 0;
+      micStream.duckCooldownUntil = 0;
+      setSpeaking(label);
+      refreshComposer();
+    }
+
+    function endSpeaking() {
+      app.speaking = false;
+      speaker.ducked = false;
+      micStream.duckMs = 0;
+      setSpeaking(null);
+      refreshComposer();
+    }
+
+    async function speak(reply, customLabel) {
+      const seq = ++speechSeq;
+      stopSpeechWatchdog();
+      // Закрываем и разрешаем предыдущую операцию, прежде чем начать новую.
+      // Иначе releaseSpeaker удаляет обработчики, а старый Promise зависает.
+      const previousFinish = speaker.finish;
+      speaker.finish = null;
+      if (previousFinish && 'speechSynthesis' in window) {
+        try { speechSynthesis.cancel(); } catch { /* уже остановлен */ }
+      }
+      releaseSpeaker();
+      if (previousFinish) previousFinish({ ok: true, interrupted: true });
+
+      const label = customLabel || ('Бот говорит' + (app.ttsSpeaker ? ' · ' + app.ttsSpeaker : ''));
+      let result = { ok: true };
+
+      if (reply.audio_b64) {
+        beginSpeaking(label);
+        result = await playServerAudio(reply.audio_b64, reply.audio_mime);
+      } else if (reply.text) {
+        result = await speakWithBrowser(reply.text, label);
+        if (seq === speechSeq) endSpeaking();
+        return result;
+      }
+
+      if (!result.ok || result.interrupted) {
+        if (seq === speechSeq) endSpeaking();
+        if (result.interrupted) return result;
+      }
+
+      if (!result.ok && reply.text) {
+        const fallbackReason = result.reason || '?';
+        console.warn('[tts] серверное аудио не пошло (' + fallbackReason + '), читаю браузером');
+        const browserRes = await speakWithBrowser(reply.text, label);
+        result = browserRes.ok ? { ok: true, fallback: fallbackReason } : browserRes;
+      }
+
+      if (seq === speechSeq) endSpeaking();
+      return result;
+    }
+
+    /* =========================================================
+       Переключение режимов
+       ========================================================= */
+    function setMode(mode) {
+      if (!['call', 'tts', 'asr'].includes(mode)) mode = 'call';
+      const prev = app.mode;
+      if (prev === 'tts' && mode !== 'tts') cancelTtsProbe();
+      if (prev === 'call' && mode !== 'call') {
+        abortUtterance(true);
+        ui.micBtn.style.removeProperty('--level');
+      }
+      if (prev === 'asr' && mode !== 'asr' && (asr.recording || asr.pending || asr.recognition)) {
+        stopAsrCapture();
+      }
+      app.mode = mode;
+      localStorage.setItem('mode', mode);
+      ui.modeTabs.forEach((tab) => {
+        const active = tab.dataset.mode === mode;
+        tab.classList.toggle('on', active);
+        tab.setAttribute('aria-pressed', String(active));
+      });
+      document.querySelectorAll('[data-view]').forEach((view) => {
+        view.hidden = view.dataset.view !== mode;
+      });
+      refreshModeNav();
+      if (mode === 'call' && prev !== 'call' && inCall() && !app.ending && app.micEnabled) {
+        micStream.voicedMs = 0;
+        micStream.lastVoiceAt = 0;
+        micStream.floor = 0;
+        micStream.preroll = [];
+        micStream.prerollBytes = 0;
+        micStream.lastLevelAt = 0;
+        if (capture.processor && micTracksLive(micStream.stream) && audioContextUsable(capture.ctx)) {
+          tryResumeAudioContext(capture.ctx, 200);
+          updateMicButton();
+          if (!app.busy && !app.speaking && voice.state !== 'thinking') {
+            setVoiceState('listening');
+          }
+        } else if (!micStream.pending && !capture.openingPromise) {
+          prepareAudioContextSync(true);
+          openCallMic({ allowPrompt: true });
+        }
+      }
+    }
+
+    function refreshModeNav() {
+      const callActive = Boolean(app.callId);
+      ui.modeTabs.forEach((tab) => {
+        tab.disabled = false;
+        tab.title = '';
+      });
+      ui.callTabLive.hidden = !callActive;
+    }
+
+    ui.modeTabs.forEach((tab) => tab.addEventListener('click', () => {
+      if (tab.disabled) return;
+      setMode(tab.dataset.mode);
+    }));
+
+    /* =========================================================
+       Логика звонка
+       ========================================================= */
+    let callTimerStartedAt = null;
+    function updateCallTimer() {
+      if (callTimerStartedAt === null) return;
+      app.seconds = Math.max(0, Math.floor((Date.now() - callTimerStartedAt) / 1000));
+      ui.liveTimer.textContent = fmtTime(app.seconds);
+    }
+    function startCallTimer() {
+      stopCallTimer();
+      app.seconds = 0;
+      ui.liveTimer.textContent = '00:00';
+      callTimerStartedAt = Date.now();
+      app.timer = setInterval(updateCallTimer, 1000);
+    }
+    function stopCallTimer() {
+      updateCallTimer();
+      callTimerStartedAt = null;
+      if (app.timer) {
+        clearInterval(app.timer);
+        app.timer = null;
+      }
+    }
+
+    function setBusy(value) {
+      app.busy = value;
+      ui.startCallBtn.disabled = value;
+      refreshComposer();
+    }
+
+    function refreshLiveView() {
+      // Экран звонка живёт до явного выхода: после завершения разговора
+      // пользователь остаётся в нём (с транскриптом и логом), а не выкидывается
+      // на главный экран автоматически.
+      const live = app.sessionActive;
+      ui.callHero.hidden = live;
+      ui.callLive.hidden = !live;
+
+      const hasCall = Boolean(app.callId);
+      ui.hangupBtn.hidden = !hasCall;
+      ui.composer.hidden = !hasCall;
+      const showEndedBar = live && app.callStarted && !hasCall;
+      ui.callEndedBar.hidden = !showEndedBar;
+
+      ui.phoneInput.disabled = live;
+      ui.phonePresets.querySelectorAll('button').forEach((btn) => { btn.disabled = live; });
+      ui.livePhone.textContent = app.phone || '';
+      ui.liveDot.className = 'dot ' + (inCall() ? 'live' : hasCall ? 'hold' : '');
+
+      if (showEndedBar) {
+        const reason = app.endedReason || 'трубка положена';
+        ui.endedReason.textContent = reason + ' · ' + fmtTime(app.seconds);
+      }
+      refreshModeNav();
+      refreshComposer();
+    }
+
+    function resetToHero() {
+      leaveCall();
+    }
+
+    /* =========================================================
+       Голосовой канал звонка: одно WS-соединение на звонок
+       ========================================================= */
+    const voice = {
+      ws: null,
+      ready: false,
+      callId: null,
+      state: 'idle',        // idle | listening | thinking | speaking
+      dialogState: 'topic', // greeting | topic | identify | slots | confirm | done | transferred
+      turn: 0,
+      generation: 0,
+      initCard: null,
+      startAt: 0,
+      reconnectTried: false,
+      reconnectAttempts: 0,
+      reconnectTimer: null,
+      pingTimer: null,
+    };
+
+    const WS_RECONNECT_DELAYS_MS = [1000, 2000, 3500, 5000, 7000];
+
+    const WS_OPEN_TIMEOUT_MS = 5000;
+    const WS_READY_TIMEOUT_MS = 10000;
+    const WS_HEARTBEAT_INTERVAL_MS = 15000;
+    const WS_HEARTBEAT_TIMEOUT_MS = 60000;
+    // ~8 секунд моно PCM16/16 кГц. Не накапливаем неограниченную очередь.
+    const WS_MAX_AUDIO_BUFFER_BYTES = 256 * 1024;
+
+    function setChannelLabel(kind) {
+      if (!ui.cfgChannel) return;
+      ui.cfgChannel.textContent = kind === 'ws' ? 'WebSocket' : '—';
+      ui.cfgChannel.title = kind === 'ws' ? 'Одно соединение WS /ws/call на звонок' : '';
+    }
+
+    function voiceSend(payload) {
+      if (!voice.ws || voice.ws.readyState !== WebSocket.OPEN) return false;
+      try {
+        voice.ws.send(JSON.stringify(payload));
+        return true;
+      } catch (err) {
+        console.warn('[ws] отправка не удалась', err && err.message);
+        return false;
+      }
+    }
+
+    function voiceSendBytes(int16) {
+      if (!voice.ws || voice.ws.readyState !== WebSocket.OPEN) {
+        voice.audioSendError = 'Голосовой канал недоступен';
+        return false;
+      }
+      if (voice.ws.bufferedAmount + int16.byteLength > WS_MAX_AUDIO_BUFFER_BYTES) {
+        voice.audioSendError = 'Очередь аудио переполнена — проверьте соединение';
+        return false;
+      }
+      try {
+        // Передаём именно представление, не весь лежащий под ним ArrayBuffer.
+        voice.ws.send(int16);
+        return true;
+      } catch (err) {
+        voice.audioSendError = 'Не удалось отправить аудио';
+        console.warn('[ws] аудио не ушло', err && err.message);
+        return false;
+      }
+    }
+
+    function setVoiceState(state) {
+      voice.state = state;
+      const micOn = isCallMicLive();
+      const labels = {
+        listening: micOn ? 'Слушаю… говорите' : '',
+        thinking: 'Распознаю…',
+        speaking: 'Бот говорит',
+        idle: '',
+      };
+      if (inCall()) {
+        ui.liveDot.className = 'dot ' + (state === 'idle' ? 'hold' : 'live');
+      }
+      if (state !== 'speaking' && !app.statusError && !app.ending && !app.busy) {
+        showStatus(labels[state] || '');
+      }
+      refreshComposer();
+    }
+
+    function duckSpeech(early) {
+      if (!app.speaking || speaker.ducked) return false;
+      if (!speaker.el && !speaker.gain) return false;
+      speaker.ducked = true;
+      speaker.duckEarly = Boolean(early);
+      speaker.duckStartedAt = Date.now();
+      micStream.duckMs = 0;
+      micStream.lastDuckVoiceAt = speaker.duckStartedAt;
+      rampSpeaker(DUCK_LEVEL, DUCK_FADE_MS);
+      if (speaker.el && !speaker.gain) {
+        setTimeout(() => {
+          const el = speaker.el;
+          if (el && el.volume > DUCK_LEVEL + 0.3) {
+            speaker.volumeLocked = true;
+            audioDebug('[barge] громкость элемента недоступна (iOS?) — решаю быстрее');
+          }
+        }, DUCK_FADE_MS + 60);
+      }
+      audioDebug('[barge] бот присел до ' + Math.round(DUCK_LEVEL * 100)
+        + '% — слушаю: продолжать или уступать');
+      return true;
+    }
+
+    function unduckSpeech() {
+      if (!speaker.ducked) return;
+      speaker.ducked = false;
+      micStream.duckMs = 0;
+      micStream.duckCooldownUntil = Date.now() + DUCK_RETRY_MS;
+      rampSpeaker(1, DUCK_RESUME_MS);
+      audioDebug('[barge] короткая вставка — бот договаривает');
+    }
+
+    function softBarge() {
+      if (!app.speaking) return;
+      const playedMs = speechPlayedMs();
+      fadeInterruptionAtPause(150);
+      endSpeaking();
+      voice.generation++;
+      voiceSend({ t: 'barge', turn: voice.turn, played_ms: playedMs });
+      record('— Перебивание: бот уступил');
+      setVoiceState('listening');
+      micStream.lastVoiceAt = Date.now();
+      if (!micStream.streaming) startUtterance();
+    }
+
+    function voiceUrl() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return proto + '//' + location.host + '/ws/call';
+    }
+
+    // Принудительное восстановление не ждёт onclose: при полуоткрытом
+    // соединении браузер может очень долго ждать закрывающего handshake.
+    function recoverStalledVoice(ws, reason) {
+      if (voice.ws !== ws || ws.abandoned || !inCall() || app.ending) return;
+      console.warn('[ws] ' + reason + ' — переподключаюсь');
+      ws.abandoned = true;
+      ws.onclose = null;
+      ws.onerror = null;
+      ws.onmessage = null;
+      clearInterval(voice.pingTimer);
+      voice.pingTimer = null;
+      voice.ws = null;
+      voice.ready = false;
+      abortUtterance(false);
+      setChannelLabel(null);
+      try { ws.close(); } catch { /* канал уже закрыт */ }
+      showStatus('Канал не отвечает, переподключаюсь; последнюю фразу может понадобиться повторить', true);
+      reconnectVoice();
+    }
+
+    function heartbeatTick(ws, beat) {
+      if (voice.ws !== ws || ws.abandoned || !voice.ready || !inCall() || app.ending) return;
+      const now = performance.now();
+      const delayed = beat.lastTick !== null && now - beat.lastTick > WS_HEARTBEAT_INTERVAL_MS * 2;
+      beat.lastTick = now;
+      // В фоне или после длительной паузы таймеров не делаем вывод по старому
+      // ping: браузер может приостанавливать как таймеры, так и сетевые события.
+      if (document.hidden) {
+        beat.sentAt = null;
+        voiceSend({ t: 'ping' }); // сохраняем прежний keepalive в фоне
+        return;
+      }
+      if (delayed) beat.sentAt = null;
+      if (!beat.supported) {
+        // Защита совместимости: до первого pong сервер не считаем зависшим.
+        voiceSend({ t: 'ping' });
+        return;
+      }
+      if (beat.sentAt !== null && now - beat.sentAt >= WS_HEARTBEAT_TIMEOUT_MS) {
+        recoverStalledVoice(ws, 'сервер не ответил на ping');
+        return;
+      }
+      if (beat.sentAt === null) {
+        if (!voiceSend({ t: 'ping' })) {
+          recoverStalledVoice(ws, 'не удалось отправить ping');
+          return;
+        }
+        beat.sentAt = now;
+      }
+    }
+
+    function openWsChannel(phone, resumeCallId) {
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const url = voiceUrl();
+        let ws;
+        try {
+          ws = new WebSocket(url);
+        } catch (err) {
+          reject(err);
+          return;
+        }
+        ws.binaryType = 'arraybuffer';
+        const beat = { supported: false, sentAt: null, lastTick: null };
+        voice.ws = ws;
+        voice.ready = false;
+
+        const abandon = () => {
+          ws.abandoned = true;
+          ws.onclose = null;
+          ws.onerror = null;
+          ws.onmessage = null;
+          try { ws.close(); } catch { /* уже */ }
+          if (voice.ws === ws) {
+            voice.ws = null;
+            voice.ready = false;
+            clearInterval(voice.pingTimer);
+            voice.pingTimer = null;
+          }
+        };
+        const fail = (reason) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(openTimer);
+          clearTimeout(readyTimer);
+          abandon();
+          reject(new Error(reason));
+        };
+
+        const openTimer = setTimeout(() => {
+          if (ws.readyState !== WebSocket.OPEN) fail('не удалось открыть WS ' + url);
+        }, WS_OPEN_TIMEOUT_MS);
+        let readyTimer = null;
+
+        ws.onopen = () => {
+          clearTimeout(openTimer);
+          const frame = {
+            t: 'start',
+            phone: phone,
+            ui: UI_BUILD,
+            audio: app.voiceOut,
+            tts_speaker: app.ttsSpeaker || '',
+          };
+          if (resumeCallId) frame.resume_call_id = resumeCallId;
+          voiceSend(frame);
+          console.info('[ws] канал открыт', url);
+          clearInterval(voice.pingTimer);
+          voice.pingTimer = setInterval(() => heartbeatTick(ws, beat), WS_HEARTBEAT_INTERVAL_MS);
+          readyTimer = setTimeout(() => fail('сервер не ответил на старт звонка'), WS_READY_TIMEOUT_MS);
+        };
+        ws.onerror = () => fail('не удалось открыть WS ' + url);
+        ws.onclose = (event) => {
+          if (ws.abandoned || voice.ws !== ws) return;
+          console.info('[ws] канал закрыт', event.code, event.reason);
+          clearInterval(voice.pingTimer);
+          voice.pingTimer = null;
+          voice.ws = null;
+          voice.ready = false;
+          abortUtterance(false);
+          setChannelLabel(null);
+          if (!settled) { fail('канал закрылся (' + event.code + ')'); return; }
+          if (inCall() && !app.ending) {
+            showStatus('Голосовой канал закрылся, переподключаюсь…', true);
+            reconnectVoice();
+          }
+        };
+        ws.onmessage = (event) => {
+          if (voice.ws !== ws || ws.abandoned || typeof event.data !== 'string') return;
+          let message;
+          try { message = JSON.parse(event.data); } catch { return; }
+          if (message.t === 'pong') {
+            beat.supported = true;
+            beat.sentAt = null;
+          }
+          if (message.t === 'ready') {
+            clearTimeout(readyTimer);
+            voice.callId = message.call_id;
+            app.callId = message.call_id;
+            voice.ready = true;
+            setChannelLabel('ws');
+            refreshLiveView();
+            updateMicButton();
+            if (!settled) { settled = true; resolve({ call_id: message.call_id }); }
+          }
+          handleVoiceMessage(message);
+        };
+      });
+    }
+
+    function handleVoiceMessage(message) {
+      switch (message.t) {
+        case 'ready':
+          if (message.resumed) {
+            setBusy(false);
+            showStatus('');
+          }
+          break;
+        case 'asr':
+          if (message.text) {
+            addBubble('user', message.text, 'распознано: ' + (app.cfg.asr || 'asr'));
+            if (!app.ending && !app.speaking) {
+              app.statusError = false;
+              showStatus('Формирую ответ…');
+            }
+          } else if (app.cfg.asr === 'fake') {
+            showStatus('ASR выключен (ASR_ADAPTER=fake) — укажите cloudru / t-one / vosk или пишите текстом', true);
+          } else {
+            showStatus('Речь не распознана — попробуйте сказать громче', true);
+          }
+          break;
+        case 'reply': {
+          app.statusError = false;
+          showStatus('');
+          if (typeof message.turn === 'number') voice.turn = message.turn;
+          if (typeof message.state === 'string' && message.state) voice.dialogState = message.state;
+          setBusy(false);
+          logTimings(message.timings);
+
+          if (voice.initCard) {
+            const elapsedMs = voice.startAt ? Math.round(performance.now() - voice.startAt) : 0;
+            resolveCallStartCard(voice.initCard, message, elapsedMs);
+            voice.initCard = null;
+          }
+
+          const events = message.events || [];
+          events.forEach((ev) => {
+            if (ev.type === 'tool_call') addToolCall(ev.payload);
+            else if (ev.type === 'outage_notice') addOutageNotice(ev.payload);
+          });
+          if (message.text) addBubble('bot', message.text, describeVoicing(message));
+          events.forEach((ev) => { if (ev.type === 'appeal_created') addAppealCard(ev.payload); });
+
+          if (message.end_call || message.transfer) {
+            const isTransfer = Boolean(message.transfer);
+            const endingCallId = app.callId;
+            app.ending = true;
+            abortUtterance(false);
+            closeCallMic();
+            refreshComposer();
+            setVoiceState('speaking');
+            showStatus(isTransfer ? 'Перевод на оператора…' : 'Завершение разговора…');
+            const finishEnd = () => {
+              // Завершение озвучки старого звонка не должно завершать новый.
+              if (!app.sessionActive || app.ended || !app.ending || app.callId !== endingCallId) return;
+              hangup(
+                isTransfer ? 'Звонок передан оператору' : 'Бот завершил разговор',
+                isTransfer ? 'переведён на оператора' : 'бот завершил разговор'
+              );
+            };
+            if (message.text && app.voiceOut) {
+              speak({ text: message.text, audio_b64: message.audio_b64, audio_mime: message.audio_mime })
+                .finally(finishEnd);
+            } else {
+              finishEnd();
+            }
+            break;
+          }
+
+          if (message.text && app.voiceOut) {
+            setVoiceState('speaking');
+            speak({ text: message.text, audio_b64: message.audio_b64, audio_mime: message.audio_mime })
+              .finally(() => {
+                if (inCall() && !app.ending && !app.speaking) setVoiceState('listening');
+                focusInput();
+              });
+          } else {
+            if (inCall() && !app.ending) setVoiceState('listening');
+            focusInput();
+          }
+          break;
+        }
+        case 'state':
+          if (app.ending) break;
+          if (message.value === 'listening' && app.speaking) break;
+          setVoiceState(message.value);
+          break;
+        case 'barge_ack':
+          console.info('[ws] перебивание принято', message);
+          break;
+        case 'turn_done':
+          logTimings(message.timings, 'итог хода ' + message.turn);
+          break;
+        case 'ended': {
+          if (app.ending || app.ended) break;
+          const byTransfer = message.reason === 'transfer';
+          hangup(
+            byTransfer ? 'Звонок передан оператору' : 'Бот завершил разговор',
+            byTransfer ? 'переведён на оператора' : 'бот завершил разговор'
+          );
+          break;
+        }
+        case 'error':
+          setBusy(false);
+          if (message.code === 'empty_utterance') {
+            if (inCall() && !app.speaking) setVoiceState('listening');
+            break;
+          }
+          console.warn('[ws] ошибка', message);
+          showStatus('Ошибка канала: ' + (message.detail || message.code), true);
+          if (inCall() && !app.speaking) setVoiceState('listening');
+          break;
+        case 'pong':
+          break;
+        default:
+          console.debug('[ws] неизвестное сообщение', message);
+      }
+    }
+
+    function reconnectVoice() {
+      if (!inCall() || app.ending || voice.reconnectTried) return;
+      if (voice.reconnectAttempts >= WS_RECONNECT_DELAYS_MS.length) {
+        showStatus('Голосовой канал не удалось восстановить после нескольких попыток', true);
+        return;
+      }
+      const delay = WS_RECONNECT_DELAYS_MS[voice.reconnectAttempts++];
+      voice.reconnectTried = true;
+      clearTimeout(voice.reconnectTimer);
+      voice.reconnectTimer = setTimeout(() => {
+        voice.reconnectTimer = null;
+        voice.reconnectTried = false;
+        if (!inCall() || app.ending) return;
+        const previous = app.callId;
+        openWsChannel(app.phone, previous)
+          .then(() => {
+            voice.reconnectAttempts = 0;
+            record('— Канал восстановлен, разговор продолжается');
+            showStatus('');
+            setVoiceState('listening');
+          })
+          .catch((err) => {
+            if (!inCall() || app.ending) return;
+            if (voice.reconnectAttempts < WS_RECONNECT_DELAYS_MS.length) {
+              showStatus('Канал недоступен, повторная попытка ('
+                + voice.reconnectAttempts + '/' + WS_RECONNECT_DELAYS_MS.length + ')…', true);
+              reconnectVoice();
+            } else {
+              showStatus('Канал не восстановился: ' + err.message, true);
+            }
+          });
+      }, delay);
+    }
+
+    function closeVoiceChannel() {
+      const ws = voice.ws;
+      voice.ws = null;
+      voice.ready = false;
+      voice.state = 'idle';
+      voice.initCard = null;
+      voice.reconnectTried = false;
+      voice.reconnectAttempts = 0;
+      clearTimeout(voice.reconnectTimer);
+      voice.reconnectTimer = null;
+      clearInterval(voice.pingTimer);
+      voice.pingTimer = null;
+      setChannelLabel(null);
+      if (ws) {
+        ws.abandoned = true;
+        ws.onclose = null;
+        try { ws.close(); } catch { /* уже */ }
+      }
+      voice.callId = null;
+    }
+
+    async function startCall() {
+      const cleanPhone = (ui.phoneInput.value || '').replace(/\s+/g, ' ').trim();
+      if (!cleanPhone || !/\d/.test(cleanPhone)) {
+        showStatus('Укажите номер телефона абонента', true);
+        ui.phoneInput.focus();
+        return;
+      }
+      closePopover();
+
+      app.micEnabled = false;
+      abortUtterance(false);
+      closeCallMic();
+      stopSpeech();
+      micStream.readyMs = 0;
+
+      app.phone = cleanPhone;
+      ui.phoneInput.value = cleanPhone;
+      syncPhonePresetsActive();
+      app.ended = false;
+      app.ending = false;
+      app.endedReason = '';
+      app.sessionActive = true;
+      app.callStarted = true;
+      app.statusError = false;
+      app.micEnabled = true;
+      app.callId = null;
+      voice.turn = 0;
+      voice.generation = 0;
+      voice.dialogState = 'topic';
+      voice.reconnectTried = false;
+      voice.reconnectAttempts = 0;
+      clearTimeout(voice.reconnectTimer);
+      voice.reconnectTimer = null;
+      voice.state = 'idle';
+      voice.startAt = performance.now();
+
+      clearTranscript();
+      startCallTimer();
+      refreshLiveView();
+      record('— Звонок с номера ' + app.phone);
+      voice.initCard = addCallStartPending(app.phone);
+      setBusy(true);
+      showStatus('Инициализация звонка…');
+      warmServer();
+
+      // Как до перехода на «микрофон по требованию»: открываем его по жесту
+      // «Позвонить», параллельно инициализации WS, а не после приветствия бота.
+      prepareAudioContextSync(true);
+      unlockAudio();
+      openCallMic({ allowPrompt: true }).catch((err) => {
+        console.warn('[mic] ошибка запуска', err);
+      });
+      try {
+        await openWsChannel(app.phone);
+      } catch (err) {
+        stopCallTimer();
+        app.micEnabled = false;
+        closeCallMic();
+        closeVoiceChannel();
+        app.sessionActive = false;
+        app.callStarted = false;
+        app.callId = null;
+        setBusy(false);
+        resetAudioContext();
+        refreshLiveView();
+        showStatus('Не удалось начать звонок: ' + err.message, true);
+      }
+    }
+
+    // Завершает звонок, но НЕ выводит из него: экран с транскриптом остаётся,
+    // пока пользователь сам не нажмёт «Выйти из звонка».
+    function hangup(note, reason) {
+      note = note || 'Трубка положена';
+      if (!app.callId && !app.sessionActive) return;
+      app.micEnabled = false;
+      abortUtterance(false);
+      closeCallMic();
+      stopCallTimer();
+      voiceSend({ t: 'stop' });
+      closeVoiceChannel();
+      stopSpeech();
+      app.callId = null;
+      app.ending = false;
+      app.ended = true;
+      app.endedReason = (reason || note).toLowerCase();
+      setBusy(false);
+      showStatus('');
+      record('— ' + note);
+      stopCaptureIfIdle();
+      refreshLiveView();
+    }
+
+    // Явный выход из завершённого звонка — только по действию пользователя
+    function leaveCall() {
+      app.micEnabled = false;
+      abortUtterance(false);
+      closeVoiceChannel();
+      stopSpeech();
+      stopCallTimer();
+      closeCallMic();
+      stopCaptureIfIdle();
+      app.sessionActive = false;
+      app.callStarted = false;
+      app.ending = false;
+      app.ended = false;
+      app.statusError = false;
+      app.callId = null;
+      app.endedReason = '';
+      voice.turn = 0;
+      voice.state = 'idle';
+      app.seconds = 0;
+      ui.liveTimer.textContent = '00:00';
+      clearTranscript();
+      showStatus('');
+      refreshLiveView();
+      setMode('call');
+    }
+
+    function describeVoicing(reply) {
+      if (!app.voiceOut) return 'озвучка выключена';
+      if (reply.audio_b64) {
+        return 'озвучено: ' + (app.cfg.tts || 'tts') + (app.ttsSpeaker ? ' · ' + app.ttsSpeaker : '');
+      }
+      if (canBrowserSpeak()) return 'озвучено: браузер';
+      return 'без озвучки';
+    }
+
+    function logTimings(timings, label) {
+      if (!timings) return;
+      console.info('[turn] этапы, мс' + (label ? ' (' + label + ')' : '') + ':', timings);
+    }
+
+    function sendText(text) {
+      const trimmed = text.trim();
+      if (!trimmed || !inCall() || composerLocked()) return;
+      if (app.speaking) {
+        const playedMs = speechPlayedMs();
+        fadeInterruptionAtPause(240);
+        endSpeaking();
+        voice.generation++;
+        voiceSend({ t: 'barge', turn: voice.turn, played_ms: playedMs });
+      }
+      abortUtterance(true);
+      addBubble('user', trimmed);
+      if (!voiceSend({ t: 'text', text: trimmed })) {
+        showStatus('Канал недоступен, переподключаюсь…', true);
+        reconnectVoice();
+        return;
+      }
+      setVoiceState('thinking');
+    }
+
+    /* =========================================================
+       Непрерывный захват микрофона + VAD + мягкое перебивание
+
+       Микрофон либо включён (и VAD сам нарезает реплики по паузе),
+       либо полностью выключен кнопкой.
+       ========================================================= */
+    const SAMPLE_RATE = 16000;
+    const THRESHOLD_SPEECH = 0.008;
+    const FLOOR_MAX = 0.012;
+    const MIN_SPEECH_MS = 150;
+    const PREROLL_MS = 650;
+    const PREROLL_DUCK_MS = 1500;
+    const MIN_AUDIO_SEC = 0.3;
+    const MAX_UTTERANCE_MS = 20000;
+
+    const SOFT_BARGE_CALIB_MS = 600;
+    // В первые 600 мс учитываем только достаточно сильный сигнал;
+    // обычный порог во время калибровки увеличил бы риск реакции на эхо.
+    const BARGE_EARLY_THRESHOLD = 0.025;
+    const DUCK_EARLY_COMMIT_MS = 250;
+    const MIC_SETTLE_MS = 450;
+    const SOFT_BARGE_HOLD_MS = 200;
+    const SOFT_BARGE_HOLD_WEAK_MS = 350;
+    const BARGE_MIN_THRESHOLD = 0.014;
+    const BARGE_WEAK_MIN_THRESHOLD = 0.011;
+    const BARGE_ECHO_FACTOR = 2.5;
+    const BARGE_WEAK_ECHO_FACTOR = 1.5;
+
+    const DUCK_LEVEL = 0.22;
+    const DUCK_FADE_MS = 100;
+    const DUCK_COMMIT_MS = 500;
+    const DUCK_COMMIT_FAST_MS = 300;
+    const DUCK_RESUME_MS = 250;
+    const DUCK_SILENCE_MS = 350;
+    const DUCK_RETRY_MS = 700;
+    const BARGE_TAIL_MS = 300;
+    const BARGE_GAP_MS = 250;
+
+    const micStream = {
+      stream: null, streamPromise: null,
+      pending: false, readyMs: 0, openedAt: 0, speechStartedAt: 0,
+      voice: 0,
+      floor: 0,
+      echoFloor: 0,
+      lastVoiceAt: 0,
+      lastLevelAt: 0,
+      startedAt: 0,
+      voicedMs: 0,
+      floorAt: 0,
+      cal: [],
+      bargeMs: 0,
+      bargeStrongMs: 0,
+      lastBargeAt: 0,
+      duckMs: 0,
+      lastDuckVoiceAt: 0,
+      duckCooldownUntil: 0,
+      diagAt: 0,
+      streaming: false,
+      sentBytes: 0,
+      sendBlockedUntil: 0,
+      sendError: '',
+      preroll: [],
+      prerollBytes: 0,
+      token: 0,
+    };
+
+    const vad = {
+      endpointMs: Number(localStorage.getItem('vadEndpointMs') || 700),
+    };
+
+    let captureEpoch = 0;
+
+    function floatToInt16(samples) {
+      const out = new Int16Array(samples.length);
+      for (let i = 0; i < samples.length; i++) out[i] = Math.max(-1, Math.min(1, samples[i])) * 32767;
+      return out;
+    }
+
+    // Потоковый полосовой ресемплер: сохраняет фазу и историю на границах
+    // аудиобуферов. Каузальный FIR (Blackman-windowed sinc), задержка 16
+    // входных сэмплов; при понижении частоты подавляет частоты выше Nyquist.
+    function resample(samples, from, to, state) {
+      if (from === to) return samples;
+      if (!Number.isFinite(from) || !Number.isFinite(to) || from <= 0 || to <= 0) {
+        throw new Error('Некорректная частота дискретизации');
+      }
+      const half = 16;
+      const ratio = from / to;
+      const cutoff = 0.47 * Math.min(1, to / from);
+      const history = state.history || new Float32Array(0);
+      const combined = new Float32Array(history.length + samples.length);
+      combined.set(history);
+      combined.set(samples, history.length);
+      const base = state.total - history.length;
+      const total = state.total + samples.length;
+      const output = new Float32Array(Math.ceil(samples.length / ratio) + 2);
+      let count = 0;
+      // Фаза вычисляется из целого индекса, а не суммированием дробного
+      // шага: на 44,1 кГц накопление ошибки может породить лишний сэмпл.
+      let outputIndex = state.outputIndex || 0;
+      const targetCount = Math.ceil(total * to / from - 1e-9);
+      while (outputIndex < targetCount) {
+        const pos = outputIndex * ratio;
+        const center = pos - half;
+        const start = Math.floor(center) - half + 1;
+        let sum = 0;
+        let norm = 0;
+        for (let j = 0; j < 2 * half; j++) {
+          const index = start + j;
+          const d = center - index;
+          const x = Math.PI * 2 * cutoff * d;
+          const sinc = Math.abs(x) < 1e-12 ? 1 : Math.sin(x) / x;
+          const window = 0.42 + 0.5 * Math.cos(Math.PI * d / half)
+            + 0.08 * Math.cos(2 * Math.PI * d / half);
+          const weight = 2 * cutoff * sinc * window;
+          const offset = index - base;
+          if (offset >= 0 && offset < combined.length) sum += combined[offset] * weight;
+          norm += weight;
+        }
+        output[count++] = norm ? sum / norm : 0;
+        outputIndex++;
+      }
+      state.total = total;
+      state.outputIndex = outputIndex;
+      state.nextPos = outputIndex * ratio;
+      state.history = combined.slice(Math.max(0, combined.length - (2 * half + 2)));
+      return output.subarray(0, count);
+    }
+
+    function percentileOf(values, q) {
+      if (!values.length) return 0;
+      const sorted = values.slice().sort((a, b) => a - b);
+      return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))];
+    }
+
+    function rmsOf(samples) {
+      let sum = 0;
+      for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
+      return Math.sqrt(sum / samples.length);
+    }
+
+    const isCallMicLive = () => Boolean(capture.processor && micCanOpen() && inCall());
+    const isCallMicPending = () => Boolean(micCanOpen() && inCall() && (micStream.pending || capture.openingPromise) && !capture.processor);
+    const captureWanted = () => micCanOpen() || (app.mode === 'asr' && (asr.recording || asr.pending));
+
+    /* --- визуальный индикатор уровня на кнопке (rAF) --- */
+    function createSharedMeter(ctx, node, sink) {
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.3;
+      node.connect(analyser);
+      analyser.connect(sink);
+
+      const frame = new Float32Array(analyser.fftSize);
+      const meter = { analyser, raf: 0, level: 0 };
+
+      const tick = () => {
+        if (!meter.analyser) return;
+        analyser.getFloatTimeDomainData(frame);
+        const rms = rmsOf(frame);
+        meter.level = rms > meter.level ? rms : Math.max(rms, meter.level * 0.8);
+        const val = Math.min(1, meter.level * 10).toFixed(2);
+        if (isCallMicLive() && app.mode === 'call') {
+          ui.micBtn.style.setProperty('--level', val);
+        } else {
+          ui.micBtn.style.removeProperty('--level');
+        }
+        if (asr.recording && app.mode === 'asr') {
+          ui.asrMicBtn.style.setProperty('--level', val);
+        } else {
+          ui.asrMicBtn.style.removeProperty('--level');
+        }
+        meter.raf = requestAnimationFrame(tick);
+      };
+      meter.raf = requestAnimationFrame(tick);
+
+      meter.stop = () => {
+        if (meter.raf) cancelAnimationFrame(meter.raf);
+        meter.raf = 0;
+        meter.analyser = null;
+        try { analyser.disconnect(); } catch { /* уже */ }
+        ui.micBtn.style.removeProperty('--level');
+        ui.asrMicBtn.style.removeProperty('--level');
+      };
+      return meter;
+    }
+
+    function micTracksLive(stream) {
+      return Boolean(stream) && stream.getAudioTracks().some((track) => track.readyState === 'live');
+    }
+
+    function micErrorTransient(err) {
+      if (!err) return false;
+      if (['NotReadableError', 'TrackStartError', 'AbortError'].includes(err.name)) return true;
+      return /could not start audio source|in use|занят|failed to allocate/i.test(err.message || '');
+    }
+
+    async function micGetUserMediaWithRetry() {
+      try {
+        return await micGetUserMedia();
+      } catch (err) {
+        if (!micErrorTransient(err)) throw err;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return micGetUserMedia();
+      }
+    }
+
+    async function acquireMic() {
+      if (micTracksLive(micStream.stream)) return micStream.stream;
+      if (!micStream.streamPromise) {
+        const epoch = captureEpoch;
+        // Запрос разрешения может оставаться открытым сколько угодно: не
+        // отменяем его по таймеру, пока пользователь принимает решение.
+        const opening = micGetUserMediaWithRetry().then((stream) => {
+          if (epoch !== captureEpoch) {
+            try { stream.getTracks().forEach((t) => t.stop()); } catch { /* уже */ }
+            throw new Error('захват отменён');
+          }
+          mic.permission = 'granted';
+          const track = stream.getAudioTracks()[0];
+          mic.activeLabel = (track && track.label) || 'без имени';
+          const settings = (track && track.getSettings) ? track.getSettings() : {};
+          mic.activeSettings = {
+            echoCancellation: settings.echoCancellation,
+            noiseSuppression: settings.noiseSuppression,
+            autoGainControl: settings.autoGainControl,
+          };
+          audioDebug('[mic] используется: ' + mic.activeLabel
+            + ' | выбрано: ' + (mic.label || 'по умолчанию')
+            + ' | AEC ' + (settings.echoCancellation ? 'вкл' : 'выкл')
+            + ', шумоподавление ' + (settings.noiseSuppression ? 'вкл' : 'выкл')
+            + ', автоусиление ' + (settings.autoGainControl ? 'вкл' : 'выкл'));
+          if (!mic.denied) renderMicHint('Сейчас используется: ' + mic.activeLabel, false);
+          micStream.stream = stream;
+          stream.getAudioTracks().forEach((t) => {
+            t.addEventListener('ended', () => {
+              if (micStream.stream !== stream) return;
+              standMic.keep = false;
+              standMic.pending = false;
+              ++standMic.token;
+              app.micEnabled = false;
+              closeCallMic();
+              stopAsrCapture();
+              teardownCapture();
+              renderMicHint('Устройство отключено. Подключите его снова в настройках.', true);
+              ui.micGrantBtn.hidden = false;
+              if (app.sessionActive) showStatus('Микрофон отключён. Подключите его снова в настройках.', true);
+              renderStandMic();
+            });
+          });
+          return stream;
+        });
+        micStream.streamPromise = opening;
+        opening.finally(() => {
+          if (micStream.streamPromise === opening) micStream.streamPromise = null;
+        }).catch(() => {});
+      }
+      return micStream.streamPromise;
+    }
+
+    function releaseMic() {
+      const stream = micStream.stream;
+      micStream.stream = null;
+      mic.activeLabel = '';
+      mic.activeSettings = null;
+      if (!stream) return;
+      try { stream.getTracks().forEach((track) => track.stop()); } catch { /* уже */ }
+    }
+
+    function disconnectCaptureNodes() {
+      if (capture.meter) { capture.meter.stop(); capture.meter = null; }
+      try {
+        if (capture.processor) {
+          capture.processor.onaudioprocess = null;
+          if (capture.processor.port) {
+            capture.processor.port.onmessage = null;
+            capture.processor.port.close();
+          }
+          capture.processor.disconnect();
+        }
+        if (capture.source) capture.source.disconnect();
+        if (capture.sink) capture.sink.disconnect();
+      } catch { /* уже */ }
+      capture.processor = null;
+      capture.source = null;
+      capture.sink = null;
+      capture.ctx = null;
+      ui.micBtn.style.removeProperty('--level');
+      ui.asrMicBtn.style.removeProperty('--level');
+    }
+
+    function teardownCapture() {
+      captureEpoch++;
+      capture.openingPromise = null;
+      // Поздний поток отменённого запроса остановится в acquireMic
+      // благодаря проверке captureEpoch.
+      micStream.streamPromise = null;
+      disconnectCaptureNodes();
+      releaseMic();
+      updateMicButton();
+      updateAsrUi();
+    }
+
+    function stopCaptureIfIdle() {
+      if (captureWanted() || standMic.keep) return;
+      teardownCapture();
+      renderStandMic();
+    }
+
+    function renderStandMic() {
+      // Устройство по-прежнему удерживается между записями, без надписи в шапке.
+    }
+
+    async function holdStandMic() {
+      if (!micSupported || standMic.pending) return;
+      const token = ++standMic.token;
+      standMic.keep = true;
+      standMic.pending = true;
+      renderStandMic();
+      prepareAudioContextSync(true);
+      try {
+        await ensureCaptureOpen();
+      } catch (err) {
+        if (token === standMic.token) {
+          standMic.keep = false;
+          stopCaptureIfIdle();
+          const message = mic.denied
+            ? 'Доступ к микрофону запрещён. Разрешите его в настройках браузера.'
+            : 'Не удалось подключить микрофон: ' + (err.message || err.name);
+          renderMicHint(message, true);
+          ui.micGrantBtn.hidden = false;
+          showStatus(message, true);
+        }
+      } finally {
+        if (token === standMic.token) { standMic.pending = false; renderStandMic(); }
+      }
+    }
+
+    function releaseStandMic() {
+      ++standMic.token;
+      standMic.keep = false;
+      standMic.pending = false;
+      app.micEnabled = false;
+      abortUtterance(true);
+      closeCallMic();
+      stopAsrCapture();
+      teardownCapture();
+      renderStandMic();
+    }
+
+    window.addEventListener('pagehide', releaseStandMic);
+    window.addEventListener('pageshow', (event) => {
+      if (event.persisted && micSupported) holdStandMic();
+    });
+
+    // Аудио захватывается в AudioWorklet; пакетирование сохраняет прежний
+    // размер фрейма. VAD и передача данных пока работают в основном потоке.
+    const workletModules = new WeakMap();
+    async function createCaptureProcessor(ctx, bufferSize) {
+      if (ctx.audioWorklet && typeof window.AudioWorkletNode === 'function') {
+        try {
+          let loading = workletModules.get(ctx);
+          if (!loading) {
+            const code = `
+              class MicCaptureProcessor extends AudioWorkletProcessor {
+                constructor(options) {
+                  super();
+                  this.size = options.processorOptions.size;
+                  this.frame = new Float32Array(this.size);
+                  this.offset = 0;
+                }
+                process(inputs) {
+                  const input = inputs[0] && inputs[0][0];
+                  if (!input) return true;
+                  let from = 0;
+                  while (from < input.length) {
+                    const count = Math.min(this.size - this.offset, input.length - from);
+                    this.frame.set(input.subarray(from, from + count), this.offset);
+                    this.offset += count;
+                    from += count;
+                    if (this.offset === this.size) {
+                      const completed = this.frame;
+                      this.frame = new Float32Array(this.size);
+                      this.offset = 0;
+                      this.port.postMessage(completed, [completed.buffer]);
+                    }
+                  }
+                  return true;
+                }
+              }
+              registerProcessor('mic-capture-v1', MicCaptureProcessor);
+            `;
+            const url = URL.createObjectURL(new Blob([code], { type: 'application/javascript' }));
+            loading = ctx.audioWorklet.addModule(url).finally(() => URL.revokeObjectURL(url));
+            workletModules.set(ctx, loading);
+            loading.catch(() => { if (workletModules.get(ctx) === loading) workletModules.delete(ctx); });
+          }
+          await loading;
+          const node = new AudioWorkletNode(ctx, 'mic-capture-v1', {
+            numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
+            processorOptions: { size: bufferSize },
+          });
+          node.onprocessorerror = () => console.error('[mic] ошибка AudioWorklet: перезагрузите страницу');
+          audioDebug('[mic diag] обработчик: AudioWorklet, фрейм=' + bufferSize);
+          return { node, kind: 'worklet' };
+        } catch (err) {
+          console.warn('[mic diag] AudioWorklet недоступен, использую ScriptProcessor:', err.name, err.message);
+        }
+      } else {
+        audioDebug('[mic diag] AudioWorklet не поддерживается, использую ScriptProcessor');
+      }
+      if (typeof ctx.createScriptProcessor !== 'function') {
+        throw new Error('Нет доступного обработчика аудио');
+      }
+      return { node: ctx.createScriptProcessor(bufferSize, 1, 1), kind: 'script' };
+    }
+
+    async function ensureCaptureOpen() {
+      if (capture.processor && micTracksLive(micStream.stream) && audioContextUsable(capture.ctx)) {
+        await tryResumeAudioContext(capture.ctx, 200);
+        return { ctx: capture.ctx, coldOpen: false };
+      }
+      if (capture.openingPromise) return capture.openingPromise;
+
+      const epoch = captureEpoch;
+      const started = performance.now();
+      const elapsed = () => Math.round(performance.now() - started);
+      audioDebug('[mic timing] запрос захвата, режим=' + app.mode);
+      const opening = (async () => {
+        disconnectCaptureNodes();
+        const ctx = await ensureAudioContext(true);
+        audioDebug('[mic timing] контекст ' + ctx.state + ', ' + ctx.sampleRate
+          + ' Гц, ' + elapsed() + ' мс');
+        const stream = await acquireMic();
+        const track = stream.getAudioTracks()[0];
+        audioDebug('[mic timing] поток открыт: ' + elapsed() + ' мс, muted='
+          + Boolean(track && track.muted) + ', ctx=' + ctx.state);
+        if (track) track.addEventListener('unmute', () => {
+          if (epoch === captureEpoch) audioDebug('[mic timing] unmute: ' + elapsed() + ' мс');
+        }, { once: true });
+        await tryResumeAudioContext(ctx, 250);
+        if (epoch !== captureEpoch || (!captureWanted() && !standMic.keep)) {
+          stopCaptureIfIdle();
+          throw new Error('захват отменён');
+        }
+
+        // Сохраняем прежнюю длительность фреймов для VAD и ASR.
+        const bufferSize = ctx.sampleRate <= 12000 ? 512 : ctx.sampleRate <= 24000 ? 1024 : 2048;
+        const created = await createCaptureProcessor(ctx, bufferSize);
+        const processor = created.node;
+        if (epoch !== captureEpoch || (!captureWanted() && !standMic.keep)) {
+          if (processor.port) processor.port.close();
+          processor.disconnect();
+          throw new Error('захват отменён');
+        }
+        const sink = ctx.createGain();
+        sink.gain.value = 0;
+        sink.connect(ctx.destination);
+        const source = ctx.createMediaStreamSource(stream);
+        const meter = createSharedMeter(ctx, source, sink);
+
+        let signalLogged = false;
+        let resampler = { total: 0, nextPos: 0, history: null };
+        let previousConsumer = '';
+        // Только агрегированные уровни, без сохранения или отправки аудио.
+        const diagUntil = performance.now() + 15000;
+        let diagAt = performance.now();
+        let diagFrames = 0;
+        let diagNonzero = 0;
+        let diagMaxRms = 0;
+        const handleAudioFrame = (raw) => {
+          if (epoch !== captureEpoch || capture.processor !== processor) return;
+          capture.framesSeen++;
+          if (capture.framesSeen === 1) {
+            audioDebug('[mic timing] первый аудиобуфер: ' + elapsed() + ' мс');
+          }
+          const callOn = isCallMicLive() && app.mode === 'call';
+          const asrOn = asr.recording && app.mode === 'asr';
+          const now = performance.now();
+          let rms;
+          // Измеряем и до записи: иначе нельзя отличить тишину от простоя ASR.
+          if (now <= diagUntil || callOn || asrOn) rms = rmsOf(raw);
+          if (now <= diagUntil) {
+            diagFrames++;
+            if (rms > 0) diagNonzero++;
+            diagMaxRms = Math.max(diagMaxRms, rms);
+            if (!signalLogged && rms > 0) {
+              signalLogged = true;
+              audioDebug('[mic timing] первый ненулевой входной сигнал (в любом режиме): ' + elapsed() + ' мс');
+            }
+            if (now - diagAt >= 1000) {
+              audioDebug('[mic diag] вход за ' + Math.round(now - diagAt) + ' мс: буферов=' + diagFrames
+                + ', ненулевых=' + diagNonzero + ', макс RMS=' + diagMaxRms.toFixed(6)
+                + ', режим=' + app.mode + ', звонок=' + callOn + ', ASR=' + asrOn
+                + ', ctx=' + ctx.state + ', track=' + (track ? track.readyState + '/muted=' + track.muted : 'нет'));
+              diagAt = now;
+              diagFrames = 0;
+              diagNonzero = 0;
+              diagMaxRms = 0;
+            }
+          }
+          const consumer = callOn ? 'call' : asrOn ? 'asr' : '';
+          if (consumer !== previousConsumer) {
+            resampler = { total: 0, nextPos: 0, history: null };
+            previousConsumer = consumer;
+          }
+          if (!consumer) return;
+          const bufMs = raw.length / ctx.sampleRate * 1000;
+          const frame = ctx.sampleRate !== SAMPLE_RATE ? resample(raw, ctx.sampleRate, SAMPLE_RATE, resampler) : raw;
+          if (callOn) {
+            onMicLevel(rms, bufMs);
+            onAudioFrame(frame);
+          }
+          if (asrOn) {
+            asr.chunks.push(floatToInt16(frame));
+          }
+        };
+        if (created.kind === 'worklet') {
+          processor.port.onmessage = (event) => handleAudioFrame(event.data);
+        } else {
+          processor.onaudioprocess = (event) => handleAudioFrame(event.inputBuffer.getChannelData(0));
+        }
+        source.connect(processor);
+        processor.connect(sink);
+
+        capture.ctx = ctx;
+        capture.sink = sink;
+        capture.source = source;
+        capture.processor = processor;
+        capture.meter = meter;
+        capture.openedAt = Date.now();
+        capture.framesSeen = 0;
+        audioDebug('[mic timing] граф подключён: ' + elapsed() + ' мс, ctx=' + ctx.state);
+        setTimeout(() => {
+          if (epoch !== captureEpoch || capture.ctx !== ctx || signalLogged) return;
+          audioDebug('[mic timing] нет ненулевого сигнала: ' + elapsed() + ' мс, кадров='
+            + capture.framesSeen + ', ctx=' + ctx.state + ', track='
+            + (track ? track.readyState + '/muted=' + track.muted : 'нет'));
+        }, 3000);
+
+        ctx.onstatechange = () => {
+          audioDebug('[mic diag] AudioContext: ' + ctx.state + ', от загрузки ' + Math.round(performance.now()) + ' мс');
+          if (capture.ctx === ctx && capture.processor && ctx.state !== 'running') {
+            tryResumeAudioContext(ctx, 250).then(() => updateAsrUi());
+          } else {
+            updateAsrUi();
+          }
+        };
+        [350, 800].forEach((delay) => {
+          setTimeout(() => {
+            if (capture.ctx === ctx && capture.processor && ctx.state !== 'running') {
+              tryResumeAudioContext(ctx, 250).then(() => updateAsrUi());
+            }
+          }, delay);
+        });
+
+        standMic.keep = true;
+        renderStandMic();
+        return { ctx, coldOpen: true };
+      })();
+
+      capture.openingPromise = opening;
+      try {
+        return await opening;
+      } finally {
+        if (capture.openingPromise === opening) capture.openingPromise = null;
+      }
+    }
+
+    async function openCallMic(opts) {
+      const allowPrompt = Boolean(opts && opts.allowPrompt);
+      if (!micSupported) {
+        app.micEnabled = false;
+        showStatus(window.isSecureContext
+          ? 'Браузер не поддерживает захват микрофона.'
+          : 'Микрофон доступен только по HTTPS или с localhost.', true);
+        return;
+      }
+      if (isCallMicLive() || micStream.pending) return;
+      if (!allowPrompt && !micReadyToOpen()) return;
+
+      const token = ++micStream.token;
+      micStream.pending = true;
+      updateMicButton();
+      const requestedAt = Date.now();
+      try {
+        const { coldOpen } = await ensureCaptureOpen();
+        if (token !== micStream.token || !micCanOpen()) {
+          if (token === micStream.token) micStream.pending = false;
+          stopCaptureIfIdle();
+          updateMicButton();
+          return;
+        }
+        micStream.readyMs = Date.now() - requestedAt;
+        micStream.openedAt = coldOpen ? Date.now() : (Date.now() - MIC_SETTLE_MS);
+        micStream.pending = false;
+        micStream.floor = 0;
+        micStream.preroll = [];
+        micStream.prerollBytes = 0;
+        micStream.lastLevelAt = 0;
+        updateMicButton();
+        if (inCall() && !app.busy && !app.speaking && voice.state !== 'thinking') {
+          setVoiceState('listening');
+        }
+      } catch (err) {
+        if (token !== micStream.token) return;
+        micStream.pending = false;
+        app.micEnabled = false;
+        stopCaptureIfIdle();
+        updateMicButton();
+        showStatus('Микрофон не запустился: ' + (err.message || err.name), true);
+      }
+    }
+
+    function closeCallMic() {
+      micStream.token++;
+      micStream.pending = false;
+      micStream.streaming = false;
+      micStream.sentBytes = 0;
+      micStream.sendBlockedUntil = 0;
+      micStream.sendError = '';
+      micStream.voicedMs = 0;
+      micStream.lastVoiceAt = 0;
+      micStream.floor = 0;
+      micStream.preroll = [];
+      micStream.prerollBytes = 0;
+      ui.micBtn.style.removeProperty('--level');
+      stopCaptureIfIdle();
+      updateMicButton();
+    }
+
+    function toggleCallMic() {
+      if (!inCall() || app.ending) return;
+      if (app.micEnabled || isCallMicLive() || micStream.pending) {
+        app.micEnabled = false;
+        abortUtterance(true);
+        closeCallMic();
+        if (!app.statusError) showStatus('');
+        return;
+      }
+      app.micEnabled = true;
+      app.statusError = false;
+      prepareAudioContextSync(true);
+      openCallMic({ allowPrompt: true });
+    }
+
+    function updateMicButton() {
+      const active = inCall();
+      const live = isCallMicLive();
+      const pending = isCallMicPending();
+      const off = active && !live && !pending;
+      ui.micBtn.classList.toggle('rec', live);
+      ui.micBtn.classList.toggle('pending', pending);
+      ui.micBtn.classList.toggle('off', off);
+      if (!live && !pending) ui.micBtn.style.removeProperty('--level');
+      refreshComposer();
+    }
+
+    /* --- VAD: нарезка реплик по паузе и мягкое перебивание --- */
+    function onMicLevel(rms, bufMs) {
+      if (!micListening() || performance.now() < micStream.sendBlockedUntil) return;
+      micStream.voice = rms;
+      const now = Date.now();
+      const elapsed = micStream.lastLevelAt ? (now - micStream.lastLevelAt) : 0;
+      const frameMs = bufMs > 0 ? bufMs : Math.min(200, Math.max(0, elapsed));
+      micStream.lastLevelAt = now;
+
+      // Первые сотни мс после открытия микрофона драйвер и AGC дают щелчок/всплеск —
+      // пропускаем переходный процесс, чтобы не срывать первую реплику бота.
+      if (micStream.openedAt && now - micStream.openedAt < MIC_SETTLE_MS) return;
+
+      if (app.speaking) {
+        // Не начинаем калибровку эхо-фона на тишине, пока <audio> ещё декодирует буфер
+        const audioLive = !speaker.el
+          || (!speaker.el.paused && speaker.el.currentTime > 0.02)
+          || (micStream.speechStartedAt && now - micStream.speechStartedAt > 500);
+        if (!audioLive) return;
+
+        if (!micStream.floorAt) {
+          micStream.floorAt = now;
+          // Первый буфер может уже содержать голос звонящего.
+          micStream.echoFloor = Math.min(rms, FLOOR_MAX);
+        }
+        const calibrating = now - micStream.floorAt < SOFT_BARGE_CALIB_MS;
+        const earlyVoice = calibrating && rms > BARGE_EARLY_THRESHOLD;
+        if (calibrating && !earlyVoice) {
+          micStream.cal.push(rms);
+          if (micStream.cal.length > 40) micStream.cal.shift();
+          const quiet = percentileOf(micStream.cal, 0.1);
+          const loud = Math.max.apply(null, micStream.cal);
+          const steady = loud <= quiet * 2.5;
+          micStream.echoFloor = Math.max(0.0015,
+            steady ? percentileOf(micStream.cal, 0.5) : quiet);
+        }
+        const strong = Math.max(BARGE_MIN_THRESHOLD, micStream.echoFloor * BARGE_ECHO_FACTOR);
+        const weak = Math.max(BARGE_WEAK_MIN_THRESHOLD, micStream.echoFloor * BARGE_WEAK_ECHO_FACTOR);
+        if (now - (micStream.diagAt || 0) > 1000) {
+          micStream.diagAt = now;
+          audioDebug('[barge ' + UI_BUILD + '] микрофон ' + rms.toFixed(3)
+            + ' | эхо-фон ' + micStream.echoFloor.toFixed(3)
+            + ' | порог слабый ' + weak.toFixed(3) + ', сильный ' + strong.toFixed(3)
+            + (speaker.ducked
+              ? ' | присел, речи ' + Math.round(micStream.duckMs || 0) + '/' + DUCK_COMMIT_MS + ' мс'
+              : ' | удержано ' + Math.round(micStream.bargeMs || 0) + '/' + SOFT_BARGE_HOLD_WEAK_MS + ' мс')
+            + ' | аудио ' + (audioCtx ? audioCtx.state : '—'));
+        }
+        if (speaker.ducked) {
+          if (rms > weak) {
+            micStream.duckMs = (micStream.duckMs || 0) + frameMs;
+            micStream.lastDuckVoiceAt = now;
+          }
+          const commitMs = speaker.duckEarly ? DUCK_EARLY_COMMIT_MS
+            : speaker.volumeLocked ? DUCK_COMMIT_FAST_MS : DUCK_COMMIT_MS;
+          if (micStream.duckMs >= commitMs) {
+            micStream.duckMs = 0;
+            softBarge();
+          } else if (now - (micStream.lastDuckVoiceAt || speaker.duckStartedAt) >= DUCK_SILENCE_MS) {
+            unduckSpeech();
+          }
+          return;
+        }
+        if (earlyVoice || (!calibrating && rms > weak)) {
+          if (earlyVoice) micStream.earlyBarge = true;
+          micStream.bargeMs = (micStream.bargeMs || 0) + frameMs;
+          micStream.lastBargeAt = now;
+          if (earlyVoice || rms > strong) micStream.bargeStrongMs = (micStream.bargeStrongMs || 0) + frameMs;
+        } else if (now - (micStream.lastBargeAt || 0) > BARGE_GAP_MS) {
+          micStream.bargeMs = 0;
+          micStream.bargeStrongMs = 0;
+          micStream.earlyBarge = false;
+        }
+        if (micStream.bargeStrongMs >= SOFT_BARGE_HOLD_MS
+            || micStream.bargeMs >= SOFT_BARGE_HOLD_WEAK_MS) {
+          const wasEarly = Boolean(micStream.earlyBarge);
+          micStream.earlyBarge = false;
+          micStream.bargeMs = 0;
+          micStream.bargeStrongMs = 0;
+          const left = speechRemainingMs();
+          if (left !== null && left <= BARGE_TAIL_MS) {
+            audioDebug('[barge] до конца ответа ' + Math.round(left) + ' мс — не перебиваю');
+            return;
+          }
+          if (now < (micStream.duckCooldownUntil || 0)) {
+            audioDebug('[barge] речь продолжается после короткой вставки — уступаю');
+            softBarge();
+            return;
+          }
+          if (wasEarly) audioDebug('[barge] раннее перебивание: проверка голоса');
+          if (!duckSpeech(wasEarly)) softBarge();
+        }
+        return;
+      }
+      micStream.bargeMs = 0;
+      micStream.bargeStrongMs = 0;
+
+      // Ограничиваем адаптацию фона сверху и снижаем быстро, а поднимаем медленно
+      // только на тихом фоне — иначе множитель *2.2 разгоняет порог сам от себя.
+      const speechThr = Math.max(THRESHOLD_SPEECH, Math.min(FLOOR_MAX, micStream.floor) * 2.2);
+      const voiced = rms > speechThr;
+      if (rms < micStream.floor) {
+        micStream.floor = micStream.floor * 0.85 + rms * 0.15;
+      } else if (!voiced && !micStream.streaming && rms < THRESHOLD_SPEECH * 1.2) {
+        micStream.floor = Math.min(FLOOR_MAX, micStream.floor * 0.98 + rms * 0.02);
+      }
+      if (voiced) {
+        micStream.lastVoiceAt = now;
+        micStream.voicedMs = (micStream.voicedMs || 0) + frameMs;
+        if (!micStream.streaming && micStream.voicedMs >= MIN_SPEECH_MS) startUtterance();
+        return;
+      }
+      if (micStream.streaming) {
+        if (now - micStream.lastVoiceAt >= vad.endpointMs) endUtterance();
+        return;
+      }
+      if (now - (micStream.lastVoiceAt || 0) > 400) micStream.voicedMs = 0;
+    }
+
+    function pushPreroll(chunk) {
+      micStream.preroll.push(chunk);
+      micStream.prerollBytes += chunk.byteLength;
+      const limitMs = speaker.ducked ? PREROLL_DUCK_MS : PREROLL_MS;
+      const limitBytes = limitMs * SAMPLE_RATE * 2 / 1000;
+      while (micStream.prerollBytes > limitBytes && micStream.preroll.length > 0) {
+        micStream.prerollBytes -= micStream.preroll.shift().byteLength;
+      }
+    }
+
+    // Если потеряли хотя бы один фрейм, отменяем всю реплику, чтобы сервер
+    // не распознал обрезанную фразу как полную. Небольшая пауза защищает от
+    // бесконечных повторов при плохой сети.
+    function failAudioSend(reason, started) {
+      const socket = voice.ws;
+      const aborted = !started || voiceSend({ t: 'abort' });
+      abortUtterance(false);
+      micStream.sendBlockedUntil = performance.now() + 1500;
+      micStream.sendError = (reason || 'Аудио не отправлено') + ' — повторите фразу';
+      showStatus(micStream.sendError, true);
+      console.warn('[ws] реплика отменена:', micStream.sendError);
+      // При невозможности отправить abort закрываем канал, чтобы сервер не
+      // оставался в состоянии незавершённой реплики; onclose переподключит его.
+      if (started && !aborted && socket && socket.readyState === WebSocket.OPEN) {
+        try { socket.close(); } catch (err) { console.warn('[ws] не удалось закрыть канал', err); }
+      }
+    }
+
+    function startUtterance() {
+      if (performance.now() < micStream.sendBlockedUntil) return;
+      const now = Date.now();
+      if (!voiceSend({ t: 'speech_start', at: now })) {
+        failAudioSend('Не удалось начать передачу речи', false);
+        return;
+      }
+      micStream.streaming = true;
+      micStream.sentBytes = 0;
+      micStream.voicedMs = 0;
+      micStream.startedAt = now;
+      micStream.lastVoiceAt = now;
+      for (const chunk of micStream.preroll) {
+        if (!voiceSendBytes(chunk)) {
+          failAudioSend(voice.audioSendError, true);
+          return;
+        }
+        micStream.sentBytes += chunk.byteLength;
+      }
+      micStream.preroll = [];
+      micStream.prerollBytes = 0;
+      if (micStream.sendError && ui.status.textContent === micStream.sendError) showStatus('');
+      micStream.sendError = '';
+      setVoiceState('listening');
+    }
+
+    function endUtterance() {
+      if (!micStream.streaming) return;
+      const ms = Math.round(micStream.sentBytes / (SAMPLE_RATE * 2) * 1000);
+      if (ms < MIN_AUDIO_SEC * 1000) {
+        console.info('[vad] короткая реплика (' + ms + ' мс) — не отправляю');
+        abortUtterance(true);
+        setVoiceState('listening');
+        return;
+      }
+      micStream.streaming = false;
+      micStream.lastVoiceAt = 0;
+      micStream.voicedMs = 0;
+      console.info('[vad] реплика: ' + (Date.now() - (micStream.startedAt || Date.now()))
+        + ' мс, отправлено ' + ms + ' мс');
+      if (!voiceSend({ t: 'utterance_end', ms: ms })) {
+        failAudioSend('Не удалось завершить передачу речи', true);
+        return;
+      }
+      setVoiceState('thinking');
+    }
+
+    function abortUtterance(notifyServer) {
+      const wasStreaming = micStream.streaming;
+      micStream.streaming = false;
+      micStream.sentBytes = 0;
+      micStream.voicedMs = 0;
+      micStream.lastVoiceAt = 0;
+      micStream.preroll = [];
+      micStream.prerollBytes = 0;
+      if (wasStreaming && notifyServer) voiceSend({ t: 'abort' });
+    }
+
+    function onAudioFrame(frame) {
+      if (!micListening() || performance.now() < micStream.sendBlockedUntil) return;
+      const chunk = floatToInt16(frame);
+      if (micStream.streaming) {
+        if (!voiceSendBytes(chunk)) {
+          failAudioSend(voice.audioSendError, true);
+          return;
+        }
+        micStream.sentBytes += chunk.byteLength;
+        if (micStream.sentBytes / (SAMPLE_RATE * 2) * 1000 >= MAX_UTTERANCE_MS) endUtterance();
+        return;
+      }
+      pushPreroll(chunk);
+    }
+
+    /* =========================================================
+       Композер
+       ========================================================= */
+    function refreshComposer() {
+      const active = inCall();
+      const locked = composerLocked();
+      const micLive = isCallMicLive();
+      const micPending = isCallMicPending();
+      const hasText = Boolean(ui.input.value.trim());
+
+      ui.composerRow.classList.toggle('locked', !active || locked);
+      ui.input.disabled = !active || locked;
+      ui.input.readOnly = false;
+      ui.input.placeholder = !active
+        ? 'Реплика звонящего…'
+        : app.busy
+          ? 'Инициализация звонка…'
+          : app.ending
+            ? 'Завершение звонка…'
+            : micPending
+              ? 'Открываю микрофон…'
+              : voice.state === 'thinking'
+                ? 'Распознаю реплику…'
+                : micLive
+                  ? 'Говорите — реплика уйдёт сама после паузы'
+                  : 'Реплика звонящего (микрофон выключен)…';
+
+      ui.sendBtn.disabled = !active || locked || !hasText;
+      ui.sendBtn.title = 'Отправить';
+
+      ui.micBtn.disabled = !active || app.ending;
+      ui.micBtn.title = micPending
+        ? 'Открываю микрофон — нажмите, чтобы выключить'
+        : micLive
+          ? 'Микрофон включён — нажмите, чтобы выключить'
+          : 'Микрофон выключен — нажмите, чтобы включить';
+
+      ui.quickChips.forEach((chip) => { chip.disabled = !active || locked; });
+      updateVoiceToggleBtn();
+    }
+
+    function submitComposer() {
+      if (!inCall() || composerLocked()) return;
+      const text = ui.input.value.trim();
+      if (!text) return;
+      clearInput();
+      ui.input.focus();
+      sendText(text);
+    }
+
+    ui.startCallBtn.addEventListener('click', startCall);
+    ui.hangupBtn.addEventListener('click', () => hangup());
+    ui.newCallBtn.addEventListener('click', resetToHero);
+    ui.downloadLogBtn.addEventListener('click', downloadTranscript);
+
+    ui.sendBtn.addEventListener('click', submitComposer);
+    ui.input.addEventListener('input', autosizeInput);
+    ui.input.addEventListener('keydown', (e) => {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (!composerLocked()) submitComposer();
+      }
+    });
+    ui.quickChips.forEach((chip) => {
+      chip.addEventListener('click', () => {
+        if (inCall() && !composerLocked()) sendText(chip.dataset.chip);
+      });
+    });
+    ui.micBtn.addEventListener('click', () => {
+      toggleCallMic();
+    });
+    ui.stopSpeakBtn.addEventListener('click', () => {
+      stopSpeech();
+      if (inCall() && !app.ending) setVoiceState('listening');
+      focusInput();
+    });
+
+    /* =========================================================
+       Проба TTS (/debug/tts)
+       ========================================================= */
+    let ttsPlaying = false;
+    let ttsRequestId = 0;
+    let ttsPlaybackSeq = null;
+
+    function cancelTtsProbe() {
+      if (!ttsPlaying) return;
+      ++ttsRequestId;
+      ttsPlaying = false;
+      // Не останавливаем озвучку звонка, если она уже сменила пробу.
+      if (ttsPlaybackSeq !== null && speechSeq === ttsPlaybackSeq) stopSpeech();
+      ttsPlaybackSeq = null;
+      updateTtsPlayBtn();
+      showTtsStatus('Остановлено');
+    }
+
+    function updateTtsPlayBtn() {
+      ui.ttsPlayLabel.textContent = ttsPlaying ? 'Остановить' : 'Озвучить';
+    }
+
+    async function playTts() {
+      if (ttsPlaying) {
+        cancelTtsProbe();
+        return;
+      }
+      const text = ui.ttsInput.value.trim();
+      if (!text) return;
+      const requestId = ++ttsRequestId;
+      unlockAudio();
+      showTtsStatus('');
+
+      const body = { text: text };
+      if (app.ttsSpeaker) body.speaker = app.ttsSpeaker;
+
+      try {
+        ttsPlaying = true;
+        updateTtsPlayBtn();
+        const tts = await api('/debug/tts', postJson(body));
+        // Остановленный или заменённый запрос не должен запускать озвучивание.
+        if (requestId !== ttsRequestId) return;
+        addTtsHistory(text, tts);
+        const bytes = tts.audio_b64 ? Math.round(tts.audio_b64.length * 0.75) : 0;
+        showTtsStatus(
+          tts.audio_b64
+            ? 'Синтез: ' + (tts.audio_mime || '?') + ' · ' + Math.round(bytes / 1024) + ' КБ · играю'
+            : 'Сервер вернул пустое аудио — читаю голосом браузера',
+          !tts.audio_b64
+        );
+        const playback = speak(
+          { text: tts.spoken || text, audio_b64: tts.audio_b64, audio_mime: tts.audio_mime },
+          'Проба синтеза'
+        );
+        ttsPlaybackSeq = speechSeq;
+        const result = await playback;
+        if (requestId !== ttsRequestId) return;
+        if (result && result.interrupted) {
+          showTtsStatus('Остановлено');
+        } else if (result && result.ok === false) {
+          showTtsStatus('Звука нет: ' + result.reason, true);
+        } else if (result && result.fallback) {
+          showTtsStatus('Серверное аудио не пошло (' + result.fallback + ') — прочитал голосом браузера', true);
+        } else if (tts.audio_b64) {
+          showTtsStatus('Озвучено: ' + (tts.audio_mime || '?') + ' · ' + Math.round(bytes / 1024) + ' КБ');
+        } else {
+          showTtsStatus('Озвучено голосом браузера');
+        }
+      } catch (err) {
+        if (requestId === ttsRequestId) showTtsStatus('Ошибка синтеза: ' + err.message, true);
+      } finally {
+        if (requestId === ttsRequestId) {
+          ttsPlaying = false;
+          ttsPlaybackSeq = null;
+          updateTtsPlayBtn();
+        }
+      }
+    }
+
+    function addTtsHistory(text, tts) {
+      const empty = ui.ttsHistory.querySelector('.history-empty');
+      if (empty) empty.remove();
+
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      const bytes = tts.audio_b64 ? Math.round(tts.audio_b64.length * 0.75 / 1024) + ' КБ' : 'без аудио';
+      const voice = [app.cfg.tts, tts.speaker || app.ttsSpeaker, tts.audio_mime, bytes].filter(Boolean).join(' · ');
+      const spokenAs = tts.spoken && tts.spoken !== text ? 'читаю как: «' + tts.spoken + '»' : '';
+      const time = new Date().toLocaleTimeString('ru-RU', { hour12: false });
+      item.innerHTML =
+        '<div class="h-body">' +
+          '<div class="h-text">' + escapeHtml(text) + '</div>' +
+          '<div class="h-meta">' +
+            '<span>' + escapeHtml(voice) + '</span>' +
+            (spokenAs ? '<span>' + escapeHtml(spokenAs) + '</span>' : '') +
+            '<span>' + time + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<button type="button" title="Переозвучить" aria-label="Переозвучить">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"/></svg>' +
+        '</button>';
+      item.querySelector('button').addEventListener('click', () => {
+        ui.ttsInput.value = text;
+        playTts();
+      });
+      ui.ttsHistory.prepend(item);
+      while (ui.ttsHistory.children.length > 40) ui.ttsHistory.lastElementChild.remove();
+    }
+
+    ui.ttsPlayBtn.addEventListener('click', playTts);
+    ui.ttsInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); playTts(); }
+    });
+
+    /* =========================================================
+       Проба ASR (/debug/asr)
+       ========================================================= */
+    const asr = {
+      recognition: null,
+      chunks: [], recording: false, pending: false, token: 0,
+      maxTimer: null,
+      resultRevision: 0,
+    };
+    // Ограничение длительности защищает память и сервер; это не VAD.
+    const ASR_MAX_MS = 20000;
+
+    function asrDiag(ctxOverride) {
+      const ctx = ctxOverride || capture.ctx || audioCtx;
+      return [
+        ctx ? 'ctx ' + ctx.state : 'ctx нет',
+        ctx && ctx.sampleRate ? Math.round(ctx.sampleRate / 100) / 10 + ' kHz' : null,
+        window.isSecureContext ? 'https' : 'http',
+      ].filter(Boolean).join(' · ');
+    }
+
+    function updateAsrUi() {
+      ui.asrMicBtn.classList.toggle('rec', asr.recording);
+      ui.asrMicBtn.classList.toggle('pending', asr.pending);
+      ui.asrState.classList.toggle('live', asr.recording);
+      ui.asrMicBtn.setAttribute('aria-label', asr.recording || asr.pending ? 'Остановить запись' : 'Начать запись');
+      ui.asrState.textContent = asr.pending
+        ? 'Открываю микрофон…'
+        : asr.recording
+          ? 'Идёт запись — нажмите ещё раз для остановки (максимум 20 с) · ' + asrDiag()
+          : 'Нажмите для записи, затем ещё раз для распознавания';
+      if (!asr.recording) ui.asrMicBtn.style.removeProperty('--level');
+    }
+
+    function clearAsrTimers() {
+      clearTimeout(asr.maxTimer);
+      asr.maxTimer = null;
+    }
+
+    function setAsrResult(text, kind) {
+      ui.asrResult.classList.remove('empty', 'error');
+      if (kind === 'empty') { ui.asrResult.textContent = text || '—'; ui.asrResult.classList.add('empty'); return; }
+      if (kind === 'error') { ui.asrResult.textContent = text; ui.asrResult.classList.add('error'); return; }
+      ui.asrResult.textContent = text;
+    }
+
+    async function startAsr() {
+      if (asr.recording || asr.pending || asr.recognition) return;
+      // Не меняем захват и не прерываем запрос: только запрещаем старому
+      // ответу перезаписать начатую позже пробу.
+      asr.resultRevision++;
+
+      if (app.cfg.asr === 'fake') {
+        unlockAudio();
+        return startBrowserAsr();
+      }
+      if (!micSupported) {
+        setAsrResult(
+          window.isSecureContext
+            ? 'Браузер не поддерживает захват микрофона.'
+            : 'Микрофон доступен только по HTTPS или с localhost.',
+          'error'
+        );
+        return;
+      }
+
+      const token = ++asr.token;
+      const needOpen = !capture.processor || !micTracksLive(micStream.stream);
+      asr.pending = true;
+      updateAsrUi();
+      if (needOpen) setAsrResult('Открываю микрофон…', 'empty');
+
+      let ctx = null;
+      try {
+        const opened = await ensureCaptureOpen();
+        ctx = opened.ctx;
+        if (token !== asr.token || !asr.pending || app.mode !== 'asr') {
+          if (token === asr.token) asr.pending = false;
+          stopCaptureIfIdle();
+          updateAsrUi();
+          return;
+        }
+      } catch (err) {
+        if (token !== asr.token) return;
+        asr.pending = false;
+        stopCaptureIfIdle();
+        updateAsrUi();
+        setAsrResult('Микрофон не запустился: ' + (err.message || err.name) + ' [' + asrDiag(ctx) + ']', 'error');
+        return;
+      }
+
+      asr.chunks = [];
+      clearAsrTimers();
+      asr.pending = false;
+      asr.recording = true;
+      updateAsrUi();
+
+      asr.maxTimer = setTimeout(() => {
+        if (!asr.recording) return;
+        stopAsrAndSend();
+      }, ASR_MAX_MS);
+
+      setTimeout(() => {
+        if (token === asr.token && asr.recording && ctx && ctx.state !== 'running') {
+          tryResumeAudioContext(ctx, 250).then(() => {
+            updateAsrUi();
+            if (token === asr.token && asr.recording && ctx.state !== 'running') {
+              setAsrResult('Браузер приостановил звук (' + ctx.state + ') — нажмите кнопку ещё раз', 'error');
+            }
+          });
+        }
+      }, 950);
+
+      setAsrResult('Говорите; нажмите ещё раз, чтобы остановить запись и распознать её', 'empty');
+    }
+
+    function stopAsrCapture() {
+      asr.token++;
+      clearAsrTimers();
+      asr.pending = false;
+      asr.recording = false;
+      if (asr.recognition) {
+        const rec = asr.recognition;
+        asr.recognition = null;
+        try { rec.abort(); } catch { /* уже */ }
+      }
+      ui.asrMicBtn.style.removeProperty('--level');
+      stopCaptureIfIdle();
+      updateAsrUi();
+    }
+
+    async function stopAsrAndSend() {
+      if (asr.pending && !asr.recording) {
+        stopAsrCapture();
+        setAsrResult('Запись отменена', 'empty');
+        return;
+      }
+      if (!asr.recording) return;
+
+      // Web Speech API управляет собственным потоком и завершает распознавание
+      // асинхронно через onend; не вызываем abort при обычной остановке.
+      if (asr.recognition) {
+        const rec = asr.recognition;
+        clearAsrTimers();
+        asr.recording = false;
+        updateAsrUi();
+        setAsrResult('Завершаю распознавание в браузере…', 'empty');
+        try { rec.stop(); } catch (err) {
+          asr.recognition = null;
+          setAsrResult('Ошибка остановки: ' + err.message, 'error');
+        }
+        return;
+      }
+      stopAsrCapture();
+
+      const total = asr.chunks.reduce((n, c) => n + c.length, 0);
+      if (total < SAMPLE_RATE * MIN_AUDIO_SEC) {
+        setAsrResult('Слишком короткая запись: нажмите и говорите фразу целиком', 'error');
+        return;
+      }
+
+      const pcm = new Int16Array(total);
+      let offset = 0;
+      asr.chunks.forEach((chunk) => { pcm.set(chunk, offset); offset += chunk.length; });
+      const dur = (total / SAMPLE_RATE).toFixed(1) + ' с';
+      asr.chunks = [];
+
+      setAsrResult('Распознаю…', 'empty');
+      const resultRevision = asr.resultRevision;
+      const startedAt = performance.now();
+      try {
+        const reply = await api('/debug/asr', {
+          method: 'POST',
+          headers: { 'Content-Type': 'audio/pcm' },
+          body: new Blob([pcm.buffer], { type: 'audio/pcm' }),
+        });
+        if (resultRevision !== asr.resultRevision) return;
+        const serverMs = Math.round(performance.now() - startedAt);
+        const text = reply.text || reply.recognized || '';
+        console.debug('[asr] проба:', { ms: reply.ms, serverMs, dur });
+        if (!text) {
+          setAsrResult('Ничего не распознано — тишина в записи?', 'error');
+          return;
+        }
+        setAsrResult(text);
+        addAsrHistory(text, app.cfg.asr || 'asr', dur);
+      } catch (err) {
+        if (resultRevision === asr.resultRevision) {
+          setAsrResult('Ошибка распознавания: ' + err.message, 'error');
+        }
+      }
+    }
+
+    function startBrowserAsr() {
+      const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!Recognition) {
+        setAsrResult('ASR на сервере выключен (fake), а браузер не поддерживает Web Speech API.', 'error');
+        return;
+      }
+      const r = new Recognition();
+      r.lang = 'ru-RU';
+      r.continuous = true;
+      r.interimResults = false;
+      let text = '';
+      let hadError = false;
+      asr.recognition = r;
+      asr.recording = true;
+      updateAsrUi();
+      setAsrResult('Слушаю (браузер). Нажмите ещё раз для остановки.', 'empty');
+      r.onresult = (e) => {
+        if (asr.recognition !== r) return;
+        const parts = [];
+        for (let i = 0; i < e.results.length; i++) {
+          if (e.results[i].isFinal) parts.push(e.results[i][0].transcript.trim());
+        }
+        text = parts.join(' ').trim();
+        if (text) setAsrResult(text);
+      };
+      r.onerror = (e) => {
+        if (asr.recognition !== r) return;
+        hadError = true;
+        setAsrResult('Ошибка: ' + e.error, 'error');
+      };
+      r.onend = () => {
+        if (asr.recognition !== r) return;
+        asr.recognition = null;
+        asr.recording = false;
+        clearAsrTimers();
+        updateAsrUi();
+        if (text) {
+          setAsrResult(text);
+          addAsrHistory(text, 'браузер', '');
+        } else if (!hadError) {
+          setAsrResult('Ничего не распознано', 'empty');
+        }
+      };
+      try {
+        r.start();
+        asr.maxTimer = setTimeout(() => {
+          if (asr.recognition === r && asr.recording) stopAsrAndSend();
+        }, ASR_MAX_MS);
+      } catch (err) {
+        asr.recognition = null;
+        asr.recording = false;
+        updateAsrUi();
+        setAsrResult('Ошибка запуска: ' + err.message, 'error');
+      }
+    }
+
+    function addAsrHistory(text, engine, dur) {
+      const empty = ui.asrHistory.querySelector('.history-empty');
+      if (empty) empty.remove();
+
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      const time = new Date().toLocaleTimeString('ru-RU', { hour12: false });
+      item.innerHTML =
+        '<div class="h-body">' +
+          '<div class="h-text">' + escapeHtml(text) + '</div>' +
+          '<div class="h-meta">' +
+            '<span>' + escapeHtml(engine) + '</span>' +
+            (dur ? '<span>' + escapeHtml(dur) + '</span>' : '') +
+            '<span>' + time + '</span>' +
+          '</div>' +
+        '</div>';
+      ui.asrHistory.prepend(item);
+      while (ui.asrHistory.children.length > 40) ui.asrHistory.lastElementChild.remove();
+    }
+
+    ui.asrMicBtn.addEventListener('click', () => {
+      if (asr.recording || asr.pending) {
+        stopAsrAndSend();
+        return;
+      }
+      prepareAudioContextSync(true);
+      startAsr().catch((err) => setAsrResult('Микрофон: ' + err.message, 'error'));
+    });
+
+    /* =========================================================
+       Инициализация
+       ========================================================= */
+    setMode(localStorage.getItem('mode') || 'call');
+    refreshLiveView();
+    updateTtsPlayBtn();
+    updateAsrUi();
+    updateVoiceToggleBtn();
+    refreshMicDevices();
+    refreshMicPermission();
+    resumeAudioOnGesture();
+
+    // Запрашиваем доступ заранее, чтобы устройство успело прогреться до звонка.
+    if (micSupported) {
+      holdStandMic();
+    } else {
+      renderStandMic();
+      showStatus(window.isSecureContext
+        ? 'Браузер не поддерживает захват микрофона.'
+        : 'Микрофон доступен только по HTTPS или с localhost.', true);
+    }
+
+    loadConfig().catch((err) => showStatus('Не удалось загрузить /debug/config: ' + err.message, true));
+</script>
+</body>
+</html>
