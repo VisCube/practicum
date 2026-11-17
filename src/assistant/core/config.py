@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DialogAdapter = Literal["rules", "cloudru"]
 AsrAdapter = Literal["fake", "vosk", "t-one", "cloudru"]
-TtsAdapter = Literal["fake", "piper", "silero"]
+TtsAdapter = Literal["fake", "piper", "silero", "cloudru"]
 LlmAdapter = Literal["fake", "openai", "cloudru"]
 CrmAdapter = Literal["fake", "telegram", "bitrix"]
 TelephonyAdapter = Literal["fake"]
@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     # Cloud.ru: Foundation Models, Managed RAG и IAM
     fm_api_key: str = ""
     fm_base_url: str = "https://foundation-models.api.cloud.ru/v1"
+    cloudru_tts_model: str = "GigaChat/SaluteSpeech"
+    cloudru_tts_voice: str = "Bab-Freespeech"
+    cloudru_tts_language: str = "auto"
     stt_model: str = "openai/whisper-large-v3"
     rag_key_id: str = ""
     rag_key_secret: str = ""

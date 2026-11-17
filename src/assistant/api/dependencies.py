@@ -504,6 +504,17 @@ def _build_tts(
     *,
     executor: Executor | None = None,
 ) -> SpeechSynthesizer:
+    if settings.tts_adapter == "cloudru":
+        from assistant.services.tts.cloudru import CloudRuTts
+
+        return CloudRuTts(
+            api_key=settings.fm_api_key,
+            base_url=settings.fm_base_url,
+            model=settings.cloudru_tts_model,
+            speaker=settings.cloudru_tts_voice,
+            language=settings.cloudru_tts_language,
+            timeout=settings.speech_timeout,
+        )
     if settings.tts_adapter == "piper":
         from assistant.services.tts.piper import PiperTts
 
