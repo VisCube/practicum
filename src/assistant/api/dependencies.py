@@ -90,6 +90,11 @@ class Container:
     asr: SpeechRecognizer
     tts: SpeechSynthesizer
     closeables: list[Any] = field(default_factory=list)
+    call_journal: Any = None
+
+    def journal(self, call_id: str, kind: str, **fields: Any) -> None:
+        if self.call_journal is not None:
+            self.call_journal.emit(call_id, kind, **fields)
 
     async def to_response(
         self,
@@ -116,8 +121,10 @@ class Container:
                 if not audio.empty:
                     audio_b64, mime = base64.b64encode(audio.data).decode(), audio.mime
             except TtsError as error:
+                self.journal(call_id, "tts_error")
                 log.warning("tts failed, fallback to text: %s", error)
             except Exception as error:
+                self.journal(call_id, "tts_error")
                 log.exception("unexpected tts error, fallback to text: %s", error)
             stages["tts"] = _ms(started)
         return TurnResponse(

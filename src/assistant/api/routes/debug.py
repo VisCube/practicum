@@ -242,6 +242,7 @@ async def session(call_id: str, container: ContainerDep) -> SessionView:
 @router.delete("/call/{call_id}", status_code=204)
 async def hangup(call_id: str, container: ContainerDep) -> None:
     """Завершает звонок — удаляет сессию из хранилища."""
+    container.journal(call_id, "end", reason="stop")
     container.delete_call(call_id)
 
 

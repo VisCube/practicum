@@ -54,6 +54,11 @@ class InMemorySessionStore:
             self._touched[call_id] = self._clock()
         return session
 
+    def contains_or_locked(self, call_id: str) -> bool:
+        """Check without refreshing TTL; a locked turn may still be in progress."""
+        lock = self._locks.get(call_id)
+        return call_id in self._data or (lock is not None and lock.locked())
+
     def save(self, session: CallSession) -> None:
         self._sweep()
         cid = session.call_id

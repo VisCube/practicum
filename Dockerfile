@@ -55,7 +55,9 @@ COPY data ./data
 COPY src ./src
 RUN pip install --no-deps --no-build-isolation .
 
-RUN useradd -m app && chown -R app:app /app
+RUN useradd -m app && mkdir -p /var/lib/assistant/call-logs && \
+    chown -R app:app /app /var/lib/assistant/call-logs && \
+    chmod 700 /var/lib/assistant/call-logs
 USER app
 
 ENV APP_ENV=prod DEBUG_UI=false PORT=8080

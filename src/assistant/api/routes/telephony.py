@@ -20,8 +20,22 @@ router = APIRouter(prefix="/call", tags=["telephony"])
 async def execute_turn(container: Container, call_id: str, turn: Awaitable[Reply], request: Request,
                        heard: str | None = None,
                        timings: dict[str, int] | None = None) -> TurnResponse:
+    journal = container.call_journal
+    journal_id = journal.http_request_begin(call_id) if journal is not None else None
+    try:
+        return await _execute_turn(container, call_id, turn, request, heard, timings)
+    finally:
+        if journal is not None:
+            journal.http_request_end(journal_id)
+
+
+async def _execute_turn(container: Container, call_id: str, turn: Awaitable[Reply], request: Request,
+                       heard: str | None = None,
+                       timings: dict[str, int] | None = None) -> TurnResponse:
     """Общая обёртка для /start и /turn: запросы одного звонка идут по очереди, при любом сбое - перевод на оператора"""
     store = container.orchestrator.store
+    if heard is not None:
+        container.journal(call_id, "user_text", text=heard)
     stages = dict(timings or {})
     dialog_started = time.perf_counter()
     try:
@@ -36,14 +50,21 @@ async def execute_turn(container: Container, call_id: str, turn: Awaitable[Reply
             session.say(reply.text)
             store.save(session)
     stages["dialog"] = int((time.perf_counter() - dialog_started) * 1000)
+    container.journal(call_id, "bot_generated", text=reply.text, events=[e.model_dump(mode="json") for e in reply.events],
+                      transfer=reply.transfer, end_call=reply.end_call)
     if reply.end_call:
         container.delete_call(call_id)
-    return await container.to_response(
+    response = await container.to_response(
         call_id, reply, heard=heard,
         with_audio=want_audio(request),
         tts_speaker=want_tts_speaker(request),
         timings=stages,
     )
+    container.journal(call_id, "reply_ready", timings=response.timings or {},
+                      audio=bool(response.audio_b64))
+    if reply.end_call or reply.transfer:
+        container.journal(call_id, "end", reason="transfer" if reply.transfer else "end_call")
+    return response
 
 
 @router.post("/start", response_model=TurnResponse)
@@ -51,6 +72,7 @@ async def start(payload: StartRequest, request: Request,
                 container: Container = Depends(get_container)) -> TurnResponse:
     """Начало звонка: заводим сессию, робот приветствует пользователя"""
     call_id = payload.call_id or uuid4().hex[:12]
+    container.journal(call_id, "start", phone=payload.phone, channel="http")
     response = await execute_turn(
         container, call_id, container.orchestrator.start(call_id, payload.phone), request,
     )
@@ -69,4 +91,5 @@ async def turn(payload: TurnRequest, request: Request,
                container: Container = Depends(get_container)) -> TurnResponse:
     """Обработка роботом реплики клиента"""
     return await execute_turn(container, payload.call_id,
-                              container.orchestrator.handle_turn(payload.call_id, payload.phone, payload.text), request)
+                              container.orchestrator.handle_turn(payload.call_id, payload.phone, payload.text), request,
+                              heard=payload.text)

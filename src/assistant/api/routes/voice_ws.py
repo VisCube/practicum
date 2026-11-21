@@ -83,6 +83,7 @@ class VoiceConnection:
         # просто оборвался транспорт: иначе переподключение теряет диалог
         self.call_ended = False
         self._last_timings: dict[str, int] = {}
+        self._last_reply_turn: int | None = None
 
     # ---------- отправка ----------
 
@@ -92,6 +93,15 @@ class VoiceConnection:
         async with self._send_lock:
             try:
                 await self.ws.send_text(_json(payload))
+                kind = payload.get("t")
+                if kind == "reply":
+                    self._last_reply_turn = payload.get("turn")
+                    self.container.journal(self.session.call_id, "reply_sent", turn=payload.get("turn"),
+                                           text=payload.get("text", ""), timings=payload.get("timings") or {},
+                                           audio=bool(payload.get("audio_b64")))
+                elif kind == "error":
+                    self.container.journal(self.session.call_id, "error", turn=self.session.turn,
+                                           code=str(payload.get("code", "unknown")))
             except Exception:
                 self.closed = True
 
@@ -111,9 +121,15 @@ class VoiceConnection:
         """
         store = self.container.orchestrator.store
 
+        dialog_turn = self.session.turn
+
         async def _locked() -> Reply:
             async with store.lock(self.session.call_id):
-                return await coro
+                reply = await coro
+                self.container.journal(self.session.call_id, "bot_generated", turn=dialog_turn,
+                                       text=reply.text, events=[e.model_dump(mode="json") for e in reply.events],
+                                       transfer=reply.transfer, end_call=reply.end_call)
+                return reply
 
         task = asyncio.create_task(_locked())
         self._dialog_tasks.add(task)
@@ -176,6 +192,8 @@ class VoiceConnection:
     async def _finalize_terminal_reply(self, reply: Reply) -> None:
         """Фиксирует завершение/перевод звонка и гарантированно уведомляет клиент."""
         self.call_ended = True
+        self.container.journal(self.session.call_id, "end",
+                               reason="transfer" if reply.transfer else "end_call")
         if reply.end_call:
             self.container.delete_call(self.session.call_id)
         await self.send({"t": "ended", "reason": "transfer" if reply.transfer else "end_call"})
@@ -280,6 +298,8 @@ class VoiceConnection:
                 await self.send_state(VoiceState.listening)
                 return
             timings["asr"] = int((time.perf_counter() - asr_started) * 1000)
+            self.container.journal(self.session.call_id, "user_asr", text=heard or "",
+                                   turn=turn, asr_ms=timings["asr"], source="turn")
             if self.session.is_stale(generation):
                 return
             if not heard:
@@ -361,6 +381,8 @@ class VoiceConnection:
             log.warning("ws concurrent asr failed for %s: %s", self.session.call_id, error)
             return
         asr_ms = int((time.perf_counter() - asr_started) * 1000)
+        self.container.journal(self.session.call_id, "user_asr", text=heard or "",
+                               asr_ms=asr_ms, source="precheck")
         if not heard:
             log.debug(
                 "ws call %s: ignored empty concurrent noise (%d ms) while turn active",
@@ -401,6 +423,13 @@ class VoiceConnection:
         """Обрабатывает JSON-событие. False — соединение пора закрывать."""
         kind = str(event.get("t", ""))
         if kind == "barge":
+            played = event.get("played_ms")
+            self.container.journal(
+                self.session.call_id, "barge", turn=self.session.turn,
+                played_ms=played if isinstance(played, int | float) else None,
+                candidate_reply_turn=self._last_reply_turn,
+                candidate_basis="last_reply_sent_on_connection",
+            )
             generation = self.session.barge()
             self._cancel_turn()
             self.session.drop_audio()
@@ -415,6 +444,7 @@ class VoiceConnection:
             return True
         if kind in ("speech_start", "abort"):
             if kind == "abort":
+                self.container.journal(self.session.call_id, "abort", turn=self.session.turn)
                 self._cancel_pre_asr()
             self.session.drop_audio()
             return True
@@ -441,9 +471,11 @@ class VoiceConnection:
             self.session.drop_audio()
             value = str(event.get("text", "")).strip()
             if value:
+                self.container.journal(self.session.call_id, "user_text", text=value)
                 self.start_turn(self.handle_utterance(text=value))
             return True
         if kind == "stop":
+            self.container.journal(self.session.call_id, "end", reason="stop")
             self.call_ended = True
             return False
         log.debug("ws unknown event: %s", kind)
@@ -505,8 +537,12 @@ async def voice_call(ws: WebSocket) -> None:
         tts_speaker=_parse_speaker(start, ws),
     )
     _ACTIVE_CONNECTIONS[call_id] = connection
+    if resuming:
+        container.journal(call_id, "resume")
+    else:
+        container.journal(call_id, "start", phone=phone, channel="ws")
     ui = str(start.get("ui") or "?")
-    log.info("ws call %s started for %s | клиент стенда: %s", call_id, phone, ui)
+    log.info("ws call %s started | клиент стенда: %s", call_id, ui)
 
     if resuming:
         connection.spawn(connection.handle_resume())
@@ -539,5 +575,7 @@ async def voice_call(ws: WebSocket) -> None:
     finally:
         if _ACTIVE_CONNECTIONS.get(call_id) is connection:
             _ACTIVE_CONNECTIONS.pop(call_id, None)
+            if not connection.call_ended:
+                container.journal(call_id, "disconnect")
         await connection.close()
         log.info("ws call %s closed", call_id)

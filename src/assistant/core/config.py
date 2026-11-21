@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     agent_timeout: float = 45.0     # максимум ждём хода диалогового агента Cloud.ru (LLM + RAG)
 
     # Сессии
+    call_log_enabled: bool = False
+    call_log_path: str = "/var/lib/assistant/call-logs/calls.sqlite3"
+    call_log_retention_days: int = 90
+    call_log_max_used_mb: int = 512
+    call_log_min_free_mb: int = 256
+    call_log_backup_dir: str = ""
+    call_log_backup_retention_days: int = 30
+    call_log_backup_interval_sec: int = 86400
     session_ttl_sec: float = 1800   # брошенный звонок выметается из памяти через 30 мин
 
     # Речь (локальные модели ASR)

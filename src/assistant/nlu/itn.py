@@ -135,8 +135,8 @@ def numbers_to_digits(text: str) -> str:
     if alpha2digit is not None:
         try:
             normalized = alpha2digit(text.replace("ё", "е"), "ru")  # type: ignore[operator]
-        except Exception as exc:
-            log.debug("alpha2digit skipped for %r: %s", text, exc)
+        except Exception:
+            log.debug("alpha2digit skipped after conversion error")
 
     normalized = _COMPOUND_ORD_RE.sub(_fix_compound_ordinal, normalized)
     normalized = _GLUED_ORD_RE.sub(_fix_glued_ordinal, normalized)
