@@ -110,5 +110,5 @@ def get_tickets_by_address(
         ticket for ticket in TICKETS
         if getattr(ticket, "street", "").strip().lower() == street.strip().lower()
         and getattr(ticket, "house", "").strip().lower() == house.strip().lower()
-        and (apartment is None or getattr(ticket, "apartment", "") == apartment)
+        and getattr(ticket, "apartment", None) in (None, apartment)
     ]

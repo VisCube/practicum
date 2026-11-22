@@ -27,7 +27,7 @@ RESIDENTS: list[Resident] = [
     Resident(
         name="Васильева Василиса Васильевна",
         phone=Phone("+79990000002"),
-        address=ADDRESSES[0],
+        address=ADDRESSES[1],
         apartment=45,
     ),
     Resident(

@@ -2,7 +2,7 @@ from src.assistant import Assistant
 
 
 def main() -> None:
-    phone = "+79990000001"
+    phone = "+79990000002"
     assistant = Assistant(phone=phone)
 
     while True:
