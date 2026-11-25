@@ -340,9 +340,15 @@ def test_bridge_env_validation_and_crm_normalization_and_unique_ids(
             ids = list(pool.map(create_one, range(16)))
         assert len(set(ids)) == 16
 
-        # Поиск по адресу с префиксами «ул.» и «д.» находит только что созданные заявки
+        # Поиск без квартиры не показывает персональные заявки других квартир.
         by_addr = handlers["get_tickets_by_address"](street="улица Тестовая", house="дом 77")
-        assert len(by_addr) == 16
+        assert by_addr == []
+        # Нормализация адреса и поиск конкретной квартиры по-прежнему работают.
+        for apartment, expected_id in enumerate(ids, start=1):
+            result = handlers["get_tickets_by_address"](
+                street="улица Тестовая", house="дом 77", apartment=apartment
+            )
+            assert [ticket.id for ticket in result] == [expected_id]
     finally:
         del tickets_mod.TICKETS[initial_len:]
         for k in ("FM_API_KEY", "RAG_KEY_ID", "RAG_KEY_SECRET", "RAG_BASE_URL", "LLM_MODEL"):

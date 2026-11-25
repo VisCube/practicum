@@ -83,11 +83,15 @@ class UpstreamAssistant(Protocol):
 def ensure_upstream_src() -> None:
     """Направляет пакет `src` строго в `_upstream/src`, не затрагивая пакет `assistant`.
 
-    Дополнительно явно регистрирует namespace-пакет `src.tools.crm` на директорию
-    `_upstream/src/tools/crm`: внутри `crm/` нет `__init__.py`, поэтому оставшийся на диске
-    старый файл `tools/crm.py` иначе перехватывает импорт и вызывает
-    `ModuleNotFoundError: ... 'src.tools.crm' is not a package`.
+    В чистой версии upstream Python сам загружает namespace-пакет crm.
+    Совместимость со старой смешанной копией нужна лишь при наличии crm.py рядом с
+    директорией crm без __init__.py; обычный пакет автора не подменяется.
     """
+    if not UPSTREAM_SRC.is_dir():
+        raise RuntimeError(
+            "Cloud.ru upstream отсутствует. Выполните: "
+            "git submodule update --init -- src/assistant/services/cloudru/_upstream"
+        )
     target = [str(UPSTREAM_SRC)]
     existing = sys.modules.get("src")
     if existing is None or list(getattr(existing, "__path__", [])) != target:
@@ -96,7 +100,12 @@ def ensure_upstream_src() -> None:
         pkg.__package__ = "src"
         sys.modules["src"] = pkg
 
-    if UPSTREAM_CRM_DIR.is_dir():
+    legacy_collision = (
+        UPSTREAM_CRM_DIR.is_dir()
+        and (UPSTREAM_SRC / "tools" / "crm.py").is_file()
+        and not (UPSTREAM_CRM_DIR / "__init__.py").is_file()
+    )
+    if legacy_collision:
         crm_target = [str(UPSTREAM_CRM_DIR)]
         existing_crm = sys.modules.get("src.tools.crm")
         if existing_crm is None or list(getattr(existing_crm, "__path__", [])) != crm_target:
@@ -149,6 +158,11 @@ def export_cloudru_env(settings: Settings, *, require_rag: bool) -> None:
 @functools.lru_cache(maxsize=1)
 def load_cloudru_categories() -> tuple[dict[str, Any], ...]:
     """Читает справочник категорий со схемами полей из `_upstream/classifier/categories.json`."""
+    if not UPSTREAM_SRC.is_dir():
+        raise RuntimeError(
+            "Cloud.ru upstream отсутствует. Выполните: "
+            "git submodule update --init -- src/assistant/services/cloudru/_upstream"
+        )
     raw = json.loads(UPSTREAM_CATEGORIES.read_text(encoding="utf-8"))
     return tuple(item for item in raw if isinstance(item, dict) and "name" in item)
 

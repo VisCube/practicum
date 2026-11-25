@@ -87,7 +87,7 @@ def test_bridge_isolates_upstream_src_and_loads_category_metadata(cloudru_env: N
     resident = find_cloudru_resident("8 (999) 000-00-02")
     assert resident is not None
     assert resident.full_name == "Васильева Василиса Васильевна"
-    assert resident.address == "ул. Ленина, д. 51"
+    assert resident.address == "ул. Мира, д. 19"
     assert resident.apartment == "45"
     assert find_cloudru_resident("+70000000000") is None
 
@@ -161,7 +161,15 @@ def test_crm_tools_and_ticket_guard_validation(cloudru_env: None) -> None:
     assert tools.TOOL_HANDLERS["get_ticket"](number="999999") is None
 
     by_addr = tools.TOOL_HANDLERS["get_tickets_by_address"](street="Мира", house="19")
-    assert len(by_addr) >= 3
+    assert {ticket.id for ticket in by_addr} == {1234, 3456}
+    with_apartment = tools.TOOL_HANDLERS["get_tickets_by_address"](
+        street="Мира", house="19", apartment=15
+    )
+    assert {ticket.id for ticket in with_apartment} == {1234, 3456, 5678}
+    other_apartment = tools.TOOL_HANDLERS["get_tickets_by_address"](
+        street="Мира", house="19", apartment=16
+    )
+    assert {ticket.id for ticket in other_apartment} == {1234, 3456}
 
     create_fn = tools.TOOL_HANDLERS["create_ticket"]
 
@@ -736,3 +744,40 @@ def test_fastapi_container_wires_cloudru_demo_phones_ui_input_and_asr(
         assert len(outbox) == 1 and outbox[0]["appeal"]["id"] == "7788"
         assert outbox[0]["appeal"]["slots"]["entry"] == "2"
         assert outbox[0]["appeal"]["owner"]["full_name"] == "Иванов Иван Иванович"
+
+
+def test_clean_upstream_crm_is_loaded_as_normal_namespace(cloudru_env: None) -> None:
+    import os
+    import subprocess
+    import sys
+
+    code = (
+        "from assistant.services.cloudru.bridge import load_assistant_cls; "
+        "load_assistant_cls(); import src.tools.crm as crm; "
+        "assert crm.__spec__ is not None; "
+        "print('normal namespace import')"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        env=os.environ.copy(),
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "normal namespace import" in result.stdout
+
+
+def test_missing_upstream_has_clear_init_instruction(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+):
+    import assistant.services.cloudru.bridge as bridge
+
+    monkeypatch.setattr(bridge, "UPSTREAM_SRC", tmp_path / "missing")
+    with pytest.raises(RuntimeError, match="git submodule update --init"):
+        bridge.ensure_upstream_src()
+    bridge.load_cloudru_categories.cache_clear()
+    with pytest.raises(RuntimeError, match="git submodule update --init"):
+        bridge.load_cloudru_categories()
+    bridge.load_cloudru_categories.cache_clear()

@@ -1,0 +1,4 @@
+[submodule "src/assistant/services/cloudru/_upstream"]
+	path = src/assistant/services/cloudru/_upstream
+	url = https://github.com/VisCube/practicum.git
+	branch = feat/cloud-ru
