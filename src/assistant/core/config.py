@@ -9,7 +9,7 @@ DialogAdapter = Literal["rules", "cloudru"]
 AsrAdapter = Literal["fake", "vosk", "t-one", "cloudru"]
 TtsAdapter = Literal["fake", "piper", "silero", "cloudru"]
 LlmAdapter = Literal["fake", "openai", "cloudru"]
-CrmAdapter = Literal["fake", "telegram", "bitrix"]
+CrmAdapter = Literal["off", "fake", "telegram", "bitrix"]
 TelephonyAdapter = Literal["fake"]
 
 

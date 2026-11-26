@@ -8,17 +8,14 @@
 
 from __future__ import annotations
 
-import difflib
 import functools
 import importlib
-import importlib.util
 import json
+import logging
 import os
 import re
 import sys
-import threading
 import types
-from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -27,21 +24,12 @@ from assistant.core.models import Owner
 if TYPE_CHECKING:
     from assistant.core.config import Settings
 
+log = logging.getLogger(__name__)
+
 UPSTREAM_ROOT = Path(__file__).resolve().parent / "_upstream"
 UPSTREAM_SRC = UPSTREAM_ROOT / "src"
 UPSTREAM_CATEGORIES = UPSTREAM_ROOT / "classifier" / "categories.json"
 UPSTREAM_CRM_DIR = UPSTREAM_SRC / "tools" / "crm"
-
-_TICKETS_LOCK = threading.RLock()
-_IAM_LOCK = threading.Lock()
-_MAX_MOCK_TICKETS = 500
-_SEED_TICKETS_KEEP = 4
-
-_STREET_PREFIX_RE = re.compile(
-    r"^(?:улица|ул\.?|проспект|пр-т\.?|пр\.?|переулок|пер\.?|бульвар|б-р\.?|набережная|наб\.?|шоссе|ш\.?)\s+",
-    re.IGNORECASE,
-)
-_HOUSE_PREFIX_RE = re.compile(r"^(?:дом|д\.?)\s*", re.IGNORECASE)
 
 BASE_SLOT_LABELS: dict[str, str] = {
     "resident": "ФИО заявителя",
@@ -74,8 +62,6 @@ class UpstreamToolCall(Protocol):
 
 
 class UpstreamAssistant(Protocol):
-    messages: list[Any]
-
     def __init__(self, phone: str) -> None: ...
     def handle_message(self, user_input: str) -> tuple[str, list[UpstreamToolCall]]: ...
 
@@ -147,12 +133,6 @@ def export_cloudru_env(settings: Settings, *, require_rag: bool) -> None:
         mode = "DIALOG_ADAPTER=cloudru" if require_rag else "ASR_ADAPTER=cloudru"
         raise RuntimeError(f"{mode}: не заданы обязательные переменные {', '.join(missing)}")
 
-    # Если `src.config` уже был импортирован ранее в процессе — синхронизируем атрибуты
-    cfg_mod = sys.modules.get("src.config")
-    if cfg_mod is not None and getattr(cfg_mod, "__file__", "").startswith(str(UPSTREAM_SRC)):
-        for key in pairs:
-            if key in os.environ:
-                setattr(cfg_mod, key, os.environ[key])
 
 
 @functools.lru_cache(maxsize=1)
@@ -163,8 +143,14 @@ def load_cloudru_categories() -> tuple[dict[str, Any], ...]:
             "Cloud.ru upstream отсутствует. Выполните: "
             "git submodule update --init -- src/assistant/services/cloudru/_upstream"
         )
-    raw = json.loads(UPSTREAM_CATEGORIES.read_text(encoding="utf-8"))
-    return tuple(item for item in raw if isinstance(item, dict) and "name" in item)
+    try:
+        raw = json.loads(UPSTREAM_CATEGORIES.read_text(encoding="utf-8"))
+        if not isinstance(raw, list):
+            raise ValueError("categories must be a list")
+        return tuple(item for item in raw if isinstance(item, dict) and "name" in item)
+    except (OSError, ValueError):
+        log.warning("Cloud.ru category metadata unavailable; using generic labels")
+        return ()
 
 
 @functools.lru_cache(maxsize=1)
@@ -189,45 +175,22 @@ def find_cloudru_category(name: str) -> dict[str, Any] | None:
     for item in categories:
         if item["name"] == cleaned:
             return item
-    names = [str(item["name"]) for item in categories]
-    matches = difflib.get_close_matches(cleaned, names, n=1, cutoff=0.6)
-    if matches:
-        target = matches[0]
-        return next((item for item in categories if item["name"] == target), None)
     return None
 
 
 def _load_residents_module() -> Any:
-    """Загружает `residents.py` из `_upstream` без инициализации сетевых ключей `src.config`."""
+    """Опциональный источник номеров для стенда из авторской демо-CRM."""
     ensure_upstream_src()
-    mod_name = "src.tools.crm.residents"
-    if mod_name in sys.modules:
-        return sys.modules[mod_name]
-    try:
-        return importlib.import_module(mod_name)
-    except Exception:
-        # Фолбэк для окружений без выставленных FM_API_KEY / RAG_* (например, оффлайн-тесты)
-        crm_pkg_name = "src.tools.crm"
-        if crm_pkg_name not in sys.modules:
-            crm_pkg = types.ModuleType(crm_pkg_name)
-            crm_pkg.__path__ = [str(UPSTREAM_CRM_DIR)]
-            crm_pkg.__package__ = crm_pkg_name
-            sys.modules[crm_pkg_name] = crm_pkg
-        for sub in ("addresses", "residents"):
-            full = f"{crm_pkg_name}.{sub}"
-            if full in sys.modules:
-                continue
-            spec = importlib.util.spec_from_file_location(full, UPSTREAM_CRM_DIR / f"{sub}.py")
-            if spec and spec.loader:
-                module = importlib.util.module_from_spec(spec)
-                sys.modules[full] = module
-                spec.loader.exec_module(module)
-        return sys.modules[mod_name]
+    return importlib.import_module("src.tools.crm.residents")
 
 
 def load_cloudru_demo_phones() -> list[str]:
     """Возвращает номера телефонов жильцов из CRM-заглушки `_upstream`."""
-    residents_mod = _load_residents_module()
+    try:
+        residents_mod = _load_residents_module()
+    except (ImportError, OSError, KeyError, AttributeError):
+        log.warning("Cloud.ru demo phones unavailable")
+        return []
     residents = getattr(residents_mod, "RESIDENTS", ())
     phones: list[str] = []
     for resident in residents:
@@ -237,6 +200,16 @@ def load_cloudru_demo_phones() -> list[str]:
             phones.append(number.strip())
     return phones
 
+
+
+def normalize_caller_phone(value: str) -> str:
+    """Телефон вызывающего: страна 7 и десять цифр номера."""
+    if not isinstance(value, str) or re.search(r"[^0-9+()\s-]", value):
+        raise ValueError("Телефон должен содержать 7 и 10 цифр номера")
+    digits = re.sub(r"[+()\s-]", "", value)
+    if len(digits) != 11 or not digits.startswith("7"):
+        raise ValueError("Телефон должен содержать 7 и 10 цифр номера")
+    return "+" + digits
 
 def format_street_house(street: str, house: str) -> str:
     """Форматирует пару `(street, house)` в читаемый адрес."""
@@ -253,20 +226,6 @@ def format_street_house(street: str, house: str) -> str:
         prefix_h = "" if lower_h.startswith(("д.", "д ", "дом")) else "д. "
         parts.append(f"{prefix_h}{h}")
     return ", ".join(parts)
-
-
-def _clean_street_name(street: str) -> str:
-    return _STREET_PREFIX_RE.sub("", street.strip()).strip()
-
-
-def _clean_house_number(house: str) -> str:
-    return _HOUSE_PREFIX_RE.sub("", house.strip()).strip()
-
-
-def _clean_ticket_number(number: str) -> str:
-    stripped = str(number or "").strip()
-    cleaned = re.sub(r"[№#\s]+", "", stripped)
-    return cleaned or stripped
 
 
 def resident_dict_to_owner(data: dict[str, Any], fallback_phone: str = "") -> Owner | None:
@@ -315,155 +274,9 @@ def find_cloudru_resident(phone: str) -> Owner | None:
     return resident_dict_to_owner(raw, fallback_phone=phone)
 
 
-def _is_filled(value: Any) -> bool:
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return bool(value.strip())
-    return True
-
-
-def _install_tool_guards() -> None:
-    """Дополняет `TOOL_HANDLERS` потокобезопасностью, нормализацией адресов/номеров и защитами."""
-    tools_mod = importlib.import_module("src.tools")
-    if "src.tools.crm" in sys.modules:
-        tools_mod.crm = sys.modules["src.tools.crm"]  # type: ignore[attr-defined]
-    handlers = getattr(tools_mod, "TOOL_HANDLERS", None)
-    if not isinstance(handlers, dict):
-        return
-
-    classifier_mod = importlib.import_module("src.tools.classifier")
-    tickets_mod = importlib.import_module("src.tools.crm.tickets")
-    raw_get_category = getattr(classifier_mod, "get_category", None)
-
-    if callable(raw_get_category) and not getattr(raw_get_category, "_cloudru_guarded", False):
-        def guarded_get_category(category: str) -> dict[str, Any]:
-            try:
-                res: dict[str, Any] = raw_get_category(category)
-                return res
-            except StopIteration:
-                matched = find_cloudru_category(category)
-                if matched is not None:
-                    return matched
-                return {
-                    "id": None,
-                    "name": category.strip() or "Обращение",
-                    "type": "Персональная",
-                    "action": "ticket",
-                    "parameters": {"type": "object", "properties": {}, "required": []},
-                }
-
-        guarded_get_category._cloudru_guarded = True  # type: ignore[attr-defined]
-        classifier_mod.get_category = guarded_get_category  # type: ignore[attr-defined]
-        tickets_mod.get_category = guarded_get_category  # type: ignore[attr-defined]
-        handlers["get_category"] = guarded_get_category
-
-    current_get_ticket = handlers.get("get_ticket")
-    if callable(current_get_ticket) and not getattr(current_get_ticket, "_cloudru_guarded", False):
-        def guarded_get_ticket(number: str) -> Any:
-            cleaned = _clean_ticket_number(number)
-            with _TICKETS_LOCK:
-                return current_get_ticket(number=cleaned)
-
-        guarded_get_ticket._cloudru_guarded = True  # type: ignore[attr-defined]
-        handlers["get_ticket"] = guarded_get_ticket
-
-    current_by_addr = handlers.get("get_tickets_by_address")
-    if callable(current_by_addr) and not getattr(current_by_addr, "_cloudru_guarded", False):
-        def guarded_get_tickets_by_address(
-            street: str,
-            house: str,
-            apartment: int | None = None,
-        ) -> Any:
-            norm_street = _clean_street_name(str(street or ""))
-            norm_house = _clean_house_number(str(house or ""))
-            with _TICKETS_LOCK:
-                return current_by_addr(
-                    street=norm_street,
-                    house=norm_house,
-                    apartment=apartment,
-                )
-
-        guarded_get_tickets_by_address._cloudru_guarded = True  # type: ignore[attr-defined]
-        handlers["get_tickets_by_address"] = guarded_get_tickets_by_address
-
-    current_create = handlers.get("create_ticket")
-    if callable(current_create) and not getattr(current_create, "_cloudru_guarded", False):
-        def guarded_create_ticket(
-            category: str,
-            phone: str,
-            description: str,
-            **fields: Any,
-        ) -> Any:
-            if not _is_filled(description):
-                return {"missing_fields": ["description"]}
-            clean_fields = {k: v for k, v in fields.items() if _is_filled(v)}
-            if isinstance(clean_fields.get("street"), str):
-                clean_fields["street"] = _clean_street_name(clean_fields["street"])
-            if isinstance(clean_fields.get("house"), str):
-                clean_fields["house"] = _clean_house_number(clean_fields["house"])
-
-            with _TICKETS_LOCK:
-                tickets_list: list[Any] = getattr(tickets_mod, "TICKETS", [])
-                existing_ids = {
-                    int(t_id)
-                    for item in tickets_list
-                    if isinstance(t_id := getattr(item, "id", None), int)
-                }
-                created = current_create(
-                    category=category,
-                    phone=phone,
-                    description=description.strip(),
-                    **clean_fields,
-                )
-                # Исключаем коллизию randint(1234, 7890) между параллельными звонками
-                created_id = getattr(created, "id", None)
-                if isinstance(created_id, int) and created_id in existing_ids:
-                    next_id = max(existing_ids, default=7890) + 1
-                    created.id = next_id
-                # Ограничиваем рост мок-списка TICKETS в памяти при длительном аптайме
-                if len(tickets_list) > _MAX_MOCK_TICKETS:
-                    overflow = len(tickets_list) - _MAX_MOCK_TICKETS
-                    del tickets_list[_SEED_TICKETS_KEEP : _SEED_TICKETS_KEEP + overflow]
-                return created
-
-        guarded_create_ticket._cloudru_guarded = True  # type: ignore[attr-defined]
-        handlers["create_ticket"] = guarded_create_ticket
-
-    # Защищаем IAM-токен от thundering herd при одновременном старте нескольких звонков
-    try:
-        iam_mod = importlib.import_module("src.iam")
-        search_mod = importlib.import_module("src.tools.search")
-    except Exception:
-        iam_mod = None
-        search_mod = None
-
-    if iam_mod is not None:
-        raw_get_token = getattr(iam_mod, "get_access_token", None)
-        if callable(raw_get_token) and not getattr(raw_get_token, "_cloudru_guarded", False):
-            def guarded_get_access_token() -> str:
-                with _IAM_LOCK:
-                    token: str = raw_get_token()
-                    return token
-
-            guarded_get_access_token._cloudru_guarded = True  # type: ignore[attr-defined]
-            iam_mod.get_access_token = guarded_get_access_token  # type: ignore[attr-defined]
-            if search_mod is not None and hasattr(search_mod, "get_access_token"):
-                search_mod.get_access_token = guarded_get_access_token  # type: ignore[attr-defined]
-
-
-def load_transcribe() -> Callable[[bytes], str]:
-    """Лениво загружает функцию `transcribe(data: bytes) -> str` из `_upstream`."""
-    ensure_upstream_src()
-    module = importlib.import_module("src.transcribe")
-    fn: Callable[[bytes], str] = module.transcribe
-    return fn
-
-
 def load_assistant_cls() -> type[UpstreamAssistant]:
     """Лениво загружает класс `Assistant` из `_upstream`."""
     ensure_upstream_src()
-    _install_tool_guards()
     module = importlib.import_module("src.assistant")
     cls: type[UpstreamAssistant] = module.Assistant
     return cls

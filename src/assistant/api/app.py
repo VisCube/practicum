@@ -82,14 +82,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             container.call_journal = journal
             container.closeables.append(journal)
         stop_event = asyncio.Event()
-        worker = asyncio.create_task(container.outbox.run(stop_event, interval=1.0))
+        worker = (
+            asyncio.create_task(container.outbox.run(stop_event, interval=1.0))
+            if settings.crm_adapter != "off" else None
+        )
         sweeper = asyncio.create_task(_run_sweep_loop(container, stop_event, interval=60.0))
         warmup = asyncio.create_task(container.warm())
         try:
             yield
         finally:
             stop_event.set()
-            await asyncio.gather(worker, sweeper, return_exceptions=True)
+            tasks = [sweeper, *([worker] if worker is not None else [])]
+            await asyncio.gather(*tasks, return_exceptions=True)
             warmup.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await warmup

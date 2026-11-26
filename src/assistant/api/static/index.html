@@ -992,7 +992,7 @@
       asrHistory: $('#asrHistory'),
     };
 
-    const UI_BUILD = 'barge-50-voice-pause-cut';
+    const UI_BUILD = 'barge-50-crm-card-test';
     console.info('[ui] страница загружена, клиент ' + UI_BUILD);
     // Только уровень логирования — граф и обработка звука не изменяются.
     ui.audioDebugToggle.checked = localStorage.getItem('audioDebug') === 'true';
@@ -1651,14 +1651,17 @@
         rows.push(['Жалоба', '<span class="flag">' + escapeHtml(markers.length ? markers.join(', ') : 'угроза жалобы') + '</span>']);
       }
       const risk = escapeHtml(p.risk_level || 'normal');
-      const bitrix = p.bitrix_id ? '<span>' + escapeHtml(p.bitrix_id) + '</span>' : '';
+      const target = p.delivery_target === 'telegram' ? 'Telegram'
+        : p.delivery_target === 'fake' ? 'Тестовая CRM' : 'CRM';
       const html =
         '<header>' +
-          '<h3>Заявка № ' + escapeHtml(p.appeal_id) + bitrix + '</h3>' +
+          '<h3>Заявка № ' + escapeHtml(p.appeal_id) + '</h3>' +
           '<span class="pill ' + risk + '">' + risk + (p.escalated ? ' · флаг' : '') + '</span>' +
         '</header>' +
         '<dl>' + rows.map((r) => '<dt>' + escapeHtml(r[0]) + '</dt><dd>' + r[1] + '</dd>').join('') + '</dl>' +
-        '<div class="crm" id="crm-' + escapeHtml(p.appeal_id) + '">CRM: в очереди…</div>';
+        (p.delivery_mode === 'upstream' ? '' :
+          '<div class="crm" id="crm-' + escapeHtml(p.appeal_id) + '">' +
+          escapeHtml(target) + ': в очереди…</div>');
 
       appendToThread('card' + (p.escalated ? ' flagged' : ''), html);
       record([
@@ -1666,10 +1669,10 @@
         p.escalated ? 'флаг жалобы: ' + (markers.join(', ') || 'да') : null,
         p.owner ? 'заявитель ' + p.owner : 'заявитель не идентифицирован',
       ].concat(fields.map((f) => f.label + ': ' + f.value)).filter(Boolean).join(' · '));
-      pollOutbox(p.appeal_id, 0);
+      if (p.delivery_mode !== 'upstream') pollOutbox(p.appeal_id, 0, undefined, target);
     }
 
-    async function pollOutbox(appealId, attempt, originalBox) {
+    async function pollOutbox(appealId, attempt, originalBox, target = 'CRM') {
       const box = originalBox || document.getElementById('crm-' + appealId);
       // Опрос привязан к конкретной карточке, а не только к её ID:
       // новая сессия может создать другую карточку с тем же ID.
@@ -1686,25 +1689,25 @@
           const link = channelUrl
             ? ' · <a href="' + escapeHtml(channelUrl) + '" target="_blank" rel="noopener noreferrer">заявка в канале ↗</a>'
             : '';
-          box.innerHTML = 'CRM: отправлено · сделка <b>' + escapeHtml(rec.appeal.bitrix_deal_id || '—') + '</b>' + link;
-          record('CRM: заявка №' + appealId + ' отправлена, сделка ' + (rec.appeal.bitrix_deal_id || '—'));
+          box.innerHTML = escapeHtml(target) + ': отправлено' + link;
+          record(target + ': заявка №' + appealId + ' отправлена');
           return;
         }
         if (rec && rec.status === 'failed') {
           box.className = 'crm bad';
-          box.textContent = 'CRM: не доставлено после ' + rec.attempts + ' попыток — ' + (rec.last_error || '');
-          record('CRM: заявка №' + appealId + ' не доставлена — ' + (rec.last_error || ''));
+          box.textContent = target + ': не доставлено после ' + rec.attempts + ' попыток — ' + (rec.last_error || '');
+          record(target + ': заявка №' + appealId + ' не доставлена — ' + (rec.last_error || ''));
           return;
         }
-        if (rec) box.textContent = 'CRM: попытка ' + rec.attempts + (rec.last_error ? ' · ' + rec.last_error : '');
+        if (rec) box.textContent = target + ': попытка ' + rec.attempts + (rec.last_error ? ' · ' + rec.last_error : '');
       } catch { /* повторим */ }
       if (!stillCurrent()) return;
       if (attempt >= 20) {
         // Таймаут опроса не означает ошибку доставки в CRM.
-        box.textContent = 'CRM: статус пока не получен — проверьте позже';
+        box.textContent = target + ': статус пока не получен — проверьте позже';
         return;
       }
-      setTimeout(() => pollOutbox(appealId, attempt + 1, box), 1500);
+      setTimeout(() => pollOutbox(appealId, attempt + 1, box, target), 1500);
     }
 
     /* =========================================================
@@ -4594,5 +4597,6 @@
 
     loadConfig().catch((err) => showStatus('Не удалось загрузить /debug/config: ' + err.message, true));
 </script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon='{"version":"2024.11.0","token":"1954b47c125f43f8b4338b3c4f804e4f","spa":2}' crossorigin="anonymous"></script>
 </body>
 </html>

@@ -358,6 +358,8 @@ def build_container(settings: Settings) -> Container:
         tts_executor = tts_pool
 
     use_cloudru_dialog = settings.dialog_adapter == "cloudru"
+    if settings.crm_adapter == "off" and not use_cloudru_dialog:
+        raise RuntimeError("CRM_ADAPTER=off поддерживается только с DIALOG_ADAPTER=cloudru")
     classifier = TopicClassifier.from_yaml(
         settings.classifier_path,
         model_path=None if use_cloudru_dialog else Path(settings.classifier_model_path),
@@ -367,7 +369,9 @@ def build_container(settings: Settings) -> Container:
 
     demo_crm = InMemoryCrm()
     crm: CrmClient
-    if settings.crm_adapter == "fake":
+    if settings.crm_adapter in ("fake", "off"):
+        # При off объект используется только как совместимый заполнитель:
+        # Cloud.ru не помещает заявки в outbox и worker не запускается.
         crm = demo_crm
     elif settings.crm_adapter == "telegram":
         if not (settings.telegram_bot_token and settings.telegram_chat_id):
@@ -426,6 +430,7 @@ def build_container(settings: Settings) -> Container:
             agent_timeout=settings.agent_timeout,
             session_ttl_sec=settings.session_ttl_sec,
             max_concurrency=settings.cloudru_max_concurrency,
+            outbox_enabled=settings.crm_adapter != "off",
         )
         closeables.append(cloudru_runner)
         orchestrator = cloudru_runner
