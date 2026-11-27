@@ -10,6 +10,7 @@ from openai.types.chat import (
 )
 
 from src.config import FM_API_KEY, FM_BASE_URL, LLM_MODEL, SYSTEM_PROMPT
+from src.response_filter import clean_response
 from src.tools import handle_tool_call, TOOL_SCHEMAS
 
 
@@ -37,12 +38,13 @@ class Assistant:
                 model=LLM_MODEL,
                 messages=self.messages,
                 tools=TOOL_SCHEMAS,
+                temperature=0.2
             )
             message = response.choices[0].message
             self.messages.append(message.model_dump(exclude_none=True))
 
             if not message.tool_calls:
-                return message.content or "", tool_calls
+                return clean_response(message.content), tool_calls
 
             for tool_call in message.tool_calls:
                 if not isinstance(tool_call, FunctionToolCall):
