@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DialogAdapter = Literal["rules", "cloudru"]
@@ -32,8 +33,14 @@ class Settings(BaseSettings):
     asr_adapter: AsrAdapter = "fake"
     tts_adapter: TtsAdapter = "fake"
     llm_adapter: LlmAdapter = "fake"
-    crm_adapter: CrmAdapter = "fake"
+    crm_adapter: CrmAdapter = "off"
     telephony_adapter: TelephonyAdapter = "fake"
+
+    @model_validator(mode="after")
+    def _rules_default_crm(self) -> "Settings":
+        if self.dialog_adapter == "rules" and "crm_adapter" not in self.model_fields_set:
+            self.crm_adapter = "fake"
+        return self
 
     # Таймауты горячего пути (внутри звонка), сек
     crm_timeout: float = 2.0

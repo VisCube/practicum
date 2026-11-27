@@ -599,6 +599,7 @@ def test_fastapi_container_wires_cloudru_demo_phones_ui_input_and_asr(
         data_dir=data_dir,
         debug_ui=True,
         dialog_adapter="cloudru",
+        crm_adapter="fake",
         asr_adapter="cloudru",
         fm_api_key="fm-test",
         llm_model="openai/gpt-oss-120b",

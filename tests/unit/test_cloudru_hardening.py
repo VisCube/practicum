@@ -7,7 +7,6 @@ import builtins
 import contextlib
 import importlib
 import json
-import os
 import sys
 import threading
 import time
@@ -31,7 +30,6 @@ from assistant.core.voice_session import VoiceSession
 from assistant.nlu.escalation import EscalationDetector
 from assistant.nlu.itn import numbers_to_digits
 from assistant.services.asr.cloudru import CloudRuAsr, is_whisper_hallucination
-from assistant.services.cloudru.bridge import export_cloudru_env, load_assistant_cls
 from assistant.services.cloudru.dialog import CloudRuDialogAdapter
 from assistant.services.crm.fake import InMemoryCrm
 from assistant.services.crm.outbox import InMemoryOutboxStore, Outbox
@@ -282,33 +280,6 @@ def test_cloudru_asr_filters_hallucinations_aligns_odd_pcm_and_reuses_client(
         assert closed_count == 1
 
     asyncio.run(scenario())
-
-
-# ------------------------------------------------------------------ 5. Bridge: защиты CRM и env
-
-
-def test_bridge_env_validation_and_crm_normalization_and_unique_ids(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # Отсутствующий FM_API_KEY даёт понятную RuntimeError вместо сырого KeyError из _upstream
-    monkeypatch.delenv("FM_API_KEY", raising=False)
-    empty_settings = Settings(data_dir=DATA, fm_api_key="", _env_file=None)  # type: ignore[call-arg]
-    with pytest.raises(RuntimeError, match="FM_API_KEY"):
-        export_cloudru_env(empty_settings, require_rag=False)
-
-    valid_settings = Settings(
-        data_dir=DATA,
-        fm_api_key="key-1",
-        rag_key_id="rk",
-        rag_key_secret="rs",
-        rag_base_url="https://rag.example.com",
-        llm_model="gpt-oss-120b",
-        _env_file=None,  # type: ignore[call-arg]
-    )
-    export_cloudru_env(valid_settings, require_rag=True)
-    load_assistant_cls()
-
-    assert os.environ["FM_API_KEY"] == "key-1"
 
 
 # ----------------------------------------------------- 6. CloudRuDialogAdapter: гонки и сбои

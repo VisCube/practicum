@@ -34,11 +34,11 @@ class Agent:
         return 'Заявка создана', [call]
 
 
-def adapter(crm, enabled):
+def adapter(crm, enabled, target="crm"):
     outbox = Outbox(crm, InMemoryOutboxStore())
     return CloudRuDialogAdapter(store=InMemorySessionStore(), crm=crm, outbox=outbox,
                                telephony=FakeTelephony(), assistant_factory=Agent,
-                               outbox_enabled=enabled), outbox
+                               outbox_enabled=enabled, delivery_target=target), outbox
 
 
 @pytest.mark.asyncio
@@ -51,6 +51,7 @@ async def test_off_preserves_event_without_queue_or_delivery():
         card = next(event for event in reply.events if event.type == 'appeal_created')
         assert card.payload['appeal_id'] == '4422'
         assert card.payload['delivery_mode'] == 'upstream'
+        assert card.payload['delivery_target'] is None
         assert card.payload['slots']['description'] == 'тест'
         assert dialog.store.get('off').appeals == ['4422']
         assert outbox.store.all() == []
@@ -70,12 +71,13 @@ async def test_telegram_remains_a_crm_and_delivers_through_outbox():
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
     crm = TelegramCrm(InMemoryCrm(), 'test-token', 'test-chat', client=client)
-    dialog, outbox = adapter(crm, True)
+    dialog, outbox = adapter(crm, True, 'telegram')
     try:
         await dialog.start('telegram', '+79990000001')
         reply = await dialog.handle_turn('telegram', '+79990000001', 'создай')
         card = next(event for event in reply.events if event.type == 'appeal_created')
         assert card.payload['delivery_mode'] == 'outbox'
+        assert card.payload['delivery_target'] == 'telegram'
         assert outbox.store.get('4422') is not None
         assert await outbox.process_once() == 1
         assert len(requests) == 1
@@ -184,6 +186,46 @@ async def test_off_does_not_dispatch_even_with_telegram_credentials(monkeypatch)
     try:
         await container.orchestrator.start('off-with-creds', '+79990000001')
         reply = await container.orchestrator.handle_turn('off-with-creds', '+79990000001', 'заявка')
+        card = next(e for e in reply.events if e.type == 'appeal_created')
+        assert card.payload['delivery_mode'] == 'upstream'
+        assert container.outbox.store.all() == []
+    finally:
+        await container.aclose()
+
+
+def test_crm_default_and_explicit_overrides(monkeypatch):
+    monkeypatch.delenv('CRM_ADAPTER', raising=False)
+    monkeypatch.delenv('DIALOG_ADAPTER', raising=False)
+    assert Settings(data_dir=DATA, dialog_adapter='cloudru', _env_file=None).crm_adapter == 'off'
+    assert Settings(data_dir=DATA, dialog_adapter='rules', _env_file=None).crm_adapter == 'fake'
+    assert Settings(data_dir=DATA, dialog_adapter='cloudru', crm_adapter='telegram',
+                    _env_file=None).crm_adapter == 'telegram'
+    assert Settings(data_dir=DATA, dialog_adapter='cloudru', crm_adapter='fake',
+                    _env_file=None).crm_adapter == 'fake'
+    assert Settings(data_dir=DATA, dialog_adapter='rules', crm_adapter='off',
+                    _env_file=None).crm_adapter == 'off'
+
+
+def test_explicit_environment_overrides_cloudru_default(monkeypatch):
+    monkeypatch.setenv('CRM_ADAPTER', 'telegram')
+    settings = Settings(data_dir=DATA, dialog_adapter='cloudru', _env_file=None)
+    assert settings.crm_adapter == 'telegram'
+
+
+@pytest.mark.asyncio
+async def test_default_cloudru_builds_without_outbox_delivery(monkeypatch):
+    monkeypatch.delenv('CRM_ADAPTER', raising=False)
+    settings = Settings(
+        data_dir=DATA, dialog_adapter='cloudru', asr_adapter='fake', tts_adapter='fake',
+        fm_api_key='test', llm_model='test', rag_key_id='test', rag_key_secret='test',
+        rag_base_url='https://example.invalid', _env_file=None,
+    )
+    assert settings.crm_adapter == 'off'
+    container = build_container(settings)
+    container.orchestrator._factory = Agent
+    try:
+        await container.orchestrator.start('default-off', '+79990000001')
+        reply = await container.orchestrator.handle_turn('default-off', '+79990000001', 'заявка')
         card = next(e for e in reply.events if e.type == 'appeal_created')
         assert card.payload['delivery_mode'] == 'upstream'
         assert container.outbox.store.all() == []

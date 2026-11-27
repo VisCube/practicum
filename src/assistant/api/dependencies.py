@@ -416,10 +416,8 @@ def build_container(settings: Settings) -> Container:
 
     orchestrator: DialogRunner
     if use_cloudru_dialog:
-        from assistant.services.cloudru.bridge import export_cloudru_env
         from assistant.services.cloudru.dialog import CloudRuDialogAdapter
 
-        export_cloudru_env(settings, require_rag=True)
         cloudru_runner = CloudRuDialogAdapter(
             store=store,
             crm=crm,
@@ -431,6 +429,7 @@ def build_container(settings: Settings) -> Container:
             session_ttl_sec=settings.session_ttl_sec,
             max_concurrency=settings.cloudru_max_concurrency,
             outbox_enabled=settings.crm_adapter != "off",
+            delivery_target=settings.crm_adapter,
         )
         closeables.append(cloudru_runner)
         orchestrator = cloudru_runner
@@ -506,9 +505,7 @@ def _build_asr(
         )
     if settings.asr_adapter == "cloudru":
         from assistant.services.asr.cloudru import CloudRuAsr
-        from assistant.services.cloudru.bridge import export_cloudru_env
 
-        export_cloudru_env(settings, require_rag=settings.dialog_adapter == "cloudru")
         return CloudRuAsr(
             sample_rate=settings.asr_sample_rate,
             timeout=settings.speech_timeout,

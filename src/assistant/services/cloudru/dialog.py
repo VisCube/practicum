@@ -71,12 +71,14 @@ class CloudRuDialogAdapter:
         session_ttl_sec: float = 1800.0,
         max_concurrency: int = 32,
         outbox_enabled: bool = True,
+        delivery_target: str = "crm",
         assistant_factory: Callable[[str], UpstreamAssistant] | None = None,
     ) -> None:
         self.store = store
         self.crm = crm
         self.outbox = outbox
         self._outbox_enabled = outbox_enabled
+        self._delivery_target = delivery_target
         self._seen_ticket_ids: dict[str, None] = {}
         self.telephony = telephony
         self.escalation = escalation
@@ -632,6 +634,7 @@ class CloudRuDialogAdapter:
             payload={
                 "appeal_id": local_id,
                 "delivery_mode": "outbox" if self._outbox_enabled else "upstream",
+                "delivery_target": self._delivery_target if self._outbox_enabled else None,
                 "topic": topic.name,
                 "topic_id": topic.id,
                 "bitrix_id": topic.bitrix_id,

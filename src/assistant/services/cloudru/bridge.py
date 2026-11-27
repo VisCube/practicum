@@ -12,17 +12,13 @@ import functools
 import importlib
 import json
 import logging
-import os
 import re
 import sys
 import types
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Any, Protocol
 
 from assistant.core.models import Owner
-
-if TYPE_CHECKING:
-    from assistant.core.config import Settings
 
 log = logging.getLogger(__name__)
 
@@ -102,37 +98,6 @@ def ensure_upstream_src() -> None:
             tools_mod = sys.modules.get("src.tools")
             if tools_mod is not None:
                 tools_mod.crm = crm_pkg  # type: ignore[attr-defined]
-
-
-def export_cloudru_env(settings: Settings, *, require_rag: bool) -> None:
-    """Прокидывает настройки Cloud.ru из `Settings` в `os.environ` для `_upstream/src/config.py`."""
-    pairs = {
-        "FM_API_KEY": settings.fm_api_key,
-        "FM_BASE_URL": settings.fm_base_url,
-        "LLM_MODEL": settings.llm_model,
-        "STT_MODEL": settings.stt_model,
-        "RAG_KEY_ID": settings.rag_key_id,
-        "RAG_KEY_SECRET": settings.rag_key_secret,
-        "RAG_BASE_URL": settings.rag_base_url,
-        "IAM_TOKEN_URL": settings.iam_token_url,
-    }
-    optional_when_asr_only = {"LLM_MODEL", "RAG_KEY_ID", "RAG_KEY_SECRET", "RAG_BASE_URL"}
-    for key, value in pairs.items():
-        if value:
-            os.environ[key] = value
-        elif not require_rag and key in optional_when_asr_only:
-            os.environ.setdefault(key, "")
-
-    required_keys = (
-        ("FM_API_KEY", "FM_BASE_URL", "LLM_MODEL", "RAG_KEY_ID", "RAG_KEY_SECRET", "RAG_BASE_URL")
-        if require_rag
-        else ("FM_API_KEY", "FM_BASE_URL", "STT_MODEL")
-    )
-    missing = [k for k in required_keys if not os.environ.get(k, "").strip()]
-    if missing:
-        mode = "DIALOG_ADAPTER=cloudru" if require_rag else "ASR_ADAPTER=cloudru"
-        raise RuntimeError(f"{mode}: не заданы обязательные переменные {', '.join(missing)}")
-
 
 
 @functools.lru_cache(maxsize=1)
